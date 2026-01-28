@@ -5,7 +5,7 @@ const morgan = require('morgan');
 const path = require('path');
 require('dotenv').config();
 
-const config = require('./config/config');
+const config = require('../config/config');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 // Import Routes

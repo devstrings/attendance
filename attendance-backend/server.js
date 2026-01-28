@@ -1,6 +1,6 @@
 const app = require('./src/app');
-const { connectDB } = require('./src/config/database');
-const config = require('./src/config/config');
+const { connectDB } = require('./config/database');
+const config = require('./config/config');
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
