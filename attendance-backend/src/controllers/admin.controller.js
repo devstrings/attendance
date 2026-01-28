@@ -310,11 +310,8 @@ const createEmployee = async (req, res) => {
         }
       }
     });
-  } catch (error) {
+ } catch (error) {
     console.error('❌ Create employee error:', error);
-    console.log('📊 Profile found:', profile);
-console.log('📊 Profile.userId:', profile.userId);
-console.log('📊 Profile.userId type:', typeof profile.userId);
     res.status(500).json({
       success: false,
       message: 'Failed to create employee.',
@@ -457,14 +454,13 @@ const getUserDetails = async (req, res) => {
   try {
     console.log('═══════════════════════════════════');
     console.log('🔍 getUserDetails CALLED');
-    console.log('   Route params:', req.params);
+    console.log('   userId:', req.params.userId);
+    console.log('   userType:', req.params.userType);
     console.log('═══════════════════════════════════');
 
     const { userId, userType } = req.params;
 
-    console.log('   userId:', userId);
-    console.log('   userType:', userType);
-
+    // Validate userType
     if (!['manager', 'employee'].includes(userType)) {
       return res.status(400).json({
         success: false,
@@ -472,30 +468,31 @@ const getUserDetails = async (req, res) => {
       });
     }
 
-    let user = null;
-    let profile = null;
-
     const ProfileModel = userType === 'manager' ? Manager : Employee;
     const populateField = userType === 'manager' ? 'employeesUnder' : 'managerId';
     const populateSelect = userType === 'manager' 
       ? 'firstName lastName email employeeCode' 
       : 'firstName lastName email';
 
+    let user = null;
+    let profile = null;
+    console.log(`🔎 Strategy 1: Searching ${userType} profile by _id...`);
+
     // ✅ STRATEGY 1: Try finding Profile by _id first (most common from frontend)
-    profile = await ProfileModel.findById(userId)
+      profile = await ProfileModel.findById(userId)
       .populate('userId')
       .populate(populateField, populateSelect);
 
-    if (profile) {
+     if (profile) {
       console.log('✅ Found profile by Profile._id:', profile._id);
-      console.log('📊 Profile.userId:', profile.userId);
       
       // Check if userId exists and is valid
       if (profile.userId) {
         const userIdValue = profile.userId._id || profile.userId;
         user = await User.findById(userIdValue).select('-password');
         
-        if (user) {
+        
+         if (user) {
           console.log('✅ Found user via profile.userId:', user._id);
           
           return res.status(200).json({
@@ -509,63 +506,69 @@ const getUserDetails = async (req, res) => {
       console.log('⚠️ Profile.userId is null/invalid, attempting auto-fix...');
       
       // Try to find user by email pattern matching
-      const possibleEmailPatterns = [
-        `${profile.firstName.toLowerCase()}.${profile.lastName.toLowerCase()}`,
-        profile.firstName.toLowerCase(),
-        profile.employeeCode?.toLowerCase()
-      ];
+      const searchPatterns = [
+        profile.cnic,
+        profile.phoneNumber,
+        profile.employeeCode
+      ].filter(Boolean);
 
-      for (const pattern of possibleEmailPatterns) {
-        if (!pattern) continue;
+       for (const pattern of searchPatterns) {
+        // Search by CNIC in other profiles
+        const relatedProfile = await ProfileModel.findOne({ 
+          cnic: pattern,
+          userId: { $exists: true, $ne: null }
+        });
         
-        user = await User.findOne({ 
-          role: userType,
-          email: new RegExp(pattern, 'i')
-        }).select('-password');
-        
-        if (user) {
-          console.log(`✅ Found user by pattern "${pattern}":`, user.email);
+        if (relatedProfile?.userId) {
+          user = await User.findById(relatedProfile.userId).select('-password');
+          if (user && user.role === userType) {
+            console.log('✅ Found user by pattern matching');
           
           // Auto-fix: Update profile with correct userId
-          profile.userId = user._id;
-          await profile.save();
-          console.log('✅ AUTO-FIXED: Updated profile.userId:', user._id);
+           profile.userId = user._id;
+            await profile.save();
+            console.log('✅ AUTO-FIXED: Updated profile.userId');
           
           // Re-populate profile
           profile = await ProfileModel.findById(profile._id)
-            .populate('userId')
-            .populate(populateField, populateSelect);
-          
-          return res.status(200).json({
-            success: true,
-            data: { user, profile },
-            message: 'Profile auto-fixed successfully'
-          });
+              .populate('userId')
+              .populate(populateField, populateSelect);
+            
+            return res.status(200).json({
+              success: true,
+              data: { user, profile },
+              message: 'Profile auto-fixed successfully'
+            });
+          }
         }
       }
       
-      console.log('❌ No matching user account found');
-      return res.status(404).json({
+      console.log('❌ No matching user account found for this profile');
+
+       return res.status(404).json({
         success: false,
-        message: 'User account not found for this profile. Please contact admin to fix database.'
+        message: `${userType} profile exists but no user account found. Please contact admin.`,
+        debugInfo: {
+          profileId: profile._id,
+          profileName: `${profile.firstName} ${profile.lastName}`,
+          cnic: profile.cnic,
+          employeeCode: profile.employeeCode
+        }
       });
     }
 
-    // ✅ STRATEGY 2: Try as User._id (fallback)
-    console.log('⚠️ Not found as Profile._id, trying as User._id...');
-    
-    user = await User.findById(userId).select('-password');
+      console.log('🔎 Strategy 2: Searching user by User._id...');
+      user = await User.findById(userId).select('-password');
 
     if (user) {
       console.log('✅ Found user by User._id:', user._id);
-      
       profile = await ProfileModel.findOne({ userId: user._id })
         .populate(populateField, populateSelect);
 
-      if (!profile) {
+         if (!profile) {
         return res.status(404).json({
           success: false,
-          message: `${userType} profile not found for this user.`
+          message: `User account exists but ${userType} profile not found.`
         });
       }
 
@@ -578,13 +581,13 @@ const getUserDetails = async (req, res) => {
     }
 
     // ✅ NOT FOUND
-    console.error('❌ User/Profile not found with either strategy');
+    console.error('❌ User/Profile not found with any strategy');
     return res.status(404).json({
       success: false,
       message: 'User not found.'
     });
 
-  } catch (error) {
+   } catch (error) {
     console.error('❌ Get user details error:', error);
     res.status(500).json({
       success: false,
@@ -639,20 +642,19 @@ const updateUser = async (req, res) => {
       console.log('✅ Found user:', user._id);
 
       // Update user email if changed
-      if (updateData.email && updateData.email !== user.email) {
+       if (updateData.email && updateData.email !== user.email) {
         const existingEmail = await User.findOne({ 
           email: updateData.email.toLowerCase(),
           _id: { $ne: user._id }
         });
 
-        if (existingEmail) {
+       if (existingEmail) {
           return res.status(400).json({
             success: false,
             message: 'Email already in use.'
           });
         }
-
-        user.email = updateData.email.toLowerCase();
+         user.email = updateData.email.toLowerCase();
         await user.save();
         console.log('✅ User email updated');
       }
@@ -679,9 +681,10 @@ const updateUser = async (req, res) => {
     }
 
     // ✅ STRATEGY 2: Try as User._id (fallback)
-    console.log('⚠️ Not found as Profile._id, trying as User._id...');
+    cconsole.log('⚠️ Not found as Profile._id, trying as User._id...');
 
-    user = await User.findById(userId);
+
+   user = await User.findById(userId);
 
     if (!user) {
       return res.status(404).json({
@@ -690,8 +693,7 @@ const updateUser = async (req, res) => {
       });
     }
 
-    console.log('✅ Found user by User._id:', user._id);
-
+    nsole.log('✅ Found user by User._id:', user._id);
     // Update email if changed
     if (updateData.email && updateData.email !== user.email) {
       const existingEmail = await User.findOne({ 
@@ -754,8 +756,13 @@ const deleteUser = async (req, res) => {
   try {
     const { userId, userType } = req.params;
 
-    console.log(`🗑️ Admin deleting ${userType} with userId:`, userId);
+    console.log('═══════════════════════════════════');
+    console.log(`🗑️ DELETE REQUEST - ${userType.toUpperCase()}`);
+    console.log('   userId:', userId);
+    console.log('   userType:', userType);
+    console.log('═══════════════════════════════════');
 
+    // Validate userType
     if (!['manager', 'employee'].includes(userType)) {
       return res.status(400).json({
         success: false,
@@ -763,18 +770,91 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId);
+    const ProfileModel = userType === 'manager' ? Manager : Employee;
+    let user = null;
+    let profile = null;
+
+    // ✅ STRATEGY 1: Try as Profile._id (most common)
+    console.log(`🔎 Strategy 1: Finding ${userType} by Profile._id...`);
+    
+    profile = await ProfileModel.findById(userId);
+
+    if (profile) {
+      console.log('✅ Found profile by Profile._id:', profile._id);
+      console.log('📧 Profile name:', `${profile.firstName} ${profile.lastName}`);
+      console.log('🔗 Profile.userId:', profile.userId);
+
+      // Get user from profile.userId
+      if (profile.userId) {
+        user = await User.findById(profile.userId);
+        
+        if (user) {
+          console.log('✅ Found user via profile.userId:', user._id);
+          console.log('📧 User email:', user.email);
+        } else {
+          console.log('⚠️ User account not found, but profile exists');
+        }
+      } else {
+        console.log('⚠️ Profile.userId is null/missing');
+      }
+
+      // Check if manager has employees
+      if (userType === 'manager' && profile.employeesUnder && profile.employeesUnder.length > 0) {
+        console.log('❌ Cannot delete - Manager has employees assigned');
+        return res.status(400).json({
+          success: false,
+          message: `Cannot delete manager. ${profile.employeesUnder.length} employee(s) are assigned. Please reassign them first.`
+        });
+      }
+
+      // Remove employee from manager's list if applicable
+      if (userType === 'employee' && profile.managerId) {
+        await Manager.findByIdAndUpdate(
+          profile.managerId,
+          { $pull: { employeesUnder: profile._id } }
+        );
+        console.log('✅ Employee removed from manager\'s list');
+      }
+
+      // Delete the profile
+      await ProfileModel.findByIdAndDelete(profile._id);
+      console.log(`✅ ${userType} profile DELETED from database`);
+
+      // Delete user account if exists
+      if (user) {
+        await User.findByIdAndDelete(user._id);
+        console.log('✅ User account DELETED from database');
+        console.log(`📧 Email ${user.email} is now available for new registration`);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `${userType.charAt(0).toUpperCase() + userType.slice(1)} permanently deleted successfully.`,
+        data: {
+          deletedProfile: profile._id,
+          deletedEmail: user?.email || 'N/A'
+        }
+      });
+    }
+
+    // ✅ STRATEGY 2: Try as User._id (fallback)
+    console.log('🔎 Strategy 2: Finding by User._id...');
+    
+    user = await User.findById(userId);
 
     if (!user) {
+      console.error('❌ User not found with either strategy');
       return res.status(404).json({
         success: false,
         message: 'User not found.'
       });
     }
 
-    console.log(`📧 User email: ${user.email}`);
-    console.log(`👤 User role: ${user.role}`);
+    console.log('✅ Found user by User._id:', user._id);
+    console.log('📧 User email:', user.email);
+    console.log('👤 User role:', user.role);
 
+    // Verify role matches
     if (user.role.toLowerCase() !== userType.toLowerCase()) {
       return res.status(400).json({
         success: false,
@@ -782,57 +862,57 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    if (userType === 'manager') {
-      const manager = await Manager.findOne({ userId });
+    // Find and delete profile
+    profile = await ProfileModel.findOne({ userId: user._id });
+
+    if (!profile) {
+      console.log('⚠️ Profile not found, deleting user account only');
       
-      if (!manager) {
-        console.warn('⚠️ Manager profile not found, but user exists');
-      } else {
-        console.log(`👔 Manager ID: ${manager._id}`);
-        
-        if (manager.employeesUnder && manager.employeesUnder.length > 0) {
-          return res.status(400).json({
-            success: false,
-            message: `Cannot delete manager. ${manager.employeesUnder.length} employee(s) are assigned. Please reassign them first.`
-          });
-        }
-
-        await Manager.findByIdAndDelete(manager._id);
-        console.log('✅ Manager profile deleted from database');
-      }
-
-    } else {
-      const employee = await Employee.findOne({ userId });
+      await User.findByIdAndDelete(user._id);
+      console.log('✅ User account DELETED');
       
-      if (!employee) {
-        console.warn('⚠️ Employee profile not found, but user exists');
-      } else {
-        console.log(`👤 Employee ID: ${employee._id}`);
-        console.log(`👤 Employee Code: ${employee.employeeCode}`);
-        
-        if (employee.managerId) {
-          await Manager.findByIdAndUpdate(
-            employee.managerId,
-            { $pull: { employeesUnder: employee._id } }
-          );
-          console.log('✅ Employee removed from manager\'s list');
-        }
-
-        await Employee.findByIdAndDelete(employee._id);
-        console.log('✅ Employee profile deleted from database');
-      }
+      return res.status(200).json({
+        success: true,
+        message: 'User account deleted (profile not found).',
+        data: { deletedEmail: user.email }
+      });
     }
 
-    await User.findByIdAndDelete(userId);
-    console.log('✅ User account PERMANENTLY deleted from database');
+    console.log('✅ Found profile:', profile._id);
+
+    // Check if manager has employees
+    if (userType === 'manager' && profile.employeesUnder && profile.employeesUnder.length > 0) {
+      console.log('❌ Cannot delete - Manager has employees assigned');
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete manager. ${profile.employeesUnder.length} employee(s) are assigned. Please reassign them first.`
+      });
+    }
+
+    // Remove employee from manager's list if applicable
+    if (userType === 'employee' && profile.managerId) {
+      await Manager.findByIdAndUpdate(
+        profile.managerId,
+        { $pull: { employeesUnder: profile._id } }
+      );
+      console.log('✅ Employee removed from manager\'s list');
+    }
+
+    // Delete profile
+    await ProfileModel.findByIdAndDelete(profile._id);
+    console.log(`✅ ${userType} profile DELETED from database`);
+
+    // Delete user account
+    await User.findByIdAndDelete(user._id);
+    console.log('✅ User account DELETED from database');
     console.log(`📧 Email ${user.email} is now available for new registration`);
 
     res.status(200).json({
       success: true,
       message: `${userType.charAt(0).toUpperCase() + userType.slice(1)} permanently deleted successfully.`,
       data: {
-        deletedEmail: user.email,
-        deletedRole: user.role
+        deletedProfile: profile._id,
+        deletedEmail: user.email
       }
     });
 
@@ -1250,6 +1330,59 @@ const getSettings = async (req, res) => {
   }
 };
 
+
+/**
+ * 🔥 FORCE DELETE - Delete corrupted employee from database
+ * Temporary endpoint for fixing corrupted data
+ */
+const forceDeleteEmployee = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    
+    console.log('🔥 FORCE DELETE - Removing corrupted employee:', employeeId);
+    
+    // Delete employee profile
+    const employee = await Employee.findByIdAndDelete(employeeId);
+    
+    if (employee) {
+      console.log('✅ Employee deleted:', employee._id);
+      
+      // Try to delete user account if exists
+      if (employee.userId) {
+        await User.findByIdAndDelete(employee.userId);
+        console.log('✅ User account deleted');
+      }
+      
+      // Remove from manager's list
+      if (employee.managerId) {
+        await Manager.findByIdAndUpdate(
+          employee.managerId,
+          { $pull: { employeesUnder: employee._id } }
+        );
+        console.log('✅ Removed from manager list');
+      }
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Corrupted employee deleted successfully'
+      });
+    }
+    
+    res.status(404).json({
+      success: false,
+      message: 'Employee not found'
+    });
+    
+  } catch (error) {
+    console.error('❌ Force delete error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete employee',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getDashboard,
   createManager,
@@ -1267,5 +1400,6 @@ module.exports = {
   updateMonthlyConfig,
   getAllLeaves,
   getSettings,
-  getSummaryReport
+  getSummaryReport,
+  forceDeleteEmployee  // ✅ Ye add karo
 };
