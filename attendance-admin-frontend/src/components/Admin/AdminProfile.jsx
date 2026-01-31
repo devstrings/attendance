@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import AdminNavbar from './AdminNavbar';
 import AdminSidebar from './AdminSidebar';
 import '../../styles/Admin.css';
+import '../../styles/AdminProfile.css';
+
 
 const AdminProfile = () => {
   const navigate = useNavigate();

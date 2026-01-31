@@ -101,22 +101,42 @@ const CreateManager = () => {
       firstName: formData.name.split(' ')[0],
       lastName: formData.name.split(' ').slice(1).join(' ') || formData.name,
       phoneNumber: formData.phone,
-      cnic: '', // Add CNIC field if needed
+      phone: formData.phone, // ✅ Send both for compatibility
+      cnic: '',
       department: formData.department,
       designation: formData.position,
       joiningDate: formData.joiningDate,
       address: formData.address
     };
 
+    console.log('📤 Sending manager data:', managerData);
+
     const response = await adminService.createManager(managerData);
     
     if (response.success) {
       alert('Manager created successfully!');
       navigate('/admin/managers');
+    } else {
+      // ✅ Show validation errors if any
+      if (response.errors && response.errors.length > 0) {
+        const errorMessages = response.errors.map(err => `${err.field}: ${err.message}`).join('\n');
+        alert(`Validation failed:\n${errorMessages}`);
+      } else {
+        alert(response.message || 'Failed to create manager');
+      }
     }
   } catch (error) {
     console.error('Error creating manager:', error);
-    alert(error.message || 'Failed to create manager. Please try again.');
+    
+    // ✅ Better error handling
+    if (error.errors && error.errors.length > 0) {
+      const errorMessages = error.errors.map(err => `• ${err.message}`).join('\n');
+      alert(`Validation failed:\n\n${errorMessages}`);
+    } else if (error.message) {
+      alert(error.message);
+    } else {
+      alert('Failed to create manager. Please try again.');
+    }
   } finally {
     setLoading(false);
   }

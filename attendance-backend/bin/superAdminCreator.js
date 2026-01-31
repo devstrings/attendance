@@ -1,101 +1,79 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const path = require('path');
-require('dotenv').config();
 
-// ✅ FIXED: User model is inside src/models/
-const User = require(path.join(__dirname, 'src', 'models', 'User'));
+// ✅ SIMPLE PATH
+const User = require('../src/models/User');
 
 const createSuperAdmin = async () => {
   try {
-    console.log('🚀 SUPER ADMIN CREATOR');
-    console.log('📂 Current directory:', __dirname);
+    console.log('\n🚀 ════════════════════════════════════');
+    console.log('   SUPER ADMIN CREATOR');
+    console.log('════════════════════════════════════\n');
+
     console.log('📡 Connecting to MongoDB...');
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log('✅ Connected to MongoDB!\n');
 
-    // Connect to MongoDB
-    const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/attendance-system';
-    await mongoose.connect(mongoURI);
-    console.log('✅ Connected to MongoDB!');
-
-    // Delete ALL existing users
     console.log('🗑️  Deleting ALL existing users...');
     const deleteResult = await User.deleteMany({});
-    console.log(`✅ Deleted ${deleteResult.deletedCount} user(s)`);
+    console.log(`✅ Deleted ${deleteResult.deletedCount} user(s)\n`);
 
-    // Create new admin
     console.log('👤 Creating NEW admin user...');
-    
     const plainPassword = 'Admin@123';
-    console.log('🔐 Plain password:', plainPassword);
 
-    // ✅ Let the model's pre-save hook handle hashing
     const admin = new User({
       email: 'admin@shop.com',
-      password: plainPassword,  // Plain password - pre-save hook will hash it
+      password: plainPassword,
       role: 'admin',
       isActive: true,
       isEmailVerified: true
     });
 
-    // Save (pre-save hook will hash the password)
     await admin.save();
-    console.log('✅ Admin saved to database!');
+    console.log('✅ Admin saved to database!\n');
 
-    // Verify admin was created
-    console.log('🔍 Verifying admin...');
+    console.log('🔍 Verifying admin creation...');
     const savedAdmin = await User.findOne({ email: 'admin@shop.com' });
     
     if (savedAdmin) {
-      console.log('✅ Admin verified in database!');
-      console.log('   ID:', savedAdmin._id);
-      console.log('   Email:', savedAdmin.email);
-      console.log('   Role:', savedAdmin.role);
-      console.log('   Active:', savedAdmin.isActive);
-      console.log('   Password hash (first 30):', savedAdmin.password.substring(0, 30));
+      console.log('✅ Admin found in database!');
+      console.log('   📧 Email:', savedAdmin.email);
+      console.log('   👤 Role:', savedAdmin.role);
+      console.log('   🟢 Active:', savedAdmin.isActive);
       
-      // ✅ CRITICAL: Test password comparison
-      console.log('🧪 Testing password...');
+      console.log('\n🧪 Testing password...');
       const isMatch = await bcrypt.compare(plainPassword, savedAdmin.password);
-      console.log('   Password match:', isMatch ? '✅ YES' : '❌ NO');
       
-      if (!isMatch) {
-        console.error('\n❌ ERROR: Password verification FAILED!');
-        console.error('This means the password was not hashed correctly.');
-        console.error('Please check the User model pre-save hook.\n');
-      } else {
-        console.log('\n╔═══════════════════════════════════════════╗');
+      if (isMatch) {
+        console.log('   ✅ Password verification: SUCCESS!\n');
+        
+        console.log('╔═══════════════════════════════════════════╗');
         console.log('║  ✅ ADMIN CREATED SUCCESSFULLY!           ║');
         console.log('╚═══════════════════════════════════════════╝');
         console.log('\n📋 LOGIN CREDENTIALS:');
         console.log('   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('   📧 Email:    admin@shop.com');
         console.log('   🔑 Password: Admin@123');
-        console.log('   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('\n🌐 Login URL: http://localhost:3000/admin/login');
-        console.log('💡 TIP: Make sure your backend server is running!');
-        console.log('   Run: npm start (in backend folder)\n');
+        console.log('   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      } else {
+        console.error('   ❌ Password verification FAILED!\n');
       }
     } else {
-      console.error('❌ Admin not found after creation!');
+      console.error('❌ Admin not found after creation!\n');
     }
 
-    // Close connection
     await mongoose.connection.close();
-    console.log('✅ Database connection closed');
+    console.log('✅ Database connection closed\n');
     process.exit(0);
 
   } catch (error) {
-    console.error('❌ Error creating super admin:');
-    console.error(error);
-    
-    // Close connection on error
+    console.error('\n❌ ERROR:', error.message);
     if (mongoose.connection.readyState === 1) {
       await mongoose.connection.close();
     }
-    
     process.exit(1);
   }
 };
 
-// Run the function
 createSuperAdmin();

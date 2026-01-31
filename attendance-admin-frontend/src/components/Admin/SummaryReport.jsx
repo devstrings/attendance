@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminNavbar from './AdminNavbar';
 import AdminSidebar from './AdminSidebar';
-import '../../styles/Admin.css';
+import '../../styles/Admin.css'; // ✅ FIXED
 
 const SummaryReport = () => {
   const navigate = useNavigate();
@@ -35,7 +35,6 @@ const SummaryReport = () => {
       setLoading(true);
       console.log('📊 Fetching summary report with filters:', filters);
 
-      // Build query parameters
       const params = new URLSearchParams();
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
@@ -55,22 +54,17 @@ const SummaryReport = () => {
 
       if (data.success) {
         const records = data.data.records || [];
-        const stats = data.data.statistics || {};
-
-        // ✅ CRITICAL FIX: Filter out deleted employees FIRST
+        
+        // ✅ Filter out deleted employees
         const validRecords = records.filter(record => {
-          // Check if employee exists and is valid
           if (!record.employeeId || !record.employeeId._id) {
             console.log('⚠️ Skipping deleted employee record:', record._id);
             return false;
           }
-          
-          // Check if employee has valid user account
           if (!record.employeeId.userId) {
             console.log('⚠️ Skipping employee without user account:', record.employeeId.employeeCode);
             return false;
           }
-          
           return true;
         });
 
@@ -120,9 +114,7 @@ const SummaryReport = () => {
 
         const employeeData = Object.values(employeeMap);
 
-        console.log(`📊 Final employee data count: ${employeeData.length}`);
-
-        // ✅ Recalculate statistics based on VALID records only
+        // Recalculate statistics
         const totalPresent = validRecords.filter(r => r.status === 'present' || r.status === 'half-day').length;
         const totalAbsent = validRecords.filter(r => r.status === 'absent').length;
         const totalLeave = validRecords.filter(r => r.status === 'on-leave').length;
@@ -165,7 +157,7 @@ const SummaryReport = () => {
   };
 
   const exportToPDF = () => {
-    alert('PDF Export feature coming soon!');
+    window.print();
   };
 
   const exportToExcel = () => {
@@ -177,10 +169,15 @@ const SummaryReport = () => {
     return ((present / total) * 100).toFixed(1);
   };
 
-  const getPerformanceColor = (percentage) => {
-    if (percentage >= 90) return '#10b981';
-    if (percentage >= 75) return '#f59e0b';
-    return '#ef4444';
+  const getPerformanceClass = (percentage) => {
+    if (percentage >= 90) return 'high';
+    if (percentage >= 75) return 'medium';
+    return 'low';
+  };
+
+  const getInitials = (name) => {
+    const names = name.split(' ');
+    return names.map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   const filteredData = reportData.filter(emp => {
@@ -199,7 +196,10 @@ const SummaryReport = () => {
         <div className="admin-layout">
           <AdminSidebar />
           <div className="admin-content">
-            <div className="loader">Loading summary report...</div>
+            <div className="summary-loading">
+              <div className="spinner"></div>
+              <p>Loading summary report...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -212,240 +212,250 @@ const SummaryReport = () => {
       <div className="admin-layout">
         <AdminSidebar />
         <div className="admin-content">
-          {/* Header */}
-          <div className="page-header">
-            <div>
-              <h1>📊 Summary Report - Devstrings</h1>
-              <p>Comprehensive attendance summary for active employees only</p>
+          <div className="summary-container">
+            {/* ✅ Updated Header */}
+            <div className="summary-header">
+              <h1 className="summary-title">Active Employee Summary</h1>
+              
+              <div className="summary-actions">
+                <div className="search-box-summary">
+                  <input
+                    type="text"
+                    placeholder="Search by employee name or code..."
+                    value={filters.searchQuery}
+                    onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
+                  />
+                </div>
+                
+                <div className="export-buttons">
+                  <button onClick={exportToPDF} className="export-btn pdf">
+                    📄 Export PDF
+                  </button>
+                  <button onClick={exportToExcel} className="export-btn excel">
+                    📊 Export Excel
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Filters */}
-          <div className="filters-section">
-            <div className="filter-row">
-              <div className="filter-group">
-                <label>Start Date</label>
-                <input
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                  className="filter-input"
-                />
-              </div>
+            {/* ✅ Date Filters */}
+            <div className="summary-table-section" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '1rem',
+                alignItems: 'end'
+              }}>
+                <div className="form-group">
+                  <label>Start Date</label>
+                  <input
+                    type="date"
+                    value={filters.startDate}
+                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                  />
+                </div>
 
-              <div className="filter-group">
-                <label>End Date</label>
-                <input
-                  type="date"
-                  value={filters.endDate}
-                  onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                  className="filter-input"
-                />
-              </div>
+                <div className="form-group">
+                  <label>End Date</label>
+                  <input
+                    type="date"
+                    value={filters.endDate}
+                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                  />
+                </div>
 
-              <div className="filter-group">
-                <label>Department</label>
-                <select
-                  value={filters.department}
-                  onChange={(e) => handleFilterChange('department', e.target.value)}
-                  className="filter-select"
-                >
-                  <option value="">All Departments</option>
-                  <option value="IT">IT</option>
-                  <option value="Software House">Software House</option>
-                  <option value="HR">HR</option>
-                  <option value="Finance">Finance</option>
-                  <option value="Marketing">Marketing</option>
-                  <option value="Sales">Sales</option>
-                </select>
-              </div>
+                <div className="form-group">
+                  <label>Department</label>
+                  <select
+                    value={filters.department}
+                    onChange={(e) => handleFilterChange('department', e.target.value)}
+                  >
+                    <option value="">All Departments</option>
+                    <option value="IT">IT</option>
+                    <option value="Software House">Software House</option>
+                    <option value="HR">HR</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Sales">Sales</option>
+                  </select>
+                </div>
 
-              <div className="filter-group">
                 <button onClick={clearFilters} className="btn-secondary">
                   Clear Filters
                 </button>
               </div>
             </div>
 
-            {/* Search Bar */}
-            <div className="filter-row" style={{ marginTop: '15px' }}>
-              <div className="filter-group" style={{ flex: 1 }}>
-                <input
-                  type="text"
-                  placeholder="🔍 Search by employee name or code..."
-                  value={filters.searchQuery}
-                  onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
-                  className="filter-input"
-                  style={{ width: '100%' }}
-                />
+            {/* ✅ Statistics Cards */}
+            <div className="summary-stats-grid">
+              <div className="summary-stat-card">
+                <span className="summary-stat-icon">👥</span>
+                <div className="summary-stat-label">Active Employees</div>
+                <div className="summary-stat-value">{statistics.totalEmployees}</div>
+                <div className="summary-stat-subtext">Currently active</div>
               </div>
-            </div>
-          </div>
 
-          {/* Export Buttons */}
-          <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
-            <button onClick={exportToPDF} className="btn-success">
-              📄 Export PDF
-            </button>
-            <button onClick={exportToExcel} className="btn-success">
-              📊 Export Excel
-            </button>
-          </div>
-
-          {/* Statistics Cards */}
-          <div className="stats-grid">
-            <div className="stat-card blue">
-              <div className="stat-icon">👥</div>
-              <div className="stat-content">
-                <h3>{statistics.totalEmployees}</h3>
-                <p>Active Employees</p>
+              <div className="summary-stat-card">
+                <span className="summary-stat-icon">✅</span>
+                <div className="summary-stat-label">Total Present</div>
+                <div className="summary-stat-value">{statistics.totalPresent}</div>
+                <div className="summary-stat-subtext">Days present</div>
               </div>
-            </div>
 
-            <div className="stat-card green">
-              <div className="stat-icon">✅</div>
-              <div className="stat-content">
-                <h3>{statistics.totalPresent}</h3>
-                <p>Total Present</p>
+              <div className="summary-stat-card">
+                <span className="summary-stat-icon">❌</span>
+                <div className="summary-stat-label">Total Absent</div>
+                <div className="summary-stat-value">{statistics.totalAbsent}</div>
+                <div className="summary-stat-subtext">Days absent</div>
               </div>
-            </div>
 
-            <div className="stat-card red">
-              <div className="stat-icon">❌</div>
-              <div className="stat-content">
-                <h3>{statistics.totalAbsent}</h3>
-                <p>Total Absent</p>
+              <div className="summary-stat-card">
+                <span className="summary-stat-icon">🏖️</span>
+                <div className="summary-stat-label">Total Leave</div>
+                <div className="summary-stat-value">{statistics.totalLeave}</div>
+                <div className="summary-stat-subtext">Days on leave</div>
+              </div>
+
+              <div className="summary-stat-card">
+                <span className="summary-stat-icon">⏱️</span>
+                <div className="summary-stat-label">Total Hours</div>
+                <div className="summary-stat-value">{statistics.totalHours.toFixed(0)}</div>
+                <div className="summary-stat-subtext">Hours worked</div>
+              </div>
+
+              <div className="summary-stat-card">
+                <span className="summary-stat-icon">📊</span>
+                <div className="summary-stat-label">Avg Attendance</div>
+                <div className="summary-stat-value">{statistics.avgAttendance}%</div>
+                <div className="summary-stat-subtext">Overall average</div>
               </div>
             </div>
 
-            <div className="stat-card orange">
-              <div className="stat-icon">🏖️</div>
-              <div className="stat-content">
-                <h3>{statistics.totalLeave}</h3>
-                <p>Total Leave</p>
+            {/* ✅ Summary Table */}
+            <div className="summary-table-section">
+              <div className="summary-table-header">
+                <h2 className="summary-table-title">Employee Summary</h2>
               </div>
-            </div>
 
-            <div className="stat-card purple">
-              <div className="stat-icon">⏱️</div>
-              <div className="stat-content">
-                <h3>{statistics.totalHours.toFixed(0)}</h3>
-                <p>Total Hours</p>
-              </div>
-            </div>
-
-            <div className="stat-card teal">
-              <div className="stat-icon">📊</div>
-              <div className="stat-content">
-                <h3>{statistics.avgAttendance}%</h3>
-                <p>Avg Attendance</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Summary Table */}
-          <div className="table-container">
-            <h2>Active Employee Summary</h2>
-            {filteredData.length > 0 ? (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Employee Name</th>
-                    <th>Department</th>
-                    <th>Total Days</th>
-                    <th>Present</th>
-                    <th>Absent</th>
-                    <th>Leave</th>
-                    <th>Total Hours</th>
-                    <th>Avg Hours/Day</th>
-                    <th>Attendance %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredData.map((emp) => {
-                    const attendancePercentage = getAttendancePercentage(emp.present, emp.totalDays);
-                    const avgHoursPerDay = emp.totalDays > 0 ? (emp.totalHours / emp.totalDays).toFixed(1) : 0;
-
-                    return (
-                      <tr key={emp.employeeId}>
-                        <td>
-                          <div>
-                            <strong>{emp.employeeName}</strong>
-                            <br />
-                            <small style={{ color: '#666' }}>{emp.employeeCode}</small>
-                          </div>
-                        </td>
-                        <td>{emp.department}</td>
-                        <td><strong>{emp.totalDays}</strong></td>
-                        <td className="text-green"><strong>{emp.present}</strong></td>
-                        <td className="text-red"><strong>{emp.absent}</strong></td>
-                        <td className="text-orange"><strong>{emp.leave}</strong></td>
-                        <td><strong>{emp.totalHours.toFixed(0)} hrs</strong></td>
-                        <td>{avgHoursPerDay} hrs</td>
-                        <td>
-                          <span style={{
-                            padding: '4px 12px',
-                            borderRadius: '12px',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            color: 'white',
-                            background: getPerformanceColor(attendancePercentage)
-                          }}>
-                            {attendancePercentage}%
-                          </span>
-                        </td>
+              {filteredData.length > 0 ? (
+                <div className="summary-table-wrapper">
+                  <table className="summary-table">
+                    <thead>
+                      <tr>
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th>Total Days</th>
+                        <th>Present</th>
+                        <th>Absent</th>
+                        <th>Leave</th>
+                        <th>Total Hours</th>
+                        <th>Avg Hours/Day</th>
+                        <th>Attendance %</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <div className="no-data">
-                <p>📭 No active employee data available for the selected period.</p>
-                <p>Try adjusting your filters or add some employees.</p>
-              </div>
-            )}
-          </div>
+                    </thead>
+                    <tbody>
+                      {filteredData.map((emp) => {
+                        const attendancePercentage = getAttendancePercentage(emp.present, emp.totalDays);
+                        const avgHoursPerDay = emp.totalDays > 0 ? (emp.totalHours / emp.totalDays).toFixed(1) : 0;
 
-          {/* Performance Legend */}
-          <div className="info-box" style={{ marginTop: '20px' }}>
-            <h3>Performance Legend:</h3>
-            <div style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: '4px',
-                  background: '#10b981'
-                }} />
-                <span><strong>Excellent:</strong> ≥90%</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: '4px',
-                  background: '#f59e0b'
-                }} />
-                <span><strong>Good:</strong> 75-89%</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: '4px',
-                  background: '#ef4444'
-                }} />
-                <span><strong>Needs Improvement:</strong> &lt;75%</span>
+                        return (
+                          <tr key={emp.employeeId}>
+                            <td>
+                              <div className="employee-cell">
+                                <div className="employee-avatar-small">
+                                  {getInitials(emp.employeeName)}
+                                </div>
+                                <div className="employee-info-small">
+                                  <span className="employee-name-small">{emp.employeeName}</span>
+                                  <span className="employee-code-small">{emp.employeeCode}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>{emp.department}</td>
+                            <td><strong>{emp.totalDays}</strong></td>
+                            <td>
+                              <span className="status-badge present">{emp.present}</span>
+                            </td>
+                            <td>
+                              <span className="status-badge absent">{emp.absent}</span>
+                            </td>
+                            <td>
+                              <span className="status-badge leave">{emp.leave}</span>
+                            </td>
+                            <td>
+                              <span className="hours-display full-day">
+                                {emp.totalHours.toFixed(0)} hrs
+                              </span>
+                            </td>
+                            <td>{avgHoursPerDay} hrs</td>
+                            <td>
+                              <span className={`percentage-display ${getPerformanceClass(attendancePercentage)}`}>
+                                {attendancePercentage}%
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="summary-empty-state">
+                  <div className="empty-icon">📭</div>
+                  <h3>No Data Available</h3>
+                  <p>No active employee data available for the selected period.</p>
+                  <p>Try adjusting your filters or add some employees.</p>
+                </div>
+              )}
+            </div>
+
+            {/* ✅ Performance Legend */}
+            <div className="summary-table-section" style={{ padding: '1.5rem', marginTop: '1.5rem' }}>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', fontWeight: '700' }}>
+                Performance Legend:
+              </h3>
+              <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '6px',
+                    background: 'linear-gradient(135deg, #48bb78, #38a169)'
+                  }} />
+                  <span><strong>Excellent:</strong> ≥90%</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '6px',
+                    background: 'linear-gradient(135deg, #f6ad55, #ed8936)'
+                  }} />
+                  <span><strong>Good:</strong> 75-89%</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '6px',
+                    background: 'linear-gradient(135deg, #fc8181, #e53e3e)'
+                  }} />
+                  <span><strong>Needs Improvement:</strong> &lt;75%</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Info Box */}
-          <div className="info-box" style={{ marginTop: '15px', background: '#e3f2fd' }}>
-            <p>
-              ℹ️ <strong>Note:</strong> This report shows only active employees. Deleted employees and their historical data are excluded.
-            </p>
+            {/* ✅ Info Note */}
+            <div className="summary-table-section" style={{ 
+              padding: '1.25rem', 
+              marginTop: '1rem',
+              background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1))',
+              border: '2px solid rgba(102, 126, 234, 0.2)'
+            }}>
+              <p style={{ margin: 0, color: '#4a5568', fontSize: '0.95rem' }}>
+                ℹ️ <strong>Note:</strong> This report shows only active employees. Deleted employees and their historical data are excluded.
+              </p>
+            </div>
           </div>
         </div>
       </div>

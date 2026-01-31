@@ -1,36 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth.middleware');
-const {
-  getAllAttendance,
-  getAttendanceById,
-  createAttendance,
-  updateAttendance,
-  deleteAttendance,
-  clockIn,
-  clockOut,
-  getTodayClockStatus,
-  getAttendanceSummary,
-  bulkMarkAttendance
-} = require('../controllers/attendance.controller');
+const attendanceController = require('../controllers/attendance.controller');
+const attendanceValidators = require('../middleware/validators/attendance.validator'); // ✅ NEW
 
-// All routes require authentication
 router.use(authenticate);
 
-// ✅ IMPORTANT: Specific routes BEFORE parameterized routes
-router.post('/clock-in', clockIn);
-router.post('/clock-out', clockOut);
-router.get('/today/status', getTodayClockStatus);
-router.get('/summary/stats', getAttendanceSummary);
-router.post('/bulk-mark', bulkMarkAttendance);
+// ✅ Validators applied
+router.post('/clock-in', attendanceValidators.clockIn, attendanceController.clockIn);
+router.post('/clock-out', attendanceValidators.clockOut, attendanceController.clockOut);
+router.get('/today/status', attendanceController.getTodayClockStatus);
+router.get('/summary/stats', attendanceController.getAttendanceSummary);
+router.post('/bulk-mark', attendanceValidators.bulkMarkAttendance, attendanceController.bulkMarkAttendance);
 
-// ✅ General routes
-router.get('/', getAllAttendance);
-router.post('/', createAttendance);
+router.get('/', attendanceValidators.getAttendance, attendanceController.getAllAttendance);
+router.post('/', attendanceValidators.createAttendance, attendanceController.createAttendance);
 
-// ✅ Parameterized routes at the end
-router.get('/:attendanceId', getAttendanceById);
-router.put('/:attendanceId', updateAttendance);
-router.delete('/:attendanceId', deleteAttendance);
+router.get('/:attendanceId', attendanceController.getAttendanceById);
+router.put('/:attendanceId', attendanceValidators.updateAttendance, attendanceController.updateAttendance);
+router.delete('/:attendanceId', attendanceController.deleteAttendance);
 
 module.exports = router;

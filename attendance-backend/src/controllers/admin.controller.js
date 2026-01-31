@@ -59,8 +59,17 @@ const getDashboard = async (req, res) => {
 /**
  * Create Manager
  */
+/**
+ * Create Manager - WITH DETAILED LOGGING
+ */
 const createManager = async (req, res) => {
   try {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📝 CREATE MANAGER REQUEST');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📦 Request Body:', JSON.stringify(req.body, null, 2));
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
     const {
       email,
       password,
@@ -78,31 +87,59 @@ const createManager = async (req, res) => {
       emergencyContact
     } = req.body;
 
+    // ✅ CHECK REQUIRED FIELDS
+    console.log('🔍 Checking required fields...');
+    console.log('firstName:', firstName ? '✅' : '❌');
+    console.log('lastName:', lastName ? '✅' : '❌');
+    console.log('email:', email ? '✅' : '❌');
+    console.log('password:', password ? '✅' : '❌');
+    console.log('phoneNumber:', phoneNumber ? '✅' : '❌');
+
     if (!email || !password || !firstName || !lastName || !phoneNumber) {
+      console.log('❌ VALIDATION FAILED - Missing required fields');
       return res.status(400).json({
         success: false,
-        message: 'Required fields missing'
+        message: 'Required fields missing: email, password, firstName, lastName, phoneNumber',
+        received: {
+          email: !!email,
+          password: !!password,
+          firstName: !!firstName,
+          lastName: !!lastName,
+          phoneNumber: !!phoneNumber
+        }
       });
     }
 
+    console.log('✅ All required fields present');
+
+    // Validate email format
     if (!validateEmail(email)) {
+      console.log('❌ Invalid email format:', email);
       return res.status(400).json({
         success: false,
         message: 'Invalid email format.'
       });
     }
 
+    console.log('✅ Email format valid');
+
+    // Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
+      console.log('❌ Email already exists:', email);
       return res.status(400).json({
         success: false,
         message: 'User with this email already exists.'
       });
     }
 
+    console.log('✅ Email available');
+
+    // Check CNIC if provided
     if (cnic) {
       const existingCNIC = await Manager.findOne({ cnic, isActive: true });
       if (existingCNIC) {
+        console.log('❌ CNIC already exists:', cnic);
         return res.status(400).json({
           success: false,
           message: 'Manager with this CNIC already exists.'
@@ -110,6 +147,10 @@ const createManager = async (req, res) => {
       }
     }
 
+    console.log('✅ CNIC check passed');
+    console.log('📝 Creating user account...');
+
+    // Create user account
     const user = new User({
       email: email.toLowerCase(),
       password,
@@ -119,7 +160,11 @@ const createManager = async (req, res) => {
     });
 
     await user.save();
+    console.log('✅ User account created:', user._id);
 
+    console.log('📝 Creating manager profile...');
+
+    // Create manager profile
     const manager = new Manager({
       userId: user._id,
       firstName,
@@ -137,24 +182,42 @@ const createManager = async (req, res) => {
     });
 
     await manager.save();
+    console.log('✅ Manager profile created:', manager._id);
 
+    // Send welcome email
     try {
       await sendEmail({
         to: user.email,
         subject: 'Welcome to Devstrings',
         html: `<h2>Welcome ${firstName}!</h2><p>Password: ${password}</p>`
       });
+      console.log('✅ Welcome email sent');
     } catch (e) {
-      console.log('Email failed:', e.message);
+      console.log('⚠️ Email failed:', e.message);
     }
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ MANAGER CREATED SUCCESSFULLY');
+    console.log('   Manager ID:', manager._id);
+    console.log('   User ID:', user._id);
+    console.log('   Email:', user.email);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     res.status(201).json({
       success: true,
       message: 'Manager created successfully.',
       data: { manager }
     });
+
   } catch (error) {
-    console.error('Create manager error:', error);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('❌ ERROR CREATING MANAGER');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
     res.status(500).json({
       success: false,
       message: 'Failed to create manager.',
@@ -168,7 +231,10 @@ const createManager = async (req, res) => {
  */
 const createEmployee = async (req, res) => {
   try {
-    console.log('📝 Creating employee with data:', req.body);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📝 CREATE EMPLOYEE REQUEST');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📦 Request Body:', JSON.stringify(req.body, null, 2));
 
     const {
       email,
@@ -188,51 +254,113 @@ const createEmployee = async (req, res) => {
       workSchedule
     } = req.body;
 
+    // ✅ REQUIRED FIELD VALIDATION
+    console.log('🔍 Validating required fields...');
     if (!email || !password || !firstName || !lastName || !phoneNumber) {
+      console.log('❌ Missing required fields');
       return res.status(400).json({
         success: false,
-        message: 'Email, password, first name, last name, and phone number are required.'
+        message: 'Email, password, first name, last name, and phone number are required.',
+        received: {
+          email: !!email,
+          password: !!password,
+          firstName: !!firstName,
+          lastName: !!lastName,
+          phoneNumber: !!phoneNumber
+        }
       });
     }
 
+    console.log('✅ All required fields present');
+
+    // ✅ EMAIL VALIDATION
     if (!validateEmail(email)) {
+      console.log('❌ Invalid email format:', email);
       return res.status(400).json({
         success: false,
         message: 'Invalid email format.'
       });
     }
 
+    console.log('✅ Email format valid');
+
+    // ✅ CHECK EXISTING EMAIL
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
+      console.log('❌ Email already registered:', email);
       return res.status(400).json({
         success: false,
-        message: 'Email already registered.'
+        message: 'Email already registered. Please use a different email.'
       });
     }
 
+    console.log('✅ Email available');
+
+    // ✅ VALIDATE MANAGER IF PROVIDED
     if (managerId) {
+      console.log('🔍 Validating manager ID:', managerId);
       const manager = await Manager.findById(managerId);
       if (!manager) {
+        console.log('❌ Manager not found:', managerId);
         return res.status(404).json({
           success: false,
-          message: 'Manager not found.'
+          message: 'Manager not found. Please select a valid manager.'
         });
       }
+      console.log('✅ Manager validated:', manager.firstName, manager.lastName);
     }
 
-    if (cnic) {
-      const existingCNIC = await Employee.findOne({ cnic, isActive: true });
+    // ✅ IMPROVED CNIC VALIDATION - Only check if CNIC is provided and not empty
+    if (cnic && cnic.trim() !== '') {
+      console.log('🔍 Checking CNIC:', cnic);
+      const existingCNIC = await Employee.findOne({ 
+        cnic: cnic.trim(), 
+        isActive: true 
+      });
+      
       if (existingCNIC) {
+        console.log('❌ CNIC already exists:', cnic);
         return res.status(400).json({
           success: false,
-          message: 'Employee with this CNIC already exists.'
+          message: `Employee with CNIC ${cnic} already exists.`
         });
+      }
+      console.log('✅ CNIC available');
+    } else {
+      console.log('ℹ️ No CNIC provided, skipping CNIC check');
+    }
+
+    // ✅ GENERATE UNIQUE EMPLOYEE CODE
+    console.log('📝 Generating employee code...');
+    let employeeCode;
+    let isUnique = false;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (!isUnique && attempts < maxAttempts) {
+      const employeeCount = await Employee.countDocuments();
+      employeeCode = `EMP${String(employeeCount + attempts + 1).padStart(4, '0')}`;
+      
+      const existingCode = await Employee.findOne({ employeeCode });
+      if (!existingCode) {
+        isUnique = true;
+        console.log('✅ Generated unique employee code:', employeeCode);
+      } else {
+        attempts++;
+        console.log(`⚠️ Code ${employeeCode} exists, trying again... (attempt ${attempts})`);
       }
     }
 
-    const employeeCount = await Employee.countDocuments();
-    const employeeCode = `EMP${String(employeeCount + 1).padStart(4, '0')}`;
+    if (!isUnique) {
+      console.log('❌ Failed to generate unique employee code');
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to generate unique employee code. Please try again.'
+      });
+    }
 
+    // ✅ CREATE USER ACCOUNT
+    console.log('📝 Creating user account...');
     const user = new User({
       email: email.toLowerCase(),
       password,
@@ -242,23 +370,25 @@ const createEmployee = async (req, res) => {
     });
 
     await user.save();
-    console.log('✅ User created:', user._id);
+    console.log('✅ User account created:', user._id);
 
+    // ✅ CREATE EMPLOYEE PROFILE
+    console.log('📝 Creating employee profile...');
     const employee = new Employee({
       userId: user._id,
       managerId: managerId || null,
-      firstName,
-      lastName,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       employeeCode,
-      phoneNumber,
-      cnic: cnic || '',
-      dateOfBirth,
-      address: address || '',
+      phoneNumber: phoneNumber.trim(),
+      cnic: cnic ? cnic.trim() : null, // ✅ Store null instead of empty string
+      dateOfBirth: dateOfBirth || null,
+      address: address ? address.trim() : null,
       department: department || 'General',
       designation: designation || 'Employee',
       employmentType: employmentType || 'full-time',
       salary: salary || 0,
-      joiningDate: joiningDate || Date.now(),
+      joiningDate: joiningDate || new Date(),
       workSchedule: workSchedule || {
         shiftStartTime: '09:00',
         shiftEndTime: '17:00',
@@ -267,17 +397,19 @@ const createEmployee = async (req, res) => {
     });
 
     await employee.save();
-    console.log('✅ Employee created:', employee._id);
+    console.log('✅ Employee profile created:', employee._id);
 
+    // ✅ ADD TO MANAGER'S LIST
     if (managerId) {
       await Manager.findByIdAndUpdate(
         managerId,
         { $addToSet: { employeesUnder: employee._id } },
         { new: true }
       );
-      console.log('✅ Employee added to manager');
+      console.log('✅ Employee added to manager list');
     }
 
+    // ✅ SEND WELCOME EMAIL (non-blocking)
     try {
       await sendEmail({
         to: user.email,
@@ -291,9 +423,18 @@ const createEmployee = async (req, res) => {
           <p>Please change your password after first login.</p>
         `
       });
+      console.log('✅ Welcome email sent');
     } catch (emailError) {
-      console.log('⚠️ Email failed:', emailError.message);
+      console.log('⚠️ Email failed (non-critical):', emailError.message);
     }
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ EMPLOYEE CREATED SUCCESSFULLY');
+    console.log('   Employee ID:', employee._id);
+    console.log('   User ID:', user._id);
+    console.log('   Employee Code:', employeeCode);
+    console.log('   Email:', user.email);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     res.status(201).json({
       success: true,
@@ -310,12 +451,32 @@ const createEmployee = async (req, res) => {
         }
       }
     });
- } catch (error) {
-    console.error('❌ Create employee error:', error);
+
+  } catch (error) {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('❌ ERROR CREATING EMPLOYEE');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    // ✅ Provide user-friendly error messages
+    let errorMessage = 'Failed to create employee.';
+    
+    if (error.code === 11000) {
+      // MongoDB duplicate key error
+      const field = Object.keys(error.keyPattern)[0];
+      errorMessage = `Duplicate ${field}. This ${field} is already registered.`;
+    } else if (error.name === 'ValidationError') {
+      errorMessage = Object.values(error.errors).map(e => e.message).join(', ');
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Failed to create employee.',
-      error: error.message
+      message: errorMessage,
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

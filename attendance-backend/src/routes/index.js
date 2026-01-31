@@ -1,3 +1,5 @@
+// routes/index.js
+
 const authRoutes = require('./auth.routes');
 const adminRoutes = require('./admin.routes');
 const managerRoutes = require('./manager.routes');
@@ -7,9 +9,13 @@ const leaveRoutes = require('./leave.routes');
 const salaryRoutes = require('./salary.routes');
 const reportRoutes = require('./report.routes');
 
-
-export default  function (app) {
-    app.use('/auth', authRoutes);
-    
-
-}
+module.exports = function (app, apiPrefix) {
+  app.use(`${apiPrefix}/auth`, authRoutes);
+  app.use(`${apiPrefix}/admin`, adminRoutes);
+  app.use(`${apiPrefix}/manager`, managerRoutes);
+  app.use(`${apiPrefix}/employee`, employeeRoutes);
+  app.use(`${apiPrefix}/attendance`, attendanceRoutes);
+  app.use(`${apiPrefix}/leave`, leaveRoutes);
+  app.use(`${apiPrefix}/salary`, salaryRoutes);
+  app.use(`${apiPrefix}/report`, reportRoutes);
+};
