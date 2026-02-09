@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import './App.css';
 
 import AttendanceDetails from './components/Admin/AttendanceDetails';
@@ -31,8 +31,9 @@ import EditUser from './components/Admin/EditUser';
 import EmployeeList from './components/Admin/EmployeeList';
 import ManagerList from './components/Admin/ManagerList';
 import AttendanceView from './components/Admin/AttendanceView';
-import SummaryReport from './components/Admin/SummaryReport';
-import MonthlyReport from './components/Admin/MonthlyReport';
+// import AdminMarkAttendance from './components/Admin/AdminMarkAttendance';
+import Report from './components/Admin/Report';
+
 import ManagementPanel from './components/Admin/ManagementPanel';
 import Settings from './components/Admin/Settings';
 
@@ -46,23 +47,17 @@ function App() {
   return (
     <div className="App">
       <Routes>
-        {/* ✅ HOME - Landing Page */}
         <Route path="/" element={<LandingPage />} />
-        
-        {/* ✅ ADMIN LOGIN ROUTE */}
         <Route path="/admin/login" element={<Login userType="admin" />} />
         
-        {/* Password Recovery */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/change-password" element={<ChangePassword />} />
         
-        {/* Error Routes */}
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/404" element={<NotFound />} />
 
-        {/* ============ ADMIN ROUTES ============ */}
         <Route 
           path="/admin/attendance-details/:attendanceId" 
           element={
@@ -167,6 +162,14 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        {/* <Route 
+          path="/admin/mark-attendance" 
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminMarkAttendance />
+            </ProtectedRoute>
+          } 
+        /> */}
         <Route 
           path="/admin/attendance-details" 
           element={
@@ -176,18 +179,18 @@ function App() {
           } 
         />
         <Route 
-          path="/admin/summary" 
+          path="/admin/reports" 
           element={
             <ProtectedRoute allowedRoles={['admin']}>
-              <SummaryReport />
+              <Report />
             </ProtectedRoute>
           } 
         />
         <Route 
-          path="/admin/monthly-report" 
+          path="/admin/employee-attendance/:employeeId" 
           element={
             <ProtectedRoute allowedRoles={['admin']}>
-              <MonthlyReport />
+              <AttendanceDetails />
             </ProtectedRoute>
           } 
         />
@@ -208,7 +211,6 @@ function App() {
           } 
         />
 
-        {/* Catch all - 404 */}
         <Route path="*" element={<NotFound />} />
 
       </Routes>

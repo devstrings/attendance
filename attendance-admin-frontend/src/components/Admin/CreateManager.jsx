@@ -23,14 +23,8 @@ const CreateManager = () => {
   const [loading, setLoading] = useState(false);
 
   const departments = [
-    'Sales',
-    'Marketing',
-    'IT',
-    'HR',
-    'Finance',
-    'Operations',
-    'Customer Service',
-    'Development'
+
+    'Software House'
   ];
 
   const handleChange = (e) => {

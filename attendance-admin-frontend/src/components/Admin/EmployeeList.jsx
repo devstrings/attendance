@@ -22,7 +22,7 @@ const EmployeeList = () => {
     totalEmployees: 0
   });
 
-  const departments = ['Software House', 'Sales', 'Marketing', 'IT', 'HR', 'Finance', 'Operations'];
+  const departments = ['Software House'];
 
   // ✅ Fetch only when filters or pagination change (NOT on typing)
   useEffect(() => {

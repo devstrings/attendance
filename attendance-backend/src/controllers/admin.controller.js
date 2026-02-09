@@ -6,6 +6,7 @@ const Leave = require('../models/Leave');
 const Holiday = require('../models/Holiday');
 const MonthlyConfig = require('../models/MonthlyConfig');
 const Salary = require('../models/Salary');
+const SystemConfig = require('../models/SystemConfig'); // ✅ SIRF YAHAN RAKHO
 const { generateToken } = require('../utils/jwtHandler');
 const { sendEmail } = require('../utils/emailService');
 const { validateEmail } = require('../utils/validators');
@@ -13,26 +14,96 @@ const { validateEmail } = require('../utils/validators');
 /**
  * Admin Dashboard
  */
+/**
+ * Admin Dashboard - WITH DELETED EMPLOYEE FILTER
+ */
+/**
+ * Admin Dashboard - WITH WORKING DAYS CHECK
+ */
 const getDashboard = async (req, res) => {
   try {
+    console.log('📊 Fetching admin dashboard data...');
+    
+    // ✅ Count only ACTIVE employees and managers
     const totalEmployees = await Employee.countDocuments({ isActive: true });
     const totalManagers = await Manager.countDocuments({ isActive: true });
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const todayAttendance = await Attendance.countDocuments({
-      date: { $gte: today },
-      status: { $in: ['present', 'half-day'] }
+    // ✅ Get system configuration to check working days
+    const systemConfig = await SystemConfig.findOne({ isActive: true });
+    
+    // ✅ Check if today is a working day
+    const todayDayName = today.toLocaleDateString('en-US', { weekday: 'long' });
+    const isWorkingDay = systemConfig?.workingDays?.includes(todayDayName) || false;
+    
+    console.log('📅 Today:', todayDayName);
+    console.log('💼 Working Days:', systemConfig?.workingDays);
+    console.log('✅ Is Working Day?', isWorkingDay);
+    
+    // ✅ Get list of ACTIVE employee IDs
+    const activeEmployeeIds = await Employee.find({ isActive: true }).distinct('_id');
+    
+    console.log('✅ Active employee IDs:', activeEmployeeIds.length);
+    
+    let todayAttendance = 0;
+    let absentToday = 0;
+    
+    // ✅ Only calculate attendance if today is a working day
+    if (isWorkingDay) {
+      // Count attendance ONLY for active employees
+      todayAttendance = await Attendance.countDocuments({
+        date: { $gte: today },
+        status: { $in: ['present', 'half-day', 'late'] },
+        employeeId: { $in: activeEmployeeIds }
+      });
+      
+      // Count leaves for today
+      const onLeaveToday = await Attendance.countDocuments({
+        date: { $gte: today },
+        status: { $in: ['on-leave', 'leave'] },
+        employeeId: { $in: activeEmployeeIds }
+      });
+      
+      // ✅ Absent = Total Active Employees - Present - On Leave
+      absentToday = Math.max(0, totalEmployees - todayAttendance - onLeaveToday);
+      
+      console.log('📊 Working Day Stats:', {
+        totalEmployees,
+        todayAttendance,
+        onLeaveToday,
+        absentToday
+      });
+    } else {
+      // ✅ Non-working day: No attendance expected
+      console.log('🏖️ Today is NOT a working day - No attendance expected');
+      todayAttendance = 0;
+      absentToday = 0;
+    }
+
+    // ✅ Count pending leaves ONLY for active employees
+    const pendingLeaves = await Leave.countDocuments({ 
+      status: 'pending',
+      employeeId: { $in: activeEmployeeIds }
     });
 
-    const pendingLeaves = await Leave.countDocuments({ status: 'pending' });
-
+    // ✅ Get recent ACTIVE employees only
     const recentEmployees = await Employee.find({ isActive: true })
       .sort({ createdAt: -1 })
       .limit(5)
       .populate('userId', 'email isActive')
       .populate('managerId', 'firstName lastName');
+
+    console.log('✅ Dashboard stats:', {
+      totalEmployees,
+      totalManagers,
+      todayAttendance,
+      absentToday,
+      pendingLeaves,
+      isWorkingDay,
+      todayDayName
+    });
 
     res.status(200).json({
       success: true,
@@ -41,13 +112,19 @@ const getDashboard = async (req, res) => {
           totalEmployees,
           totalManagers,
           todayAttendance,
+          absentToday,
           pendingLeaves
         },
-        recentEmployees
+        recentEmployees,
+        meta: {
+          isWorkingDay,
+          todayDayName,
+          workingDays: systemConfig?.workingDays || []
+        }
       }
     });
   } catch (error) {
-    console.error('Get dashboard error:', error);
+    console.error('❌ Get dashboard error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch dashboard data.',
@@ -55,7 +132,6 @@ const getDashboard = async (req, res) => {
     });
   }
 };
-
 /**
  * Create Manager
  */
@@ -913,6 +989,9 @@ const updateUser = async (req, res) => {
 /**
  * ✅ COMPLETE FIX: Delete User (Hard Delete)
  */
+/**
+ * ✅ ENHANCED: Delete User with Attendance Cleanup
+ */
 const deleteUser = async (req, res) => {
   try {
     const { userId, userType } = req.params;
@@ -943,7 +1022,6 @@ const deleteUser = async (req, res) => {
     if (profile) {
       console.log('✅ Found profile by Profile._id:', profile._id);
       console.log('📧 Profile name:', `${profile.firstName} ${profile.lastName}`);
-      console.log('🔗 Profile.userId:', profile.userId);
 
       // Get user from profile.userId
       if (profile.userId) {
@@ -952,11 +1030,7 @@ const deleteUser = async (req, res) => {
         if (user) {
           console.log('✅ Found user via profile.userId:', user._id);
           console.log('📧 User email:', user.email);
-        } else {
-          console.log('⚠️ User account not found, but profile exists');
         }
-      } else {
-        console.log('⚠️ Profile.userId is null/missing');
       }
 
       // Check if manager has employees
@@ -966,6 +1040,26 @@ const deleteUser = async (req, res) => {
           success: false,
           message: `Cannot delete manager. ${profile.employeesUnder.length} employee(s) are assigned. Please reassign them first.`
         });
+      }
+
+      // ✅ NEW: Delete all attendance records for this employee
+      if (userType === 'employee') {
+        const deletedAttendance = await Attendance.deleteMany({
+          employeeId: profile._id
+        });
+        console.log(`✅ Deleted ${deletedAttendance.deletedCount} attendance records`);
+        
+        // ✅ Delete all leave requests for this employee
+        const deletedLeaves = await Leave.deleteMany({
+          employeeId: profile._id
+        });
+        console.log(`✅ Deleted ${deletedLeaves.deletedCount} leave requests`);
+        
+        // ✅ Delete all salary records for this employee
+        const deletedSalaries = await Salary.deleteMany({
+          employeeId: profile._id
+        });
+        console.log(`✅ Deleted ${deletedSalaries.deletedCount} salary records`);
       }
 
       // Remove employee from manager's list if applicable
@@ -990,7 +1084,7 @@ const deleteUser = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        message: `${userType.charAt(0).toUpperCase() + userType.slice(1)} permanently deleted successfully.`,
+        message: `${userType.charAt(0).toUpperCase() + userType.slice(1)} and all related records permanently deleted.`,
         data: {
           deletedProfile: profile._id,
           deletedEmail: user?.email || 'N/A'
@@ -998,7 +1092,7 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    // ✅ STRATEGY 2: Try as User._id (fallback)
+    // ✅ STRATEGY 2: Try as User._id (fallback) - same logic as above
     console.log('🔎 Strategy 2: Finding by User._id...');
     
     user = await User.findById(userId);
@@ -1012,8 +1106,6 @@ const deleteUser = async (req, res) => {
     }
 
     console.log('✅ Found user by User._id:', user._id);
-    console.log('📧 User email:', user.email);
-    console.log('👤 User role:', user.role);
 
     // Verify role matches
     if (user.role.toLowerCase() !== userType.toLowerCase()) {
@@ -1039,38 +1131,39 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    console.log('✅ Found profile:', profile._id);
-
     // Check if manager has employees
     if (userType === 'manager' && profile.employeesUnder && profile.employeesUnder.length > 0) {
-      console.log('❌ Cannot delete - Manager has employees assigned');
       return res.status(400).json({
         success: false,
-        message: `Cannot delete manager. ${profile.employeesUnder.length} employee(s) are assigned. Please reassign them first.`
+        message: `Cannot delete manager. ${profile.employeesUnder.length} employee(s) are assigned.`
       });
     }
 
-    // Remove employee from manager's list if applicable
+    // ✅ Delete all related records for employee
+    if (userType === 'employee') {
+      await Attendance.deleteMany({ employeeId: profile._id });
+      await Leave.deleteMany({ employeeId: profile._id });
+      await Salary.deleteMany({ employeeId: profile._id });
+      console.log('✅ Deleted all attendance, leave, and salary records');
+    }
+
+    // Remove from manager's list
     if (userType === 'employee' && profile.managerId) {
       await Manager.findByIdAndUpdate(
         profile.managerId,
         { $pull: { employeesUnder: profile._id } }
       );
-      console.log('✅ Employee removed from manager\'s list');
     }
 
-    // Delete profile
+    // Delete profile and user
     await ProfileModel.findByIdAndDelete(profile._id);
-    console.log(`✅ ${userType} profile DELETED from database`);
-
-    // Delete user account
     await User.findByIdAndDelete(user._id);
-    console.log('✅ User account DELETED from database');
-    console.log(`📧 Email ${user.email} is now available for new registration`);
+
+    console.log('✅ User and all related records DELETED');
 
     res.status(200).json({
       success: true,
-      message: `${userType.charAt(0).toUpperCase() + userType.slice(1)} permanently deleted successfully.`,
+      message: `${userType.charAt(0).toUpperCase() + userType.slice(1)} and all related records permanently deleted.`,
       data: {
         deletedProfile: profile._id,
         deletedEmail: user.email
@@ -1154,46 +1247,132 @@ const getAllAttendance = async (req, res) => {
 /**
  * Manage Holiday
  */
+/**
+ * ✅ FIXED: Manage Holiday (Create/Update)
+ */
+/**
+ * ✅ COMPLETE FIX: Manage Holiday
+ */
 const manageHoliday = async (req, res) => {
   try {
     const { holidayId } = req.params;
     const holidayData = req.body;
 
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📅 MANAGE HOLIDAY REQUEST');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('Holiday ID:', holidayId);
+    console.log('Request Body:', JSON.stringify(holidayData, null, 2));
+    console.log('User ID:', req.user?.userId);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    // ✅ Validation
+    if (!holidayData.name || !holidayData.date) {
+      console.log('❌ Validation failed: Missing name or date');
+      return res.status(400).json({
+        success: false,
+        message: 'Holiday name and date are required.'
+      });
+    }
+
+    // ✅ Extract year and month from date
+    const holidayDate = new Date(holidayData.date);
+    const year = holidayDate.getFullYear();
+    const month = holidayDate.getMonth() + 1; // 0-indexed
+
+    console.log('✅ Extracted - Year:', year, 'Month:', month);
+
+    // ✅ Prepare holiday object
+    const holidayObject = {
+      name: holidayData.name.trim(),
+      date: holidayDate,
+      year: year,
+      month: month,
+      description: holidayData.description || '',
+      isRecurring: holidayData.isRecurring || false
+    };
+
+    console.log('📦 Holiday Object:', JSON.stringify(holidayObject, null, 2));
+
+    // ✅ UPDATE EXISTING HOLIDAY
     if (holidayId) {
+      console.log('🔄 UPDATE MODE - Holiday ID:', holidayId);
+
       const holiday = await Holiday.findByIdAndUpdate(
         holidayId,
-        { $set: holidayData },
+        { $set: holidayObject },
         { new: true, runValidators: true }
       );
 
       if (!holiday) {
+        console.log('❌ Holiday not found');
         return res.status(404).json({
           success: false,
           message: 'Holiday not found.'
         });
       }
 
+      console.log('✅ Holiday updated successfully:', holiday._id);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
       return res.status(200).json({
         success: true,
         message: 'Holiday updated successfully.',
         data: { holiday }
       });
-    } else {
-      const holiday = new Holiday({
-        ...holidayData,
-        createdBy: req.user.userId
-      });
+    }
 
-      await holiday.save();
+    // ✅ CREATE NEW HOLIDAY
+    console.log('➕ CREATE MODE - New holiday');
 
-      return res.status(201).json({
-        success: true,
-        message: 'Holiday created successfully.',
-        data: { holiday }
+    // Check for duplicate on same date
+    const startOfDay = new Date(holidayDate);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(holidayDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const existingHoliday = await Holiday.findOne({
+      date: {
+        $gte: startOfDay,
+        $lte: endOfDay
+      }
+    });
+
+    if (existingHoliday) {
+      console.log('⚠️ Duplicate holiday found:', existingHoliday.name);
+      return res.status(400).json({
+        success: false,
+        message: `A holiday "${existingHoliday.name}" already exists on ${holidayDate.toLocaleDateString()}.`
       });
     }
+
+    // Add createdBy
+    holidayObject.createdBy = req.user?.userId;
+
+    console.log('💾 Saving holiday to database...');
+
+    const holiday = new Holiday(holidayObject);
+    await holiday.save();
+
+    console.log('✅ Holiday created successfully:', holiday._id);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    return res.status(201).json({
+      success: true,
+      message: 'Holiday created successfully.',
+      data: { holiday }
+    });
+
   } catch (error) {
-    console.error('Manage holiday error:', error);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('❌ MANAGE HOLIDAY ERROR');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('Error Name:', error.name);
+    console.error('Error Message:', error.message);
+    console.error('Error Stack:', error.stack);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
     res.status(500).json({
       success: false,
       message: 'Failed to manage holiday.',
@@ -1416,7 +1595,69 @@ const updateMonthlyConfig = async (req, res) => {
     });
   }
 };
-
+/**
+ * ✅ NEW: Get Employee By ID
+ * For AttendanceDetails page when navigating from Reports
+ */
+const getEmployeeById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('🔍 [Admin] Fetching employee with ID:', id);
+    
+    // Validate MongoDB ObjectId format
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      console.log('❌ Invalid ID format');
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid employee ID format'
+      });
+    }
+    
+    // Find employee with populated fields
+    const employee = await Employee.findById(id)
+      .populate('userId', 'email username role createdAt')
+      .populate('managerId', 'firstName lastName email phoneNumber')
+      .lean();
+    
+    // Check if employee exists
+    if (!employee) {
+      console.log('❌ Employee not found:', id);
+      return res.status(404).json({
+        success: false,
+        message: 'Employee not found'
+      });
+    }
+    
+    console.log('✅ Employee found:', employee.firstName, employee.lastName);
+    
+    // Return employee data
+    return res.status(200).json({
+      success: true,
+      data: {
+        employee: employee
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in getEmployeeById:', error);
+    
+    // Handle CastError (invalid ObjectId)
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid employee ID format'
+      });
+    }
+    
+    // Handle other errors
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch employee details',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
 /**
  * Get All Leaves
  */
@@ -1544,12 +1785,175 @@ const forceDeleteEmployee = async (req, res) => {
   }
 };
 
+
+
+// ✅ ADD THESE NEW FUNCTIONS TO YOUR EXISTING admin.controller.js
+
+
+
+/**
+ * Get System Configuration
+ */
+const getSystemConfig = async (req, res) => {
+  try {
+    console.log('📋 Fetching system configuration...');
+    
+    // Get active configuration
+    let config = await SystemConfig.findOne({ isActive: true })
+      .populate('createdBy', 'email')
+      .populate('updatedBy', 'email');
+
+    // If no config exists, create default one
+    if (!config) {
+      console.log('⚠️ No config found, creating default...');
+      config = new SystemConfig({
+        workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+        workingHours: {
+          startTime: '10:00',
+          endTime: '19:00',
+          lateEntryTime: '10:30'
+        },
+        breakTime: 60,
+        leavePolicy: {
+          allowedLeaves: 2,
+          autoAbsentOnExceed: true
+        },
+        weekendDays: ['Saturday', 'Sunday'],
+        isActive: true,
+        createdBy: req.user.userId
+      });
+      await config.save();
+      console.log('✅ Default config created');
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { config }
+    });
+  } catch (error) {
+    console.error('❌ Get system config error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch system configuration.',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Create System Configuration
+ */
+const createSystemConfig = async (req, res) => {
+  try {
+    console.log('📝 Creating new system configuration...');
+    console.log('Data:', req.body);
+
+    const {
+      workingDays,
+      workingHours,
+      breakTime,
+      leavePolicy,
+      weekendDays
+    } = req.body;
+
+    // Deactivate all existing configs
+    await SystemConfig.updateMany(
+      { isActive: true },
+      { $set: { isActive: false } }
+    );
+
+    // Create new active config
+    const config = new SystemConfig({
+      workingDays: workingDays || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      workingHours: workingHours || {
+        startTime: '10:00',
+        endTime: '19:00',
+        lateEntryTime: '10:30'
+      },
+      breakTime: breakTime || 60,
+      leavePolicy: leavePolicy || {
+        allowedLeaves: 2,
+        autoAbsentOnExceed: true
+      },
+      weekendDays: weekendDays || ['Saturday', 'Sunday'],
+      isActive: true,
+      createdBy: req.user.userId,
+      effectiveFrom: new Date()
+    });
+
+    await config.save();
+
+    console.log('✅ System configuration created:', config._id);
+
+    res.status(201).json({
+      success: true,
+      message: 'System configuration created successfully.',
+      data: { config }
+    });
+  } catch (error) {
+    console.error('❌ Create system config error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create system configuration.',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Update System Configuration
+ */
+const updateSystemConfig = async (req, res) => {
+  try {
+    const { configId } = req.params;
+    const updateData = req.body;
+
+    console.log('📝 Updating system configuration:', configId);
+    console.log('Update data:', updateData);
+
+    const config = await SystemConfig.findByIdAndUpdate(
+      configId,
+      {
+        $set: {
+          ...updateData,
+          updatedBy: req.user.userId
+        }
+      },
+      { new: true, runValidators: true }
+    ).populate('createdBy', 'email')
+     .populate('updatedBy', 'email');
+
+    if (!config) {
+      return res.status(404).json({
+        success: false,
+        message: 'System configuration not found.'
+      });
+    }
+
+    console.log('✅ System configuration updated');
+
+    res.status(200).json({
+      success: true,
+      message: 'System configuration updated successfully.',
+      data: { config }
+    });
+  } catch (error) {
+    console.error('❌ Update system config error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update system configuration.',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getDashboard,
   createManager,
   createEmployee,
   getAllManagers,
   getAllEmployees,
+  getEmployeeById,
   getUserDetails,
   updateUser,
   deleteUser,
@@ -1562,5 +1966,10 @@ module.exports = {
   getAllLeaves,
   getSettings,
   getSummaryReport,
-  forceDeleteEmployee  // ✅ Ye add karo
+  forceDeleteEmployee,
+    manageHoliday,  
+  // ✅ ADD THESE 3 NEW EXPORTS
+  getSystemConfig,
+  createSystemConfig,
+  updateSystemConfig
 };

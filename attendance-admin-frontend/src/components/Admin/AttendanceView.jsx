@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import AdminNavbar from './AdminNavbar';
 import AdminSidebar from './AdminSidebar';
 import adminService from '../../services/adminService';
+import adminAttendanceService from '../../services/adminAttendanceService'; // ✅ ADD THIS
+import MarkAttendanceModal from './MarkAttendanceModal';
 import '../../styles/Admin.css';
 
 const AttendanceView = () => {
@@ -14,24 +16,33 @@ const AttendanceView = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
+  const [showMarkAttendanceModal, setShowMarkAttendanceModal] = useState(false);
+  const [totalEmployees, setTotalEmployees] = useState(0); // ✅ ADD THIS
 
-  const departments = ['Software House', 'Sales', 'Marketing', 'IT', 'HR', 'Finance', 'Operations'];
- const statuses = ['present', 'absent', 'on-leave', 'holiday']; // ✅ Changed 'leave' to 'on-leave'
+  const statuses = ['present', 'absent', 'on-leave', 'holiday'];
 
   useEffect(() => {
-    fetchAttendance();
+    fetchData();
+    // eslint-disable-next-line
   }, [selectedDate]);
 
   useEffect(() => {
     filterRecords();
+    // eslint-disable-next-line
   }, [searchTerm, filterStatus, filterDepartment, attendanceRecords]);
 
-  const fetchAttendance = async () => {
+  // ✅ UPDATED: Fetch both attendance and total employees
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await adminService.getAllAttendance({ date: selectedDate });
-      if (response.success) {
-        const formatted = response.data.attendance.map(record => ({
+      // Fetch attendance records
+      const attendanceResponse = await adminService.getAllAttendance({ date: selectedDate });
+      
+      // Fetch total employees
+      const employeesResponse = await adminAttendanceService.getAllEmployees();
+      
+      if (attendanceResponse.success) {
+        const formatted = attendanceResponse.data.attendance.map(record => ({
           id: record._id,
           employeeId: record.employeeId?.employeeCode || 'N/A',
           employeeName: `${record.employeeId?.firstName || ''} ${record.employeeId?.lastName || ''}`,
@@ -39,19 +50,37 @@ const AttendanceView = () => {
           status: record.status,
           clockIn: record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : null,
           clockOut: record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : null,
-          hoursWorked: record.hoursWorked || 0,
+          hoursWorked: record.workHours || 0,
           notes: record.remarks || ''
         }));
         setAttendanceRecords(formatted);
       } else {
         setAttendanceRecords([]);
       }
+
+      // Set total employees count
+      if (employeesResponse.success && employeesResponse.data.employees) {
+        const realEmployees = employeesResponse.data.employees.filter(emp => 
+          emp.firstName && 
+          emp.lastName && 
+          emp.employeeCode && 
+          !emp.employeeCode.includes('TEST')
+        );
+        setTotalEmployees(realEmployees.length);
+      } else {
+        setTotalEmployees(0);
+      }
     } catch (error) {
       console.error(error);
       setAttendanceRecords([]);
+      setTotalEmployees(0);
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchAttendance = async () => {
+    await fetchData();
   };
 
   const filterRecords = () => {
@@ -75,16 +104,27 @@ const AttendanceView = () => {
     setFilteredRecords(filtered);
   };
 
+  // ✅ FIXED: Stats calculation with proper variable definitions
+  const presentCount = filteredRecords.filter(r => r.status === 'present').length;
+  const leaveCount = filteredRecords.filter(r => r.status === 'on-leave').length;
+  const holidayCount = filteredRecords.filter(r => r.status === 'holiday').length;
+  const absentCount = Math.max(0, totalEmployees - presentCount - leaveCount - holidayCount);
+
   const stats = {
-  total: filteredRecords.length,
-  present: filteredRecords.filter(r => r.status === 'present').length,
-  absent: filteredRecords.filter(r => r.status === 'absent').length,
-  leave: filteredRecords.filter(r => r.status === 'on-leave').length, // ✅ Changed 'leave' to 'on-leave'
-  holiday: filteredRecords.filter(r => r.status === 'holiday').length
-};
+    total: totalEmployees,
+    present: presentCount,
+    absent: absentCount,
+    leave: leaveCount,
+    holiday: holidayCount
+  };
 
   const handleViewDetails = (id) => {
     navigate(`/admin/attendance-details/${id}`);
+  };
+
+  const handleAttendanceMarked = () => {
+    setShowMarkAttendanceModal(false);
+    fetchAttendance();
   };
 
   if (loading) {
@@ -142,6 +182,44 @@ const AttendanceView = () => {
             </div>
           </div>
 
+          {/* Mark Attendance Button */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'flex-end', 
+            marginBottom: '16px' 
+          }}>
+            <button
+              className="btn-primary"
+              onClick={() => setShowMarkAttendanceModal(true)}
+              style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                padding: '12px 24px',
+                borderRadius: '10px',
+                border: 'none',
+                fontSize: '15px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                transition: 'all 0.3s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(102, 126, 234, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
+              }}
+            >
+              <span style={{ fontSize: '18px' }}>✓</span>
+              Mark Attendance
+            </button>
+          </div>
+
           {/* Filters */}
           <div className="filters-modern">
             <input
@@ -150,13 +228,6 @@ const AttendanceView = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-
-            <select value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)}>
-              <option value="">All Departments</option>
-              {departments.map((dept, i) => (
-                <option key={i} value={dept}>{dept}</option>
-              ))}
-            </select>
 
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
               <option value="">All Status</option>
@@ -231,10 +302,19 @@ const AttendanceView = () => {
           </div>
 
           <div className="table-footer-modern">
-            Showing {filteredRecords.length} records
+            Showing {filteredRecords.length} records out of {stats.total} total employees
           </div>
         </div>
       </div>
+
+      {/* Mark Attendance Modal */}
+      {showMarkAttendanceModal && (
+        <MarkAttendanceModal
+          selectedDate={selectedDate}
+          onClose={() => setShowMarkAttendanceModal(false)}
+          onAttendanceMarked={handleAttendanceMarked}
+        />
+      )}
     </div>
   );
 };

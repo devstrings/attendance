@@ -22,7 +22,7 @@ const ManagerList = () => {
   // ✅ Debounce timer
   const debounceTimer = useRef(null);
 
-  const departments = ['Software House', 'General', 'Sales', 'Marketing', 'IT', 'HR', 'Finance', 'Operations'];
+  const departments = ['Software House'];
 
   useEffect(() => {
     fetchManagers();

@@ -133,6 +133,7 @@ const getAttendanceById = async (req, res) => {
 /**
  * Create Attendance Record
  */
+// ✅ UPDATED: Admin ko bhi access de rahe hain
 const createAttendance = async (req, res) => {
   try {
     const {
@@ -166,7 +167,7 @@ const createAttendance = async (req, res) => {
       });
     }
 
-    // Check authorization
+    // ✅ Check authorization - ADMIN KO BHI ACCESS
     if (userRole === 'manager') {
       const manager = await Manager.findOne({ userId });
       
@@ -198,6 +199,7 @@ const createAttendance = async (req, res) => {
         });
       }
     }
+    // ✅ Admin ke liye koi check nahi - Full access hai
 
     // Check if attendance already exists for this date
     const attendanceDate = new Date(date);
@@ -226,11 +228,10 @@ const createAttendance = async (req, res) => {
     let isLate = false;
     let lateMinutes = 0;
 
-    // Late if after 10:30 AM
     if (clockInHour > 10 || (clockInHour === 10 && clockInMinute > 30)) {
       isLate = true;
       const totalMinutesNow = (clockInHour * 60) + clockInMinute;
-      const graceEndMinutes = (10 * 60) + 30; // 10:30 AM
+      const graceEndMinutes = (10 * 60) + 30;
       lateMinutes = totalMinutesNow - graceEndMinutes;
     }
 
@@ -240,7 +241,7 @@ const createAttendance = async (req, res) => {
 
     if (clockOut) {
       const clockOutTime = new Date(clockOut);
-      const shiftEndTime = employee.workSchedule?.shiftEndTime || '19:00'; // 7 PM
+      const shiftEndTime = employee.workSchedule?.shiftEndTime || '19:00';
       const [endHour, endMinute] = shiftEndTime.split(':').map(Number);
       
       const expectedClockOut = new Date(clockOutTime);
@@ -267,7 +268,7 @@ const createAttendance = async (req, res) => {
       location,
       remarks,
       markedBy: userId,
-      isApproved: userRole === 'admin' || userRole === 'manager',
+      isApproved: userRole === 'admin' || userRole === 'manager', // ✅ Admin auto-approve
       approvedBy: userRole === 'admin' || userRole === 'manager' ? userId : null
     });
 

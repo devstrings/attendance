@@ -8,10 +8,12 @@ import employeeService from '../../services/employeeService';
 const EmployeeDashboard = () => {
   const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState(null);
+  const [systemConfig, setSystemConfig] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchDashboardData();
+    fetchSystemConfig();
   }, []);
 
   const fetchDashboardData = async () => {
@@ -27,6 +29,27 @@ const EmployeeDashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchSystemConfig = async () => {
+    try {
+      const response = await employeeService.getSystemConfig();
+      if (response.success) {
+        setSystemConfig(response.data.config);
+        console.log('✅ System config loaded:', response.data.config);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching system config:', error);
+    }
+  };
+
+  const formatTime = (time) => {
+    if (!time) return 'N/A';
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
   };
 
   if (loading) {
@@ -53,7 +76,7 @@ const EmployeeDashboard = () => {
           <p>Here's your attendance overview</p>
         </div>
 
-        {/* Stats Grid */}
+        {/* ✅ UPDATED Stats Grid - REMOVED PENDING LEAVES */}
         <div className="stats-grid">
           <div className="stat-card blue">
             <div className="stat-icon">📅</div>
@@ -90,13 +113,7 @@ const EmployeeDashboard = () => {
               <p>Late Days</p>
             </div>
           </div>
-          <div className="stat-card teal">
-            <div className="stat-icon">📝</div>
-            <div className="stat-content">
-              <h3>{dashboardData?.pendingLeaves || 0}</h3>
-              <p>Pending Leaves</p>
-            </div>
-          </div>
+          {/* ❌ REMOVED PENDING LEAVES CARD */}
         </div>
 
         {/* Dashboard Actions */}
@@ -168,6 +185,43 @@ const EmployeeDashboard = () => {
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* ✅ ENHANCED SYSTEM SETTINGS - Added Auto-Absent Policy */}
+        <div className="quick-tips">
+          <h3>📋 Office Hours & Policy</h3>
+          {systemConfig ? (
+            <ul>
+              <li>
+                🕙 <strong>Office Hours:</strong> {formatTime(systemConfig.workingHours?.startTime)} - {formatTime(systemConfig.workingHours?.endTime)}
+              </li>
+              <li>
+                ⏰ <strong>Late Entry After:</strong> {formatTime(systemConfig.workingHours?.lateEntryTime)}
+              </li>
+              <li>
+                📅 <strong>Working Days:</strong> {systemConfig.workingDays?.join(', ') || 'Monday to Friday'}
+              </li>
+              <li>
+                🏖️ <strong>Weekends:</strong> {systemConfig.weekendDays?.join(', ') || 'Saturday & Sunday'}
+              </li>
+              <li>
+                ☕ <strong>Break Time:</strong> {systemConfig.breakTime || 60} minutes
+              </li>
+              <li>
+                📝 <strong>Monthly Leaves Allowed:</strong> {systemConfig.leavePolicy?.allowedLeaves || 2} days
+              </li>
+              {/* ✅ NEW: Auto-Absent Policy */}
+              <li>
+                {systemConfig.leavePolicy?.autoAbsentOnExceed ? (
+                  <>⚠️ <strong>Policy:</strong> Exceeding {systemConfig.leavePolicy?.allowedLeaves} leaves will mark you as Absent</>
+                ) : (
+                  <>✅ <strong>Policy:</strong> No auto-absent on exceeding leave limit</>
+                )}
+              </li>
+            </ul>
+          ) : (
+            <p style={{ textAlign: 'center', color: '#999' }}>Loading system settings...</p>
+          )}
         </div>
       </div>
     </div>

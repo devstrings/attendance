@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { authenticate } = require('../middleware/auth.middleware');
-const authValidators = require('../middleware/validators/auth.validator'); // ✅ NEW
+const authValidators = require('../middleware/validators/auth.validator'); //  NEW
 
 // ✅ Validators apply kiye har route pe
 router.post('/login', authValidators.login, authController.login);

@@ -10,6 +10,10 @@ const config = require('../config/config');
 // ✅ Import centralized route registrar
 const registerRoutes = require('./routes');
 
+// ✅ ADD THESE IMPORTS
+const { autoCheckoutJob } = require('./utils/autoCheckout');
+const { authenticate } = require('./middleware/auth.middleware');
+
 // ================================
 // INITIALIZE EXPRESS APP
 // ================================
@@ -101,6 +105,43 @@ app.get(`${API_PREFIX}/health`, (req, res) => {
 // ================================
 console.log(`📡 Registering routes with prefix: ${API_PREFIX}`);
 registerRoutes(app, API_PREFIX);
+
+// ================================
+// ✅ MANUAL AUTO CHECKOUT TRIGGER (Testing)
+// ================================
+app.post(`${API_PREFIX}/admin/trigger-auto-checkout`, authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can trigger auto checkout'
+      });
+    }
+
+    const { runAutoCheckoutManually } = require('./utils/autoCheckout');
+    const result = await runAutoCheckoutManually();
+    
+    res.status(200).json({
+      success: result.success,
+      message: result.message,
+      data: { checkedOutCount: result.count }
+    });
+  } catch (error) {
+    console.error('❌ Trigger auto checkout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to trigger auto checkout',
+      error: error.message
+    });
+  }
+});
+
+// ================================
+// ✅ START AUTO CHECKOUT CRON JOB
+// ================================
+console.log('🕐 Starting auto checkout cron job...');
+autoCheckoutJob.start();
+console.log('✅ Auto checkout cron job started - will run daily at 7:15 PM Pakistan time');
 
 // ================================
 // 404 HANDLER

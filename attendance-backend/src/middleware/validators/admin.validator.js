@@ -52,10 +52,7 @@ const adminValidators = {
       }),
     
     // Optional fields
-    body('cnic')
-      .optional()
-      .trim(),
-    
+    body('cnic').optional().trim(),
     body('department').optional().trim(),
     body('designation').optional().trim(),
     body('salary').optional(),
@@ -88,11 +85,32 @@ const adminValidators = {
     validate
   ],
 
-  // Holiday management
+  // ✅ FIXED: Holiday management
   manageHoliday: [
-    body('title').trim().notEmpty().withMessage('Holiday title required'),
-    body('date').isISO8601().withMessage('Invalid date'),
-    body('type').optional().isIn(['public', 'optional']),
+    body('name')  // ✅ CHANGED FROM 'title' TO 'name'
+      .trim()
+      .notEmpty()
+      .withMessage('Holiday name is required')
+      .isLength({ min: 2, max: 100 })
+      .withMessage('Holiday name must be 2-100 characters'),
+    
+    body('date')
+      .notEmpty()
+      .withMessage('Holiday date is required')
+      .isISO8601()
+      .withMessage('Invalid date format'),
+    
+    body('description')
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage('Description must not exceed 500 characters'),
+    
+    body('isRecurring')
+      .optional()
+      .isBoolean()
+      .withMessage('isRecurring must be a boolean'),
+    
     validate
   ],
 

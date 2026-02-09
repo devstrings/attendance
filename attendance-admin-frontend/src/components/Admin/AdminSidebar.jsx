@@ -17,9 +17,9 @@ const AdminSidebar = () => {
       color: 'blue'
     },
     {
-      title: 'Summary Reports',
-      icon: '📊',
-      path: '/admin/summary',
+      title: 'Reports',
+      icon: '📈',
+      path: '/admin/reports',
       color: 'green'
     },
     {
@@ -42,29 +42,19 @@ const AdminSidebar = () => {
         { title: 'Create Manager', icon: '➕', path: '/admin/create-manager' }
       ]
     },
+    // ✅ UPDATED - Removed submenu, only "Attendance" goes to view page
     {
       title: 'Attendance',
       icon: '📅',
       path: '/admin/attendance-view',
       color: 'teal'
-    },
-    {
-      title: 'Monthly Reports',
-      icon: '📈',
-      path: '/admin/monthly-report',
-      color: 'pink'
+      // ✅ NO SUBMENU - Mark Attendance hataya, sirf View Attendance rahega
     },
     {
       title: 'Management Panel',
       icon: '⚙️',
       path: '/admin/management-panel',
       color: 'red'
-    },
-    {
-      title: 'Settings',
-      icon: '🔧',
-      path: '/admin/settings',
-      color: 'gray'
     }
   ];
 
@@ -118,7 +108,7 @@ const AdminSidebar = () => {
 
       {/* Sidebar */}
       <aside className={`admin-sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
-        {/* Toggle Button - Beautiful Arrow */}
+        {/* Toggle Button */}
         <button 
           className="sidebar-toggle-btn" 
           onClick={toggleSidebar}
@@ -184,8 +174,6 @@ const AdminSidebar = () => {
             </div>
           ))}
         </div>
-
-       
       </aside>
     </>
   );

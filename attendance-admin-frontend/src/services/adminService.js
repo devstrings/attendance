@@ -1,4 +1,3 @@
-
 import api from './api';
 
 /**
@@ -232,6 +231,21 @@ const adminService = {
   },
 
   /**
+   * Create Holiday
+   */
+  createHoliday: async (holidayData) => {
+    try {
+      console.log('📡 Creating holiday:', holidayData);
+      const response = await api.post('/admin/holiday', holidayData);
+      console.log('✅ Holiday created:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error creating holiday:', error.response?.data || error);
+      throw error.response?.data || { success: false, message: 'Failed to create holiday' };
+    }
+  },
+
+  /**
    * Get All Holidays
    */
   getAllHolidays: async (params = {}) => {
@@ -293,6 +307,48 @@ const adminService = {
       return response.data;
     } catch (error) {
       throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * ✅ NEW: Get System Configuration
+   */
+  getSystemConfig: async () => {
+    try {
+      const response = await api.get('/admin/system-config');
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * ✅ NEW: Create System Configuration
+   */
+  createSystemConfig: async (configData) => {
+    try {
+      console.log('📡 Creating system config:', configData);
+      const response = await api.post('/admin/system-config', configData);
+      console.log('✅ System config created:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error creating system config:', error.response?.data || error);
+      throw error.response?.data || { success: false, message: 'Failed to create system configuration' };
+    }
+  },
+
+  /**
+   * ✅ NEW: Update System Configuration
+   */
+  updateSystemConfig: async (configId, configData) => {
+    try {
+      console.log('📡 Updating system config:', configId, configData);
+      const response = await api.put(`/admin/system-config/${configId}`, configData);
+      console.log('✅ System config updated:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error updating system config:', error.response?.data || error);
+      throw error.response?.data || { success: false, message: 'Failed to update system configuration' };
     }
   }
 };
