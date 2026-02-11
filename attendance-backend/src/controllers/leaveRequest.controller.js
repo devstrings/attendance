@@ -1,27 +1,14 @@
 const LeaveRequest = require('../models/LeaveRequest');
 const notificationService = require('../utils/notificationService');
 const Employee = require('../models/Employee');
-const User = require('../models/User');
+const Admin = require('../models/Admin');
+const Manager = require('../models/Manager');
 const MonthlyConfig = require('../models/MonthlyConfig');
-const Attendance = require('../models/Attendance');
 
 // Get Leave Policy and Employee Balance
 exports.getLeavePolicy = async (req, res) => {
   try {
-    const userId = req.user._id; // ✅ This is User._id from auth middleware
-    
-    // ✅ Find employee by userId
-    const employee = await Employee.findOne({ userId: userId });
-    if (!employee) {
-      console.error('❌ Employee profile not found for userId:', userId);
-      return res.status(404).json({
-        success: false,
-        message: 'Employee profile not found. Please contact admin.'
-      });
-    }
-
-    const employeeId = employee._id;
-    console.log('✅ Found employee:', employeeId, employee.firstName);
+    const employeeId = req.user._id;
     
     // Get leave policy from MonthlyConfig
     const config = await MonthlyConfig.findOne({}).sort({ updatedAt: -1 });
@@ -71,10 +58,8 @@ exports.getLeavePolicy = async (req, res) => {
 // Employee: Create leave request
 exports.createLeaveRequest = async (req, res) => {
   try {
-    const userId = req.user._id; // ✅ This is User._id from auth middleware
+    const employeeId = req.user._id;
     const { leaveType, fromDate, toDate, numberOfDays, reason, attachments } = req.body;
-
-    console.log('📝 Creating leave request for userId:', userId);
 
     // Validation
     if (!leaveType || !fromDate || !toDate || !reason) {
@@ -92,18 +77,14 @@ exports.createLeaveRequest = async (req, res) => {
       });
     }
 
-    // ✅ FIX: Find employee by userId, not by _id
-    const employee = await Employee.findOne({ userId: userId });
+    // Get employee details
+    const employee = await Employee.findById(employeeId);
     if (!employee) {
-      console.error('❌ Employee profile not found for userId:', userId);
       return res.status(404).json({
         success: false,
-        message: 'Employee profile not found. Please contact admin.'
+        message: 'Employee not found'
       });
     }
-
-    const employeeId = employee._id;
-    console.log('✅ Found employee:', employeeId, employee.firstName, employee.lastName);
 
     // Check leave balance
     const config = await MonthlyConfig.findOne({}).sort({ updatedAt: -1 });
@@ -131,9 +112,9 @@ exports.createLeaveRequest = async (req, res) => {
 
     // Create leave request
     const leaveRequest = new LeaveRequest({
-      employee: employeeId, // ✅ Use employee._id
-      employeeName: `${employee.firstName} ${employee.lastName}`,
-      employeeEmail: employee.email || employee.phoneNumber, // fallback to phone if no email
+      employee: employeeId,
+      employeeName: employee.name,
+      employeeEmail: employee.email,
       leaveType,
       fromDate: new Date(fromDate),
       toDate: new Date(toDate),
@@ -144,17 +125,16 @@ exports.createLeaveRequest = async (req, res) => {
     });
 
     await leaveRequest.save();
-    console.log('✅ Leave request created:', leaveRequest._id);
 
-    // Send notification
+    // Send notification to admin
     try {
       await notificationService.notifyLeaveRequest(leaveRequest, {
-        _id: employeeId,
-        name: `${employee.firstName} ${employee.lastName}`,
-        email: employee.email || employee.phoneNumber
+        name: employee.name,
+        email: employee.email
       });
     } catch (notifError) {
       console.error('⚠️ Notification error:', notifError);
+      // Continue even if notification fails
     }
 
     res.status(201).json({
@@ -176,19 +156,8 @@ exports.createLeaveRequest = async (req, res) => {
 // Employee: Get my leave requests
 exports.getMyLeaveRequests = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const employeeId = req.user._id;
     const { status, year } = req.query;
-
-    // ✅ Find employee by userId
-    const employee = await Employee.findOne({ userId: userId });
-    if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: 'Employee profile not found'
-      });
-    }
-
-    const employeeId = employee._id;
 
     const query = { employee: employeeId };
     
@@ -308,7 +277,7 @@ exports.getLeaveRequestById = async (req, res) => {
   }
 };
 
-// ✅ ENHANCED: Auto mark attendance on leave approval
+// Admin/Manager: Approve leave request
 exports.approveLeaveRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
@@ -331,73 +300,30 @@ exports.approveLeaveRequest = async (req, res) => {
       });
     }
 
-    const approver = await User.findById(approverId);
-    
-    let approverName = approver.email;
-    if (approverRole === 'manager') {
-      const managerDetails = await require('../models/Manager').findOne({ userId: approverId });
-      approverName = managerDetails ? `${managerDetails.firstName} ${managerDetails.lastName}` : approver.email;
-    } else if (approverRole === 'admin') {
-      approverName = 'Admin';
-    }
+    // Get approver details
+    const ApproverModel = approverRole === 'admin' ? Admin : Manager;
+    const approver = await ApproverModel.findById(approverId);
 
+    // Update leave request
     leaveRequest.status = 'approved';
     leaveRequest.approvedBy = approverId;
-    leaveRequest.approverModel = 'User';
-    leaveRequest.approverName = approverName;
+    leaveRequest.approverModel = approverRole === 'admin' ? 'Admin' : 'Manager';
+    leaveRequest.approverName = approver.name;
     leaveRequest.approvedAt = new Date();
 
     await leaveRequest.save();
 
-    // AUTO MARK ATTENDANCE AS LEAVE
-    try {
-      const fromDate = new Date(leaveRequest.fromDate);
-      const toDate = new Date(leaveRequest.toDate);
-      
-      for (let date = new Date(fromDate); date <= toDate; date.setDate(date.getDate() + 1)) {
-        const attendanceDate = new Date(date);
-        attendanceDate.setHours(0, 0, 0, 0);
-
-        let attendance = await Attendance.findOne({
-          employee: leaveRequest.employee,
-          date: attendanceDate
-        });
-
-        if (attendance) {
-          attendance.status = 'leave';
-          attendance.leaveType = leaveRequest.leaveType;
-          attendance.leaveReason = leaveRequest.reason;
-          attendance.markedAsLeave = true;
-          await attendance.save();
-          console.log(`✅ Updated attendance to LEAVE for ${attendanceDate.toDateString()}`);
-        } else {
-          attendance = new Attendance({
-            employee: leaveRequest.employee,
-            date: attendanceDate,
-            status: 'leave',
-            leaveType: leaveRequest.leaveType,
-            leaveReason: leaveRequest.reason,
-            markedAsLeave: true,
-            workHours: 0
-          });
-          await attendance.save();
-          console.log(`✅ Created new LEAVE attendance for ${attendanceDate.toDateString()}`);
-        }
-      }
-    } catch (attendanceError) {
-      console.error('⚠️ Attendance marking error:', attendanceError);
-    }
-
+    // Get employee details
     const employee = await Employee.findById(leaveRequest.employee);
 
+    // Send notification to employee
     try {
       await notificationService.notifyLeaveApproval(leaveRequest, {
-        _id: employee._id,
-        name: `${employee.firstName} ${employee.lastName}`,
-        email: employee.email || employee.phoneNumber
+        name: employee.name,
+        email: employee.email
       }, {
         _id: approverId,
-        name: approverName,
+        name: approver.name,
         role: approverRole
       });
     } catch (notifError) {
@@ -406,7 +332,7 @@ exports.approveLeaveRequest = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Leave request approved and attendance marked successfully',
+      message: 'Leave request approved successfully',
       data: leaveRequest
     });
 
@@ -444,35 +370,31 @@ exports.rejectLeaveRequest = async (req, res) => {
       });
     }
 
-    const approver = await User.findById(approverId);
-    
-    let approverName = approver.email;
-    if (approverRole === 'manager') {
-      const managerDetails = await require('../models/Manager').findOne({ userId: approverId });
-      approverName = managerDetails ? `${managerDetails.firstName} ${managerDetails.lastName}` : approver.email;
-    } else if (approverRole === 'admin') {
-      approverName = 'Admin';
-    }
+    // Get approver details
+    const ApproverModel = approverRole === 'admin' ? Admin : Manager;
+    const approver = await ApproverModel.findById(approverId);
 
+    // Update leave request
     leaveRequest.status = 'rejected';
     leaveRequest.approvedBy = approverId;
-    leaveRequest.approverModel = 'User';
-    leaveRequest.approverName = approverName;
+    leaveRequest.approverModel = approverRole === 'admin' ? 'Admin' : 'Manager';
+    leaveRequest.approverName = approver.name;
     leaveRequest.approvedAt = new Date();
     leaveRequest.rejectionReason = rejectionReason || 'No reason provided';
 
     await leaveRequest.save();
 
+    // Get employee details
     const employee = await Employee.findById(leaveRequest.employee);
 
+    // Send notification to employee
     try {
       await notificationService.notifyLeaveRejection(leaveRequest, {
-        _id: employee._id,
-        name: `${employee.firstName} ${employee.lastName}`,
-        email: employee.email || employee.phoneNumber
+        name: employee.name,
+        email: employee.email
       }, {
         _id: approverId,
-        name: approverName,
+        name: approver.name,
         role: approverRole
       }, rejectionReason);
     } catch (notifError) {
@@ -499,18 +421,7 @@ exports.rejectLeaveRequest = async (req, res) => {
 exports.cancelLeaveRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
-    const userId = req.user._id;
-
-    // ✅ Find employee by userId
-    const employee = await Employee.findOne({ userId: userId });
-    if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: 'Employee profile not found'
-      });
-    }
-
-    const employeeId = employee._id;
+    const employeeId = req.user._id;
 
     const leaveRequest = await LeaveRequest.findById(requestId);
 
@@ -521,6 +432,7 @@ exports.cancelLeaveRequest = async (req, res) => {
       });
     }
 
+    // Check if request belongs to this employee
     if (leaveRequest.employee.toString() !== employeeId.toString()) {
       return res.status(403).json({
         success: false,
@@ -528,6 +440,7 @@ exports.cancelLeaveRequest = async (req, res) => {
       });
     }
 
+    // Can only cancel pending requests
     if (leaveRequest.status !== 'pending') {
       return res.status(400).json({
         success: false,
@@ -578,23 +491,15 @@ exports.addComment = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId);
-    let userName = user.email;
-    
-    if (userRole === 'employee') {
-      const empDetails = await Employee.findOne({ userId: userId });
-      userName = empDetails ? `${empDetails.firstName} ${empDetails.lastName}` : user.email;
-    } else if (userRole === 'manager') {
-      const managerDetails = await require('../models/Manager').findOne({ userId: userId });
-      userName = managerDetails ? `${managerDetails.firstName} ${managerDetails.lastName}` : user.email;
-    } else if (userRole === 'admin') {
-      userName = 'Admin';
-    }
+    const UserModel = userRole === 'admin' ? Admin : 
+                     userRole === 'manager' ? Manager : Employee;
+    const user = await UserModel.findById(userId);
 
     leaveRequest.comments.push({
       by: userId,
-      byModel: 'User',
-      byName: userName,
+      byModel: userRole === 'admin' ? 'Admin' : 
+              userRole === 'manager' ? 'Manager' : 'Employee',
+      byName: user.name,
       text: text,
       createdAt: new Date()
     });
@@ -604,7 +509,7 @@ exports.addComment = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Comment added successfully',
-      data: leaveRequest 
+      data: leaveRequest
     });
 
   } catch (error) {

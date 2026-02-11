@@ -7,20 +7,21 @@ require('dotenv').config();
 
 const config = require('../config/config');
 
-// ✅ Import centralized route registrar
+// Routes
 const registerRoutes = require('./routes');
 
-// ✅ ADD THESE IMPORTS
+// Utils & Middleware
 const { autoCheckoutJob } = require('./utils/autoCheckout');
 const { authenticate } = require('./middleware/auth.middleware');
 
 // ================================
-// INITIALIZE EXPRESS APP
+// INITIALIZE APP
 // ================================
 const app = express();
+const API_PREFIX = config.server.apiPrefix;
 
 // ================================
-// SECURITY MIDDLEWARE
+// SECURITY
 // ================================
 app.use(
   helmet({
@@ -29,18 +30,18 @@ app.use(
 );
 
 // ================================
-// CORS CONFIGURATION
+// CORS
 // ================================
 const corsOptions = {
-  origin: function (origin, callback) {
+  origin(origin, callback) {
     if (!origin) return callback(null, true);
 
     if (config.cors.origin.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`⚠️ CORS blocked origin: ${origin}`);
-      callback(null, true); // dev mode allow
+      return callback(null, true);
     }
+
+    console.warn(`⚠️ CORS blocked origin: ${origin}`);
+    return callback(null, true); // dev allow
   },
   credentials: config.cors.credentials,
   methods: config.cors.methods,
@@ -54,7 +55,7 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 // ================================
-// BODY PARSER
+// BODY PARSERS
 // ================================
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -62,11 +63,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // ================================
 // LOGGER
 // ================================
-if (config.server.env === 'development') {
-  app.use(morgan('dev'));
-} else {
-  app.use(morgan('combined'));
-}
+app.use(
+  config.server.env === 'development'
+    ? morgan('dev')
+    : morgan('combined')
+);
 
 // ================================
 // STATIC FILES
@@ -74,7 +75,7 @@ if (config.server.env === 'development') {
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ================================
-// ROOT ROUTE
+// ROOT
 // ================================
 app.get('/', (req, res) => {
   res.status(200).json({
@@ -88,8 +89,6 @@ app.get('/', (req, res) => {
 // ================================
 // HEALTH CHECK
 // ================================
-const API_PREFIX = config.server.apiPrefix;
-
 app.get(`${API_PREFIX}/health`, (req, res) => {
   res.status(200).json({
     success: true,
@@ -101,47 +100,51 @@ app.get(`${API_PREFIX}/health`, (req, res) => {
 });
 
 // ================================
-// REGISTER ALL ROUTES (IMPORTANT)
+// REGISTER ROUTES
 // ================================
 console.log(`📡 Registering routes with prefix: ${API_PREFIX}`);
 registerRoutes(app, API_PREFIX);
 
 // ================================
-// ✅ MANUAL AUTO CHECKOUT TRIGGER (Testing)
+// ADMIN – MANUAL AUTO CHECKOUT
 // ================================
-app.post(`${API_PREFIX}/admin/trigger-auto-checkout`, authenticate, async (req, res) => {
-  try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({
+app.post(
+  `${API_PREFIX}/admin/trigger-auto-checkout`,
+  authenticate,
+  async (req, res) => {
+    try {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Only admins can trigger auto checkout'
+        });
+      }
+
+      const { runAutoCheckoutManually } = require('./utils/autoCheckout');
+      const result = await runAutoCheckoutManually();
+
+      res.status(200).json({
+        success: result.success,
+        message: result.message,
+        data: { checkedOutCount: result.count }
+      });
+    } catch (error) {
+      console.error('❌ Auto checkout trigger error:', error);
+      res.status(500).json({
         success: false,
-        message: 'Only admins can trigger auto checkout'
+        message: 'Failed to trigger auto checkout',
+        error: error.message
       });
     }
-
-    const { runAutoCheckoutManually } = require('./utils/autoCheckout');
-    const result = await runAutoCheckoutManually();
-    
-    res.status(200).json({
-      success: result.success,
-      message: result.message,
-      data: { checkedOutCount: result.count }
-    });
-  } catch (error) {
-    console.error('❌ Trigger auto checkout error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to trigger auto checkout',
-      error: error.message
-    });
   }
-});
+);
 
 // ================================
-// ✅ START AUTO CHECKOUT CRON JOB
+// CRON JOB
 // ================================
 console.log('🕐 Starting auto checkout cron job...');
 autoCheckoutJob.start();
-console.log('✅ Auto checkout cron job started - will run daily at 7:15 PM Pakistan time');
+console.log('✅ Auto checkout cron job running (7:15 PM PKT)');
 
 // ================================
 // 404 HANDLER

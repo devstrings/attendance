@@ -4,6 +4,8 @@ import AdminNavbar from './AdminNavbar';
 import AdminSidebar from './AdminSidebar';
 import adminService from '../../services/adminService';
 import '../../styles/Admin.css';
+// ✅ Import NotificationCenter properly
+import NotificationCenter from './NotificationCenter';
 
 /**
  * AdminDashboard Component
@@ -27,45 +29,42 @@ const AdminDashboard = () => {
     fetchDashboardData();
   }, []);
 
- const fetchDashboardData = async () => {
-  try {
-    setLoading(true);
-    const response = await adminService.getDashboard();
-    
-    if (response.success) {
-      const totalEmp = response.data.stats?.totalEmployees || 0;
-      const present = response.data.stats?.todayAttendance || 0;
-      const leave = response.data.stats?.pendingLeaves || 0;
-      const absent = response.data.stats?.absentToday || 0;
-
-      setDashboardData({
-        stats: {
-          totalEmployees: totalEmp,
-          presentToday: present,
-          absentToday: absent,
-          leaveToday: leave
-        }
-      });
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const response = await adminService.getDashboard();
       
-      // ✅ NEW: Show working day status
-      if (response.data.meta?.isWorkingDay === false) {
-        console.log(`🏖️ Today is ${response.data.meta.todayDayName} - Non-working day`);
-      }
-    }
-  } catch (error) {
-    console.error('❌ Dashboard error:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+      if (response.success) {
+        const totalEmp = response.data.stats?.totalEmployees || 0;
+        const present = response.data.stats?.todayAttendance || 0;
+        const leave = response.data.stats?.pendingLeaves || 0;
+        const absent = response.data.stats?.absentToday || 0;
 
-  // Get attendance percentage from REAL data
+        setDashboardData({
+          stats: {
+            totalEmployees: totalEmp,
+            presentToday: present,
+            absentToday: absent,
+            leaveToday: leave
+          }
+        });
+        
+        if (response.data.meta?.isWorkingDay === false) {
+          console.log(`🏖️ Today is ${response.data.meta.todayDayName} - Non-working day`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Dashboard error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getAttendancePercentage = () => {
     if (dashboardData.stats.totalEmployees === 0) return 0;
     return Math.round((dashboardData.stats.presentToday / dashboardData.stats.totalEmployees) * 100);
   };
 
-  // Loading state
   if (loading) {
     return (
       <div className="admin-container">
@@ -103,6 +102,11 @@ const AdminDashboard = () => {
               </p>
             </div>
             <div style={styles.headerActions}>
+              {/* ✅ Notification Bell Here */}
+              <div style={{ marginRight: '16px' }}>
+                <NotificationCenter />
+              </div>
+              
               <button style={styles.primaryButton} onClick={() => navigate('/admin/create-employee')}>
                 <span>➕</span> Add Employee
               </button>
@@ -112,7 +116,7 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Stats Cards - 4 Cards with REAL DATA */}
+          {/* Stats Cards */}
           <div style={styles.statsGrid}>
             {/* Total Employees */}
             <div style={{...styles.statCard, borderLeftColor: '#3b82f6'}}>
@@ -179,7 +183,7 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Widgets Grid - ONLY REAL DATA */}
+          {/* Widgets Grid */}
           <div style={styles.widgetsGrid}>
             
             {/* Today's Attendance Rate Widget */}
@@ -240,7 +244,6 @@ const AdminDashboard = () => {
               </div>
               <div style={styles.widgetContent}>
                 <div style={styles.quickActionsList}>
-                  {/* ✅ REMOVED: Mark Attendance option hataya */}
                   
                   <div style={styles.quickActionItem} onClick={() => navigate('/admin/attendance-view')}>
                     <div style={{...styles.actionIcon, background: '#10b98115', color: '#10b981'}}>📅</div>
@@ -291,7 +294,6 @@ const styles = {
     minHeight: '100vh'
   },
 
-  // Header
   header: {
     background: 'white',
     borderRadius: '16px',
@@ -328,7 +330,8 @@ const styles = {
   headerActions: {
     display: 'flex',
     gap: '12px',
-    flexWrap: 'wrap'
+    flexWrap: 'wrap',
+    alignItems: 'center'
   },
   primaryButton: {
     padding: '12px 24px',
@@ -360,7 +363,6 @@ const styles = {
     transition: 'all 0.3s'
   },
 
-  // Stats Grid (4 cards)
   statsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
@@ -417,7 +419,6 @@ const styles = {
     fontWeight: '600'
   },
 
-  // Widgets Grid
   widgetsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
@@ -449,7 +450,6 @@ const styles = {
     padding: '24px'
   },
 
-  // Attendance Circle
   attendanceCircle: {
     display: 'flex',
     justifyContent: 'center',
@@ -494,7 +494,6 @@ const styles = {
     color: '#374151'
   },
 
-  // Quick Actions
   quickActionsList: {
     display: 'flex',
     flexDirection: 'column',
@@ -538,7 +537,6 @@ const styles = {
     color: '#9ca3af'
   },
 
-  // Loading
   loadingContainer: {
     display: 'flex',
     justifyContent: 'center',

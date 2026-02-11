@@ -43,20 +43,20 @@ const EmployeeNavbar = () => {
   };
 
   const handleLogout = () => {
-  // ✅ Clear all auth data
-  localStorage.removeItem('employee_token');
-  localStorage.removeItem('employee_user');
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  
-  // ✅ Clear session storage
-  sessionStorage.clear();
-  
-  console.log('🚪 Employee logged out');
-  
-  // ✅ Redirect to home
-  navigate('/');
-};
+    // ✅ Clear all auth data
+    localStorage.removeItem('employee_token');
+    localStorage.removeItem('employee_user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
+    // ✅ Clear session storage
+    sessionStorage.clear();
+    
+    console.log('🚪 Employee logged out');
+    
+    // ✅ Redirect to home
+    navigate('/');
+  };
 
   const toggleDropdown = () => {
     setShowDropdown(!showDropdown);
@@ -102,6 +102,23 @@ const EmployeeNavbar = () => {
               <div className="dropdown-item" onClick={() => navigate('/employee/my-attendance')}>
                 <span>📝</span> My Attendance
               </div>
+              
+              {/* ✅ NEW: Leave & Requests Section */}
+              <div className="dropdown-divider"></div>
+              <div className="dropdown-section-title">
+                <span>📋 Requests & Leave</span>
+              </div>
+              <div className="dropdown-item" onClick={() => navigate('/employee/request-leave')}>
+                <span>🏖️</span> Request Leave
+              </div>
+              <div className="dropdown-item" onClick={() => navigate('/employee/report-issue')}>
+                <span>⚠️</span> Report Issue
+              </div>
+              <div className="dropdown-item" onClick={() => navigate('/employee/my-requests')}>
+                <span>📋</span> My Requests
+              </div>
+              
+              <div className="dropdown-divider"></div>
               <div className="dropdown-item" onClick={() => navigate('/employee/profile-settings')}>
                 <span>⚙️</span> Settings
               </div>
