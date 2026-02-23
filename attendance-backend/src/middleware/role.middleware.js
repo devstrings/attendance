@@ -159,6 +159,7 @@ const canAccessEmployeeUnderManager = async (req, res, next) => {
 
 module.exports = {
   authorize,
+  authorizeRoles: authorize, // ✅ ADDED - Alias for authorize
   isAdmin,
   isManagerOrAdmin,
   isEmployeeOrAbove,

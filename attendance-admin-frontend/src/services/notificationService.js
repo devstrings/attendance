@@ -2,12 +2,13 @@ import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
 
+// ✅ Admin-specific token
 const getAuthHeader = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
   return { Authorization: `Bearer ${token}` };
 };
 
-// Get my notifications
+// ===== Get my notifications =====
 export const getMyNotifications = async (limit = 20, unreadOnly = false) => {
   try {
     const response = await axios.get(
@@ -23,7 +24,7 @@ export const getMyNotifications = async (limit = 20, unreadOnly = false) => {
   }
 };
 
-// Get unread count
+// ===== Get unread count =====
 export const getUnreadCount = async () => {
   try {
     const response = await axios.get(
@@ -36,20 +37,7 @@ export const getUnreadCount = async () => {
   }
 };
 
-// Get notification by ID
-export const getNotificationById = async (notificationId) => {
-  try {
-    const response = await axios.get(
-      `${API_URL}/notifications/${notificationId}`,
-      { headers: getAuthHeader() }
-    );
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error;
-  }
-};
-
-// Mark notification as read
+// ===== Mark as read =====
 export const markAsRead = async (notificationId) => {
   try {
     const response = await axios.patch(
@@ -63,7 +51,7 @@ export const markAsRead = async (notificationId) => {
   }
 };
 
-// Mark all notifications as read
+// ===== Mark all as read =====
 export const markAllAsRead = async () => {
   try {
     const response = await axios.patch(
@@ -77,7 +65,7 @@ export const markAllAsRead = async () => {
   }
 };
 
-// Delete notification
+// ===== Delete notification =====
 export const deleteNotification = async (notificationId) => {
   try {
     const response = await axios.delete(
@@ -90,7 +78,7 @@ export const deleteNotification = async (notificationId) => {
   }
 };
 
-// Get all notifications (Admin only)
+// ===== Get ALL notifications (admin view) =====
 export const getAllNotifications = async (page = 1, limit = 50, type = null, isRead = null) => {
   try {
     const response = await axios.get(
@@ -106,7 +94,8 @@ export const getAllNotifications = async (page = 1, limit = 50, type = null, isR
   }
 };
 
-// Send broadcast notification (Admin only)
+// ===== Send Broadcast =====
+// ✅ FIX: response.data.count properly handled
 export const sendBroadcast = async (updateType, updateDetails, affectedUsers = 'all') => {
   try {
     const response = await axios.post(
@@ -120,13 +109,29 @@ export const sendBroadcast = async (updateType, updateDetails, affectedUsers = '
   }
 };
 
+// ===== Delete Broadcast (bulk delete by IDs) =====
+export const deleteBroadcast = async (ids) => {
+  try {
+    const response = await axios.delete(
+      `${API_URL}/notifications/admin/broadcast/bulk`,
+      {
+        headers: getAuthHeader(),
+        data: { ids }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
 export default {
   getMyNotifications,
   getUnreadCount,
-  getNotificationById,
   markAsRead,
   markAllAsRead,
   deleteNotification,
   getAllNotifications,
-  sendBroadcast
+  sendBroadcast,
+  deleteBroadcast
 };

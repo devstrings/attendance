@@ -6,17 +6,15 @@ const Leave = require('../models/Leave');
 const Holiday = require('../models/Holiday');
 const MonthlyConfig = require('../models/MonthlyConfig');
 const Salary = require('../models/Salary');
-const SystemConfig = require('../models/SystemConfig'); // ✅ SIRF YAHAN RAKHO
+const SystemConfig = require('../models/SystemConfig');
 const { generateToken } = require('../utils/jwtHandler');
 const { sendEmail } = require('../utils/emailService');
 const { validateEmail } = require('../utils/validators');
+const notificationService = require('../utils/notificationService');
 
-/**
- * Admin Dashboard
- */
-/**
- * Admin Dashboard - WITH DELETED EMPLOYEE FILTER
- */
+
+
+
 /**
  * Admin Dashboard - WITH WORKING DAYS CHECK
  */
@@ -52,21 +50,18 @@ const getDashboard = async (req, res) => {
     
     // ✅ Only calculate attendance if today is a working day
     if (isWorkingDay) {
-      // Count attendance ONLY for active employees
       todayAttendance = await Attendance.countDocuments({
         date: { $gte: today },
         status: { $in: ['present', 'half-day', 'late'] },
         employeeId: { $in: activeEmployeeIds }
       });
       
-      // Count leaves for today
       const onLeaveToday = await Attendance.countDocuments({
         date: { $gte: today },
         status: { $in: ['on-leave', 'leave'] },
         employeeId: { $in: activeEmployeeIds }
       });
       
-      // ✅ Absent = Total Active Employees - Present - On Leave
       absentToday = Math.max(0, totalEmployees - todayAttendance - onLeaveToday);
       
       console.log('📊 Working Day Stats:', {
@@ -76,7 +71,6 @@ const getDashboard = async (req, res) => {
         absentToday
       });
     } else {
-      // ✅ Non-working day: No attendance expected
       console.log('🏖️ Today is NOT a working day - No attendance expected');
       todayAttendance = 0;
       absentToday = 0;
@@ -132,11 +126,10 @@ const getDashboard = async (req, res) => {
     });
   }
 };
+
+
 /**
  * Create Manager
- */
-/**
- * Create Manager - WITH DETAILED LOGGING
  */
 const createManager = async (req, res) => {
   try {
@@ -163,7 +156,6 @@ const createManager = async (req, res) => {
       emergencyContact
     } = req.body;
 
-    // ✅ CHECK REQUIRED FIELDS
     console.log('🔍 Checking required fields...');
     console.log('firstName:', firstName ? '✅' : '❌');
     console.log('lastName:', lastName ? '✅' : '❌');
@@ -188,7 +180,6 @@ const createManager = async (req, res) => {
 
     console.log('✅ All required fields present');
 
-    // Validate email format
     if (!validateEmail(email)) {
       console.log('❌ Invalid email format:', email);
       return res.status(400).json({
@@ -199,7 +190,6 @@ const createManager = async (req, res) => {
 
     console.log('✅ Email format valid');
 
-    // Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       console.log('❌ Email already exists:', email);
@@ -211,7 +201,6 @@ const createManager = async (req, res) => {
 
     console.log('✅ Email available');
 
-    // Check CNIC if provided
     if (cnic) {
       const existingCNIC = await Manager.findOne({ cnic, isActive: true });
       if (existingCNIC) {
@@ -226,7 +215,6 @@ const createManager = async (req, res) => {
     console.log('✅ CNIC check passed');
     console.log('📝 Creating user account...');
 
-    // Create user account
     const user = new User({
       email: email.toLowerCase(),
       password,
@@ -240,7 +228,6 @@ const createManager = async (req, res) => {
 
     console.log('📝 Creating manager profile...');
 
-    // Create manager profile
     const manager = new Manager({
       userId: user._id,
       firstName,
@@ -260,7 +247,6 @@ const createManager = async (req, res) => {
     await manager.save();
     console.log('✅ Manager profile created:', manager._id);
 
-    // Send welcome email
     try {
       await sendEmail({
         to: user.email,
@@ -330,7 +316,6 @@ const createEmployee = async (req, res) => {
       workSchedule
     } = req.body;
 
-    // ✅ REQUIRED FIELD VALIDATION
     console.log('🔍 Validating required fields...');
     if (!email || !password || !firstName || !lastName || !phoneNumber) {
       console.log('❌ Missing required fields');
@@ -349,7 +334,6 @@ const createEmployee = async (req, res) => {
 
     console.log('✅ All required fields present');
 
-    // ✅ EMAIL VALIDATION
     if (!validateEmail(email)) {
       console.log('❌ Invalid email format:', email);
       return res.status(400).json({
@@ -360,7 +344,6 @@ const createEmployee = async (req, res) => {
 
     console.log('✅ Email format valid');
 
-    // ✅ CHECK EXISTING EMAIL
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       console.log('❌ Email already registered:', email);
@@ -372,7 +355,6 @@ const createEmployee = async (req, res) => {
 
     console.log('✅ Email available');
 
-    // ✅ VALIDATE MANAGER IF PROVIDED
     if (managerId) {
       console.log('🔍 Validating manager ID:', managerId);
       const manager = await Manager.findById(managerId);
@@ -386,7 +368,6 @@ const createEmployee = async (req, res) => {
       console.log('✅ Manager validated:', manager.firstName, manager.lastName);
     }
 
-    // ✅ IMPROVED CNIC VALIDATION - Only check if CNIC is provided and not empty
     if (cnic && cnic.trim() !== '') {
       console.log('🔍 Checking CNIC:', cnic);
       const existingCNIC = await Employee.findOne({ 
@@ -406,7 +387,6 @@ const createEmployee = async (req, res) => {
       console.log('ℹ️ No CNIC provided, skipping CNIC check');
     }
 
-    // ✅ GENERATE UNIQUE EMPLOYEE CODE
     console.log('📝 Generating employee code...');
     let employeeCode;
     let isUnique = false;
@@ -435,7 +415,6 @@ const createEmployee = async (req, res) => {
       });
     }
 
-    // ✅ CREATE USER ACCOUNT
     console.log('📝 Creating user account...');
     const user = new User({
       email: email.toLowerCase(),
@@ -448,7 +427,6 @@ const createEmployee = async (req, res) => {
     await user.save();
     console.log('✅ User account created:', user._id);
 
-    // ✅ CREATE EMPLOYEE PROFILE
     console.log('📝 Creating employee profile...');
     const employee = new Employee({
       userId: user._id,
@@ -457,7 +435,7 @@ const createEmployee = async (req, res) => {
       lastName: lastName.trim(),
       employeeCode,
       phoneNumber: phoneNumber.trim(),
-      cnic: cnic ? cnic.trim() : null, // ✅ Store null instead of empty string
+      cnic: cnic ? cnic.trim() : null,
       dateOfBirth: dateOfBirth || null,
       address: address ? address.trim() : null,
       department: department || 'General',
@@ -475,7 +453,6 @@ const createEmployee = async (req, res) => {
     await employee.save();
     console.log('✅ Employee profile created:', employee._id);
 
-    // ✅ ADD TO MANAGER'S LIST
     if (managerId) {
       await Manager.findByIdAndUpdate(
         managerId,
@@ -485,7 +462,6 @@ const createEmployee = async (req, res) => {
       console.log('✅ Employee added to manager list');
     }
 
-    // ✅ SEND WELCOME EMAIL (non-blocking)
     try {
       await sendEmail({
         to: user.email,
@@ -537,11 +513,9 @@ const createEmployee = async (req, res) => {
     console.error('Error stack:', error.stack);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
-    // ✅ Provide user-friendly error messages
     let errorMessage = 'Failed to create employee.';
     
     if (error.code === 11000) {
-      // MongoDB duplicate key error
       const field = Object.keys(error.keyPattern)[0];
       errorMessage = `Duplicate ${field}. This ${field} is already registered.`;
     } else if (error.name === 'ValidationError') {
@@ -607,8 +581,7 @@ const getAllManagers = async (req, res) => {
 };
 
 /**
- * ✅ FIXED: Get All Employees
- * Properly populates userId field
+ * Get All Employees
  */
 const getAllEmployees = async (req, res) => {
   try {
@@ -636,16 +609,15 @@ const getAllEmployees = async (req, res) => {
     }
 
     const employees = await Employee.find(query)
-      .populate('userId', 'email isActive lastLogin') // ✅ This populates userId
+      .populate('userId', 'email isActive lastLogin')
       .populate('managerId', 'firstName lastName email')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .lean(); // ✅ Convert to plain JavaScript objects
+      .lean();
 
     const count = await Employee.countDocuments(query);
 
-    // ✅ CRITICAL: Verify userId is populated
     console.log('✅ Employees fetched:', employees.length);
     if (employees.length > 0) {
       console.log('📊 First employee userId check:', {
@@ -675,17 +647,7 @@ const getAllEmployees = async (req, res) => {
 };
 
 /**
- * ✅ COMPLETELY FIXED: Get User Details
- * Handles BOTH userId and employeeId/managerId
- */
-/**
- * ✅ COMPLETELY FIXED: Get User Details
- * Handles BOTH userId and employeeId/managerId
- */
-/**
- * ✅ COMPLETELY FIXED: Get User Details
- * Handles BOTH Employee._id and User._id
- * Auto-fixes missing userId in profiles
+ * Get User Details
  */
 const getUserDetails = async (req, res) => {
   try {
@@ -697,7 +659,6 @@ const getUserDetails = async (req, res) => {
 
     const { userId, userType } = req.params;
 
-    // Validate userType
     if (!['manager', 'employee'].includes(userType)) {
       return res.status(400).json({
         success: false,
@@ -713,25 +674,22 @@ const getUserDetails = async (req, res) => {
 
     let user = null;
     let profile = null;
+
     console.log(`🔎 Strategy 1: Searching ${userType} profile by _id...`);
 
-    // ✅ STRATEGY 1: Try finding Profile by _id first (most common from frontend)
-      profile = await ProfileModel.findById(userId)
+    profile = await ProfileModel.findById(userId)
       .populate('userId')
       .populate(populateField, populateSelect);
 
-     if (profile) {
+    if (profile) {
       console.log('✅ Found profile by Profile._id:', profile._id);
       
-      // Check if userId exists and is valid
       if (profile.userId) {
         const userIdValue = profile.userId._id || profile.userId;
         user = await User.findById(userIdValue).select('-password');
         
-        
-         if (user) {
+        if (user) {
           console.log('✅ Found user via profile.userId:', user._id);
-          
           return res.status(200).json({
             success: true,
             data: { user, profile }
@@ -739,18 +697,15 @@ const getUserDetails = async (req, res) => {
         }
       }
       
-      // ✅ AUTO-FIX: If userId is null, try to find matching user
       console.log('⚠️ Profile.userId is null/invalid, attempting auto-fix...');
       
-      // Try to find user by email pattern matching
       const searchPatterns = [
         profile.cnic,
         profile.phoneNumber,
         profile.employeeCode
       ].filter(Boolean);
 
-       for (const pattern of searchPatterns) {
-        // Search by CNIC in other profiles
+      for (const pattern of searchPatterns) {
         const relatedProfile = await ProfileModel.findOne({ 
           cnic: pattern,
           userId: { $exists: true, $ne: null }
@@ -760,14 +715,12 @@ const getUserDetails = async (req, res) => {
           user = await User.findById(relatedProfile.userId).select('-password');
           if (user && user.role === userType) {
             console.log('✅ Found user by pattern matching');
-          
-          // Auto-fix: Update profile with correct userId
-           profile.userId = user._id;
+            
+            profile.userId = user._id;
             await profile.save();
             console.log('✅ AUTO-FIXED: Updated profile.userId');
-          
-          // Re-populate profile
-          profile = await ProfileModel.findById(profile._id)
+            
+            profile = await ProfileModel.findById(profile._id)
               .populate('userId')
               .populate(populateField, populateSelect);
             
@@ -782,7 +735,7 @@ const getUserDetails = async (req, res) => {
       
       console.log('❌ No matching user account found for this profile');
 
-       return res.status(404).json({
+      return res.status(404).json({
         success: false,
         message: `${userType} profile exists but no user account found. Please contact admin.`,
         debugInfo: {
@@ -794,15 +747,15 @@ const getUserDetails = async (req, res) => {
       });
     }
 
-      console.log('🔎 Strategy 2: Searching user by User._id...');
-      user = await User.findById(userId).select('-password');
+    console.log('🔎 Strategy 2: Searching user by User._id...');
+    user = await User.findById(userId).select('-password');
 
     if (user) {
       console.log('✅ Found user by User._id:', user._id);
       profile = await ProfileModel.findOne({ userId: user._id })
         .populate(populateField, populateSelect);
 
-         if (!profile) {
+      if (!profile) {
         return res.status(404).json({
           success: false,
           message: `User account exists but ${userType} profile not found.`
@@ -817,14 +770,13 @@ const getUserDetails = async (req, res) => {
       });
     }
 
-    // ✅ NOT FOUND
     console.error('❌ User/Profile not found with any strategy');
     return res.status(404).json({
       success: false,
       message: 'User not found.'
     });
 
-   } catch (error) {
+  } catch (error) {
     console.error('❌ Get user details error:', error);
     res.status(500).json({
       success: false,
@@ -833,12 +785,9 @@ const getUserDetails = async (req, res) => {
     });
   }
 };
+
 /**
  * Update User
- */
-/**
- * ✅ FIXED: Update User
- * Handles BOTH Employee._id and User._id
  */
 const updateUser = async (req, res) => {
   try {
@@ -864,7 +813,6 @@ const updateUser = async (req, res) => {
     if (profile) {
       console.log('✅ Found profile by Profile._id:', profile._id);
       
-      // Get user from profile.userId
       if (profile.userId) {
         user = await User.findById(profile.userId);
       }
@@ -878,25 +826,23 @@ const updateUser = async (req, res) => {
 
       console.log('✅ Found user:', user._id);
 
-      // Update user email if changed
-       if (updateData.email && updateData.email !== user.email) {
+      if (updateData.email && updateData.email !== user.email) {
         const existingEmail = await User.findOne({ 
           email: updateData.email.toLowerCase(),
           _id: { $ne: user._id }
         });
 
-       if (existingEmail) {
+        if (existingEmail) {
           return res.status(400).json({
             success: false,
             message: 'Email already in use.'
           });
         }
-         user.email = updateData.email.toLowerCase();
+        user.email = updateData.email.toLowerCase();
         await user.save();
         console.log('✅ User email updated');
       }
 
-      // Update profile
       const populateField = userType === 'manager' ? 'employeesUnder' : 'managerId';
       const populateSelect = userType === 'manager' 
         ? 'firstName lastName employeeCode' 
@@ -918,10 +864,9 @@ const updateUser = async (req, res) => {
     }
 
     // ✅ STRATEGY 2: Try as User._id (fallback)
-    cconsole.log('⚠️ Not found as Profile._id, trying as User._id...');
+    console.log('⚠️ Not found as Profile._id, trying as User._id...');
 
-
-   user = await User.findById(userId);
+    user = await User.findById(userId);
 
     if (!user) {
       return res.status(404).json({
@@ -930,8 +875,8 @@ const updateUser = async (req, res) => {
       });
     }
 
-    nsole.log('✅ Found user by User._id:', user._id);
-    // Update email if changed
+    console.log('✅ Found user by User._id:', user._id);
+
     if (updateData.email && updateData.email !== user.email) {
       const existingEmail = await User.findOne({ 
         email: updateData.email.toLowerCase(),
@@ -949,7 +894,6 @@ const updateUser = async (req, res) => {
       await user.save();
     }
 
-    // Update profile
     const populateField = userType === 'manager' ? 'employeesUnder' : 'managerId';
     const populateSelect = userType === 'manager' 
       ? 'firstName lastName employeeCode' 
@@ -987,10 +931,7 @@ const updateUser = async (req, res) => {
 };
 
 /**
- * ✅ COMPLETE FIX: Delete User (Hard Delete)
- */
-/**
- * ✅ ENHANCED: Delete User with Attendance Cleanup
+ * Delete User (Hard Delete)
  */
 const deleteUser = async (req, res) => {
   try {
@@ -1002,7 +943,6 @@ const deleteUser = async (req, res) => {
     console.log('   userType:', userType);
     console.log('═══════════════════════════════════');
 
-    // Validate userType
     if (!['manager', 'employee'].includes(userType)) {
       return res.status(400).json({
         success: false,
@@ -1014,7 +954,6 @@ const deleteUser = async (req, res) => {
     let user = null;
     let profile = null;
 
-    // ✅ STRATEGY 1: Try as Profile._id (most common)
     console.log(`🔎 Strategy 1: Finding ${userType} by Profile._id...`);
     
     profile = await ProfileModel.findById(userId);
@@ -1023,17 +962,14 @@ const deleteUser = async (req, res) => {
       console.log('✅ Found profile by Profile._id:', profile._id);
       console.log('📧 Profile name:', `${profile.firstName} ${profile.lastName}`);
 
-      // Get user from profile.userId
       if (profile.userId) {
         user = await User.findById(profile.userId);
-        
         if (user) {
           console.log('✅ Found user via profile.userId:', user._id);
           console.log('📧 User email:', user.email);
         }
       }
 
-      // Check if manager has employees
       if (userType === 'manager' && profile.employeesUnder && profile.employeesUnder.length > 0) {
         console.log('❌ Cannot delete - Manager has employees assigned');
         return res.status(400).json({
@@ -1042,27 +978,17 @@ const deleteUser = async (req, res) => {
         });
       }
 
-      // ✅ NEW: Delete all attendance records for this employee
       if (userType === 'employee') {
-        const deletedAttendance = await Attendance.deleteMany({
-          employeeId: profile._id
-        });
+        const deletedAttendance = await Attendance.deleteMany({ employeeId: profile._id });
         console.log(`✅ Deleted ${deletedAttendance.deletedCount} attendance records`);
         
-        // ✅ Delete all leave requests for this employee
-        const deletedLeaves = await Leave.deleteMany({
-          employeeId: profile._id
-        });
+        const deletedLeaves = await Leave.deleteMany({ employeeId: profile._id });
         console.log(`✅ Deleted ${deletedLeaves.deletedCount} leave requests`);
         
-        // ✅ Delete all salary records for this employee
-        const deletedSalaries = await Salary.deleteMany({
-          employeeId: profile._id
-        });
+        const deletedSalaries = await Salary.deleteMany({ employeeId: profile._id });
         console.log(`✅ Deleted ${deletedSalaries.deletedCount} salary records`);
       }
 
-      // Remove employee from manager's list if applicable
       if (userType === 'employee' && profile.managerId) {
         await Manager.findByIdAndUpdate(
           profile.managerId,
@@ -1071,11 +997,9 @@ const deleteUser = async (req, res) => {
         console.log('✅ Employee removed from manager\'s list');
       }
 
-      // Delete the profile
       await ProfileModel.findByIdAndDelete(profile._id);
       console.log(`✅ ${userType} profile DELETED from database`);
 
-      // Delete user account if exists
       if (user) {
         await User.findByIdAndDelete(user._id);
         console.log('✅ User account DELETED from database');
@@ -1092,7 +1016,6 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    // ✅ STRATEGY 2: Try as User._id (fallback) - same logic as above
     console.log('🔎 Strategy 2: Finding by User._id...');
     
     user = await User.findById(userId);
@@ -1107,7 +1030,6 @@ const deleteUser = async (req, res) => {
 
     console.log('✅ Found user by User._id:', user._id);
 
-    // Verify role matches
     if (user.role.toLowerCase() !== userType.toLowerCase()) {
       return res.status(400).json({
         success: false,
@@ -1115,12 +1037,10 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    // Find and delete profile
     profile = await ProfileModel.findOne({ userId: user._id });
 
     if (!profile) {
       console.log('⚠️ Profile not found, deleting user account only');
-      
       await User.findByIdAndDelete(user._id);
       console.log('✅ User account DELETED');
       
@@ -1131,7 +1051,6 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    // Check if manager has employees
     if (userType === 'manager' && profile.employeesUnder && profile.employeesUnder.length > 0) {
       return res.status(400).json({
         success: false,
@@ -1139,7 +1058,6 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    // ✅ Delete all related records for employee
     if (userType === 'employee') {
       await Attendance.deleteMany({ employeeId: profile._id });
       await Leave.deleteMany({ employeeId: profile._id });
@@ -1147,7 +1065,6 @@ const deleteUser = async (req, res) => {
       console.log('✅ Deleted all attendance, leave, and salary records');
     }
 
-    // Remove from manager's list
     if (userType === 'employee' && profile.managerId) {
       await Manager.findByIdAndUpdate(
         profile.managerId,
@@ -1155,7 +1072,6 @@ const deleteUser = async (req, res) => {
       );
     }
 
-    // Delete profile and user
     await ProfileModel.findByIdAndDelete(profile._id);
     await User.findByIdAndDelete(user._id);
 
@@ -1247,12 +1163,6 @@ const getAllAttendance = async (req, res) => {
 /**
  * Manage Holiday
  */
-/**
- * ✅ FIXED: Manage Holiday (Create/Update)
- */
-/**
- * ✅ COMPLETE FIX: Manage Holiday
- */
 const manageHoliday = async (req, res) => {
   try {
     const { holidayId } = req.params;
@@ -1266,7 +1176,6 @@ const manageHoliday = async (req, res) => {
     console.log('User ID:', req.user?.userId);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    // ✅ Validation
     if (!holidayData.name || !holidayData.date) {
       console.log('❌ Validation failed: Missing name or date');
       return res.status(400).json({
@@ -1275,14 +1184,12 @@ const manageHoliday = async (req, res) => {
       });
     }
 
-    // ✅ Extract year and month from date
     const holidayDate = new Date(holidayData.date);
     const year = holidayDate.getFullYear();
-    const month = holidayDate.getMonth() + 1; // 0-indexed
+    const month = holidayDate.getMonth() + 1;
 
     console.log('✅ Extracted - Year:', year, 'Month:', month);
 
-    // ✅ Prepare holiday object
     const holidayObject = {
       name: holidayData.name.trim(),
       date: holidayDate,
@@ -1294,7 +1201,6 @@ const manageHoliday = async (req, res) => {
 
     console.log('📦 Holiday Object:', JSON.stringify(holidayObject, null, 2));
 
-    // ✅ UPDATE EXISTING HOLIDAY
     if (holidayId) {
       console.log('🔄 UPDATE MODE - Holiday ID:', holidayId);
 
@@ -1322,10 +1228,8 @@ const manageHoliday = async (req, res) => {
       });
     }
 
-    // ✅ CREATE NEW HOLIDAY
     console.log('➕ CREATE MODE - New holiday');
 
-    // Check for duplicate on same date
     const startOfDay = new Date(holidayDate);
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -1333,10 +1237,7 @@ const manageHoliday = async (req, res) => {
     endOfDay.setHours(23, 59, 59, 999);
 
     const existingHoliday = await Holiday.findOne({
-      date: {
-        $gte: startOfDay,
-        $lte: endOfDay
-      }
+      date: { $gte: startOfDay, $lte: endOfDay }
     });
 
     if (existingHoliday) {
@@ -1347,7 +1248,6 @@ const manageHoliday = async (req, res) => {
       });
     }
 
-    // Add createdBy
     holidayObject.createdBy = req.user?.userId;
 
     console.log('💾 Saving holiday to database...');
@@ -1595,9 +1495,9 @@ const updateMonthlyConfig = async (req, res) => {
     });
   }
 };
+
 /**
- * ✅ NEW: Get Employee By ID
- * For AttendanceDetails page when navigating from Reports
+ * Get Employee By ID
  */
 const getEmployeeById = async (req, res) => {
   try {
@@ -1605,7 +1505,6 @@ const getEmployeeById = async (req, res) => {
     
     console.log('🔍 [Admin] Fetching employee with ID:', id);
     
-    // Validate MongoDB ObjectId format
     if (!id.match(/^[0-9a-fA-F]{24}$/)) {
       console.log('❌ Invalid ID format');
       return res.status(400).json({
@@ -1614,13 +1513,11 @@ const getEmployeeById = async (req, res) => {
       });
     }
     
-    // Find employee with populated fields
     const employee = await Employee.findById(id)
       .populate('userId', 'email username role createdAt')
       .populate('managerId', 'firstName lastName email phoneNumber')
       .lean();
     
-    // Check if employee exists
     if (!employee) {
       console.log('❌ Employee not found:', id);
       return res.status(404).json({
@@ -1631,18 +1528,14 @@ const getEmployeeById = async (req, res) => {
     
     console.log('✅ Employee found:', employee.firstName, employee.lastName);
     
-    // Return employee data
     return res.status(200).json({
       success: true,
-      data: {
-        employee: employee
-      }
+      data: { employee }
     });
     
   } catch (error) {
     console.error('❌ Error in getEmployeeById:', error);
     
-    // Handle CastError (invalid ObjectId)
     if (error.name === 'CastError') {
       return res.status(400).json({
         success: false,
@@ -1650,7 +1543,6 @@ const getEmployeeById = async (req, res) => {
       });
     }
     
-    // Handle other errors
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch employee details',
@@ -1658,6 +1550,7 @@ const getEmployeeById = async (req, res) => {
     });
   }
 };
+
 /**
  * Get All Leaves
  */
@@ -1674,7 +1567,6 @@ const getAllLeaves = async (req, res) => {
     if (employeeId) {
       query.employeeId = employeeId;
     }
-
 
     const leaves = await Leave.find(query)
       .populate('employeeId', 'firstName lastName employeeCode')
@@ -1732,10 +1624,8 @@ const getSettings = async (req, res) => {
   }
 };
 
-
 /**
- * 🔥 FORCE DELETE - Delete corrupted employee from database
- * Temporary endpoint for fixing corrupted data
+ * Force Delete Employee (for corrupted data)
  */
 const forceDeleteEmployee = async (req, res) => {
   try {
@@ -1743,19 +1633,16 @@ const forceDeleteEmployee = async (req, res) => {
     
     console.log('🔥 FORCE DELETE - Removing corrupted employee:', employeeId);
     
-    // Delete employee profile
     const employee = await Employee.findByIdAndDelete(employeeId);
     
     if (employee) {
       console.log('✅ Employee deleted:', employee._id);
       
-      // Try to delete user account if exists
       if (employee.userId) {
         await User.findByIdAndDelete(employee.userId);
         console.log('✅ User account deleted');
       }
       
-      // Remove from manager's list
       if (employee.managerId) {
         await Manager.findByIdAndUpdate(
           employee.managerId,
@@ -1785,12 +1672,6 @@ const forceDeleteEmployee = async (req, res) => {
   }
 };
 
-
-
-// ✅ ADD THESE NEW FUNCTIONS TO YOUR EXISTING admin.controller.js
-
-
-
 /**
  * Get System Configuration
  */
@@ -1798,12 +1679,10 @@ const getSystemConfig = async (req, res) => {
   try {
     console.log('📋 Fetching system configuration...');
     
-    // Get active configuration
     let config = await SystemConfig.findOne({ isActive: true })
       .populate('createdBy', 'email')
       .populate('updatedBy', 'email');
 
-    // If no config exists, create default one
     if (!config) {
       console.log('⚠️ No config found, creating default...');
       config = new SystemConfig({
@@ -1856,13 +1735,11 @@ const createSystemConfig = async (req, res) => {
       weekendDays
     } = req.body;
 
-    // Deactivate all existing configs
     await SystemConfig.updateMany(
       { isActive: true },
       { $set: { isActive: false } }
     );
 
-    // Create new active config
     const config = new SystemConfig({
       workingDays: workingDays || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
       workingHours: workingHours || {
@@ -1909,41 +1786,50 @@ const updateSystemConfig = async (req, res) => {
     const updateData = req.body;
 
     console.log('📝 Updating system configuration:', configId);
-    console.log('Update data:', updateData);
 
     const config = await SystemConfig.findByIdAndUpdate(
       configId,
-      {
-        $set: {
-          ...updateData,
-          updatedBy: req.user.userId
-        }
-      },
+      { $set: { ...updateData, updatedBy: req.user.userId } },
       { new: true, runValidators: true }
-    ).populate('createdBy', 'email')
-     .populate('updatedBy', 'email');
+    ).populate('createdBy', 'email').populate('updatedBy', 'email');
 
     if (!config) {
-      return res.status(404).json({
-        success: false,
-        message: 'System configuration not found.'
-      });
+      return res.status(404).json({ success: false, message: 'System configuration not found.' });
     }
 
     console.log('✅ System configuration updated');
 
-    res.status(200).json({
-      success: true,
-      message: 'System configuration updated successfully.',
-      data: { config }
-    });
+    // Send broadcast notification
+    try {
+      let message = 'System settings updated:\n';
+      
+      if (updateData.workingHours) {
+        message += `• Working Hours: ${updateData.workingHours.startTime} - ${updateData.workingHours.endTime}\n`;
+        message += `• Late Entry After: ${updateData.workingHours.lateEntryTime}\n`;
+      }
+      
+      if (updateData.workingDays) {
+        message += `• Working Days: ${updateData.workingDays.join(', ')}\n`;
+      }
+      
+      if (updateData.breakTime) {
+        message += `• Break Time: ${updateData.breakTime} minutes\n`;
+      }
+      
+      if (updateData.leavePolicy) {
+        message += `• Allowed Leaves: ${updateData.leavePolicy.allowedLeaves} per month\n`;
+      }
+
+      await notificationService.sendAnnouncement('⚙️ System Settings Updated', message.trim(), 'all');
+      console.log('✅ Broadcast sent');
+    } catch (err) {
+      console.error('⚠️ Notification failed:', err);
+    }
+
+    res.status(200).json({ success: true, message: 'System configuration updated successfully.', data: { config } });
   } catch (error) {
     console.error('❌ Update system config error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update system configuration.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to update system configuration.', error: error.message });
   }
 };
 
@@ -1967,8 +1853,6 @@ module.exports = {
   getSettings,
   getSummaryReport,
   forceDeleteEmployee,
-    manageHoliday,  
-  // ✅ ADD THESE 3 NEW EXPORTS
   getSystemConfig,
   createSystemConfig,
   updateSystemConfig

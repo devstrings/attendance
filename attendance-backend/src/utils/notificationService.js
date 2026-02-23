@@ -1,384 +1,271 @@
 const Notification = require('../models/Notification');
-const emailService = require('./emailService');
+const User = require('../models/User');
 
-class NotificationService {
-  
-  // Create a notification (in-app)
-  async createNotification(notificationData) {
-    try {
-      const notification = new Notification(notificationData);
-      await notification.save();
-      return { success: true, notification };
-    } catch (error) {
-      console.error('❌ Create notification error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Create notification and send email
-  async createAndSendNotification(notificationData, emailData = null) {
-    try {
-      // Create in-app notification
-      const notification = new Notification(notificationData);
-      await notification.save();
-
-      // Send email if email data provided
-      if (emailData && emailData.recipientEmail && emailData.subject && emailData.htmlContent) {
-        const emailResult = await emailService.sendNotificationEmail(
-          emailData.recipientEmail,
-          emailData.subject,
-          emailData.htmlContent
-        );
-
-        if (emailResult.success) {
-          notification.emailSent = true;
-          notification.emailSentAt = new Date();
-          await notification.save();
-        }
-      }
-
-      return { success: true, notification };
-    } catch (error) {
-      console.error('❌ Create and send notification error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Send leave request notification to admin/manager
-  async notifyLeaveRequest(leaveRequest, employeeData) {
-    const notificationData = {
-      recipient: null, // Will be set to admin ID
-      recipientModel: 'Admin',
-      sender: leaveRequest.employee,
-      senderModel: 'Employee',
-      type: 'leave_request',
-      title: '🏖️ New Leave Request',
-      message: `${employeeData.name} has requested ${leaveRequest.numberOfDays} day(s) leave from ${new Date(leaveRequest.fromDate).toLocaleDateString()} to ${new Date(leaveRequest.toDate).toLocaleDateString()}`,
-      link: `/admin/leave-requests`,
-      metadata: {
-        leaveRequestId: leaveRequest._id,
-        leaveType: leaveRequest.leaveType,
-        fromDate: leaveRequest.fromDate,
-        toDate: leaveRequest.toDate
-      },
-      priority: 'high'
-    };
-
-    // Get admin user (you'll need to fetch this from your Admin model)
-    const Admin = require('../models/Admin');
-    const admin = await Admin.findOne({ role: 'admin' });
+// ===== Helper: Create Notification =====
+const createNotification = async (recipientId, title, message, type, link = null, metadata = {}) => {
+  try {
+    console.log('📢 Creating notification for:', recipientId);
+    console.log('   Title:', title);
+    console.log('   Type:', type);
     
-    if (admin) {
-      notificationData.recipient = admin._id;
+    const notification = new Notification({
+      recipient: recipientId,
+      title,
+      message,
+      type,
+      link,
+      metadata,
+      isRead: false
+    });
 
-      const emailData = {
-        recipientEmail: admin.email,
-        subject: '🏖️ New Leave Request - Attendance System',
-        htmlContent: emailService.getLeaveRequestEmailTemplate({
-          employeeName: employeeData.name,
-          leaveType: leaveRequest.leaveType,
-          fromDate: leaveRequest.fromDate,
-          toDate: leaveRequest.toDate,
-          numberOfDays: leaveRequest.numberOfDays,
-          reason: leaveRequest.reason,
-          requestId: leaveRequest._id
-        })
-      };
-
-      return await this.createAndSendNotification(notificationData, emailData);
-    }
-
-    return await this.createNotification(notificationData);
+    await notification.save();
+    console.log('✅ Notification created successfully:', notification._id);
+    return notification;
+  } catch (error) {
+    console.error('❌ Create notification error:', error);
+    throw error;
   }
+};
 
-  // Notify employee about leave approval
-  async notifyLeaveApproval(leaveRequest, employeeData, approverData) {
-    const notificationData = {
-      recipient: leaveRequest.employee,
-      recipientModel: 'Employee',
-      sender: approverData._id,
-      senderModel: approverData.role === 'admin' ? 'Admin' : 'Manager',
-      type: 'leave_approved',
-      title: '✅ Leave Request Approved',
-      message: `Your leave request for ${leaveRequest.numberOfDays} day(s) has been approved by ${approverData.name}`,
-      link: `/employee/my-requests`,
-      metadata: {
+// ===== Send Notification to Admin =====
+const notifyAdmin = async (title, message, type, link = null, metadata = {}) => {
+  try {
+    console.log('📢 Finding admins...');
+    
+    const admins = await User.find({ 
+      role: 'admin', 
+      isActive: true 
+    });
+    
+    console.log(`✅ Found ${admins.length} admin(s)`);
+    
+    if (admins.length === 0) {
+      console.warn('⚠️  No active admins found!');
+      return;
+    }
+    
+    const promises = admins.map(admin => {
+      console.log(`   Creating notification for admin: ${admin.email}`);
+      return createNotification(admin._id, title, message, type, link, metadata);
+    });
+    
+    await Promise.all(promises);
+    console.log(`✅ Successfully sent notifications to ${admins.length} admin(s)`);
+  } catch (error) {
+    console.error('❌ Notify admin error:', error);
+    throw error;
+  }
+};
+
+// ===== LEAVE REQUEST: Notify Admin =====
+const notifyLeaveRequest = async (leaveRequest, employee) => {
+  try {
+    console.log('');
+    console.log('='.repeat(60));
+    console.log('📢 NOTIFYING ADMIN ABOUT LEAVE REQUEST');
+    console.log('='.repeat(60));
+    console.log('Employee Name:', employee.name);
+    console.log('Employee Email:', employee.email);
+    console.log('Leave Type:', leaveRequest.leaveType);
+    console.log('Number of Days:', leaveRequest.numberOfDays);
+    console.log('From Date:', leaveRequest.fromDate);
+    console.log('='.repeat(60));
+    
+    const title = `🏖️ New Leave Request`;
+    const message = `${employee.name} has requested ${leaveRequest.numberOfDays} day(s) of ${leaveRequest.leaveType} leave from ${new Date(leaveRequest.fromDate).toLocaleDateString()}.`;
+    const link = `/admin/leave-requests`;
+    
+    await notifyAdmin(title, message, 'leave_request', link, {
+      leaveRequestId: leaveRequest._id,
+      employeeName: employee.name,
+      employeeEmail: employee.email,
+      leaveType: leaveRequest.leaveType,
+      numberOfDays: leaveRequest.numberOfDays
+    });
+    
+    console.log('✅ Leave request notification sent to admin!');
+    console.log('='.repeat(60));
+    console.log('');
+  } catch (error) {
+    console.error('❌ Notify leave request error:', error);
+    console.error('   Stack:', error.stack);
+  }
+};
+
+// ===== LEAVE APPROVED: Notify Employee =====
+const notifyLeaveApproval = async (leaveRequest, employee, approver) => {
+  try {
+    console.log('📢 Notifying employee about leave approval');
+    
+    const Employee = require('../models/Employee');
+    const employeeDoc = await Employee.findById(leaveRequest.employee).populate('userId');
+    
+    if (!employeeDoc || !employeeDoc.userId) {
+      console.error('❌ Employee userId not found');
+      return;
+    }
+    
+    const title = `✅ Leave Request Approved`;
+    const message = `Your ${leaveRequest.leaveType} leave request for ${leaveRequest.numberOfDays} day(s) has been approved by ${approver.name}.`;
+    const link = `/employee/my-requests`;
+    
+    await createNotification(
+      employeeDoc.userId._id,
+      title,
+      message,
+      'leave_approved',
+      link,
+      {
         leaveRequestId: leaveRequest._id,
-        approvedBy: approverData.name,
-        approvedAt: new Date()
-      },
-      priority: 'high'
-    };
-
-    const emailData = {
-      recipientEmail: employeeData.email,
-      subject: '✅ Leave Request Approved - Attendance System',
-      htmlContent: emailService.getLeaveApprovedEmailTemplate({
-        employeeName: employeeData.name,
-        leaveType: leaveRequest.leaveType,
-        fromDate: leaveRequest.fromDate,
-        toDate: leaveRequest.toDate,
-        numberOfDays: leaveRequest.numberOfDays,
-        approverName: approverData.name
-      })
-    };
-
-    return await this.createAndSendNotification(notificationData, emailData);
+        approverName: approver.name
+      }
+    );
+    
+    console.log('✅ Leave approval notification sent to employee');
+  } catch (error) {
+    console.error('❌ Notify leave approval error:', error);
   }
+};
 
-  // Notify employee about leave rejection
-  async notifyLeaveRejection(leaveRequest, employeeData, approverData, rejectionReason) {
-    const notificationData = {
-      recipient: leaveRequest.employee,
-      recipientModel: 'Employee',
-      sender: approverData._id,
-      senderModel: approverData.role === 'admin' ? 'Admin' : 'Manager',
-      type: 'leave_rejected',
-      title: '❌ Leave Request Not Approved',
-      message: `Your leave request has been reviewed and not approved. ${rejectionReason ? 'Reason: ' + rejectionReason : ''}`,
-      link: `/employee/my-requests`,
-      metadata: {
+// ===== LEAVE REJECTED: Notify Employee =====
+const notifyLeaveRejection = async (leaveRequest, employee, approver, reason) => {
+  try {
+    console.log('📢 Notifying employee about leave rejection');
+    
+    const Employee = require('../models/Employee');
+    const employeeDoc = await Employee.findById(leaveRequest.employee).populate('userId');
+    
+    if (!employeeDoc || !employeeDoc.userId) {
+      console.error('❌ Employee userId not found');
+      return;
+    }
+    
+    const title = `❌ Leave Request Rejected`;
+    const message = `Your ${leaveRequest.leaveType} leave request has been rejected by ${approver.name}. Reason: ${reason}`;
+    const link = `/employee/my-requests`;
+    
+    await createNotification(
+      employeeDoc.userId._id,
+      title,
+      message,
+      'leave_rejected',
+      link,
+      {
         leaveRequestId: leaveRequest._id,
-        rejectedBy: approverData.name,
-        rejectionReason: rejectionReason
-      },
-      priority: 'high'
-    };
+        approverName: approver.name,
+        rejectionReason: reason
+      }
+    );
+    
+    console.log('✅ Leave rejection notification sent to employee');
+  } catch (error) {
+    console.error('❌ Notify leave rejection error:', error);
+  }
+};
 
-    const emailData = {
-      recipientEmail: employeeData.email,
-      subject: '❌ Leave Request Update - Attendance System',
-      htmlContent: emailService.getLeaveRejectedEmailTemplate({
-        employeeName: employeeData.name,
-        leaveType: leaveRequest.leaveType,
-        fromDate: leaveRequest.fromDate,
-        toDate: leaveRequest.toDate,
-        rejectionReason: rejectionReason,
-        approverName: approverData.name
+// ===== CORRECTION REQUEST: Notify Admin =====
+const notifyCorrectionRequest = async (correctionRequest, employee) => {
+  try {
+    console.log('📢 Notifying admin about correction request');
+    
+    const title = `⚠️ New Attendance Correction Request`;
+    const message = `${employee.name} has requested a correction for ${new Date(correctionRequest.attendanceDate).toLocaleDateString()}. Issue: ${correctionRequest.issueType.replace('_', ' ')}`;
+    const link = `/admin/correction-requests`;
+    
+    await notifyAdmin(title, message, 'correction_request', link, {
+      correctionRequestId: correctionRequest._id,
+      employeeName: employee.name,
+      issueType: correctionRequest.issueType
+    });
+    
+    console.log('✅ Correction request notification sent to admin');
+  } catch (error) {
+    console.error('❌ Notify correction request error:', error);
+  }
+};
+
+// ===== CORRECTION RESOLVED: Notify Employee =====
+const notifyCorrectionResolution = async (correctionRequest, employee, resolver, status) => {
+  try {
+    console.log('📢 Notifying employee about correction resolution');
+    
+    const Employee = require('../models/Employee');
+    const employeeDoc = await Employee.findById(correctionRequest.employee).populate('userId');
+    
+    if (!employeeDoc || !employeeDoc.userId) {
+      console.error('❌ Employee userId not found');
+      return;
+    }
+    
+    const title = status === 'approved' ? `✅ Correction Request Approved` : `❌ Correction Request Rejected`;
+    const message = `Your attendance correction request for ${new Date(correctionRequest.attendanceDate).toLocaleDateString()} has been ${status} by ${resolver.name}.`;
+    const link = `/employee/my-requests`;
+    
+    await createNotification(
+      employeeDoc.userId._id,
+      title,
+      message,
+      'correction_resolved',
+      link,
+      {
+        correctionRequestId: correctionRequest._id,
+        resolverName: resolver.name,
+        status
+      }
+    );
+    
+    console.log('✅ Correction resolution notification sent to employee');
+  } catch (error) {
+    console.error('❌ Notify correction resolution error:', error);
+  }
+};
+
+// ===== System Announcement =====
+// ✅ FIX: Returns count so controller can include it in response
+const sendAnnouncement = async (title, message, recipientRole = 'all') => {
+  try {
+    console.log(`📢 Sending announcement to: ${recipientRole}`);
+    
+    let users = [];
+    
+    if (recipientRole === 'all') {
+      users = await User.find({ isActive: true });
+    } else {
+      users = await User.find({ role: recipientRole, isActive: true });
+    }
+    
+    console.log(`✅ Found ${users.length} users`);
+
+    if (users.length === 0) {
+      console.warn('⚠️  No users found for announcement');
+      return 0;
+    }
+    
+    const promises = users.map(user => 
+      createNotification(user._id, title, message, 'announcement', null, {
+        broadcastRole: recipientRole
       })
-    };
+    );
+    
+    await Promise.all(promises);
+    console.log(`✅ Announcement sent to ${users.length} users`);
 
-    return await this.createAndSendNotification(notificationData, emailData);
+    // ✅ FIX: Return count so controller includes it in response
+    return users.length;
+
+  } catch (error) {
+    console.error('❌ Send announcement error:', error);
+    throw error;
   }
+};
 
-  // Send correction request notification to admin
-  async notifyCorrectionRequest(correctionRequest, employeeData) {
-    const Admin = require('../models/Admin');
-    const admin = await Admin.findOne({ role: 'admin' });
-
-    const notificationData = {
-      recipient: admin ? admin._id : null,
-      recipientModel: 'Admin',
-      sender: correctionRequest.employee,
-      senderModel: 'Employee',
-      type: 'correction_request',
-      title: '⚠️ Attendance Correction Request',
-      message: `${employeeData.name} has reported an attendance issue for ${new Date(correctionRequest.attendanceDate).toLocaleDateString()}`,
-      link: `/admin/correction-requests`,
-      metadata: {
-        correctionRequestId: correctionRequest._id,
-        attendanceDate: correctionRequest.attendanceDate,
-        currentStatus: correctionRequest.currentStatus,
-        requestedStatus: correctionRequest.requestedStatus
-      },
-      priority: correctionRequest.priority || 'medium'
-    };
-
-    if (admin) {
-      const emailData = {
-        recipientEmail: admin.email,
-        subject: '⚠️ Attendance Correction Request - Attendance System',
-        htmlContent: emailService.getCorrectionRequestEmailTemplate({
-          employeeName: employeeData.name,
-          attendanceDate: correctionRequest.attendanceDate,
-          currentStatus: correctionRequest.currentStatus,
-          requestedStatus: correctionRequest.requestedStatus,
-          reason: correctionRequest.reason,
-          issueType: correctionRequest.issueType
-        })
-      };
-
-      return await this.createAndSendNotification(notificationData, emailData);
-    }
-
-    return await this.createNotification(notificationData);
-  }
-
-  // Notify employee about correction resolution
-  async notifyCorrectionResolution(correctionRequest, employeeData, resolverData, approved) {
-    const notificationData = {
-      recipient: correctionRequest.employee,
-      recipientModel: 'Employee',
-      sender: resolverData._id,
-      senderModel: resolverData.role === 'admin' ? 'Admin' : 'Manager',
-      type: 'correction_resolved',
-      title: approved ? '✅ Attendance Corrected' : '❌ Correction Request Declined',
-      message: approved 
-        ? `Your attendance correction request for ${new Date(correctionRequest.attendanceDate).toLocaleDateString()} has been approved and updated.`
-        : `Your attendance correction request has been reviewed. ${correctionRequest.resolution || ''}`,
-      link: `/employee/my-requests`,
-      metadata: {
-        correctionRequestId: correctionRequest._id,
-        resolvedBy: resolverData.name,
-        approved: approved
-      },
-      priority: 'medium'
-    };
-
-    // You can add email template for correction resolution if needed
-    return await this.createNotification(notificationData);
-  }
-
-  // Send system update notification to all users
-  async notifySystemUpdate(updateType, updateDetails, affectedUsers = 'all') {
-    try {
-      const Admin = require('../models/Admin');
-      const Manager = require('../models/Manager');
-      const Employee = require('../models/Employee');
-
-      const notifications = [];
-
-      // Determine which users to notify
-      let usersToNotify = [];
-
-      if (affectedUsers === 'all' || affectedUsers.includes('admin')) {
-        const admins = await Admin.find({});
-        usersToNotify.push(...admins.map(admin => ({
-          id: admin._id,
-          model: 'Admin',
-          email: admin.email,
-          name: admin.name
-        })));
-      }
-
-      if (affectedUsers === 'all' || affectedUsers.includes('manager')) {
-        const managers = await Manager.find({});
-        usersToNotify.push(...managers.map(manager => ({
-          id: manager._id,
-          model: 'Manager',
-          email: manager.email,
-          name: manager.name
-        })));
-      }
-
-      if (affectedUsers === 'all' || affectedUsers.includes('employee')) {
-        const employees = await Employee.find({});
-        usersToNotify.push(...employees.map(employee => ({
-          id: employee._id,
-          model: 'Employee',
-          email: employee.email,
-          name: employee.name
-        })));
-      }
-
-      // Create notifications for all users
-      for (const user of usersToNotify) {
-        const notificationData = {
-          recipient: user.id,
-          recipientModel: user.model,
-          senderModel: 'System',
-          type: 'system_update',
-          title: `📢 ${updateType}`,
-          message: updateDetails,
-          metadata: {
-            updateType: updateType,
-            timestamp: new Date()
-          },
-          priority: 'medium'
-        };
-
-        const emailData = {
-          recipientEmail: user.email,
-          subject: `📢 System Update - ${updateType}`,
-          htmlContent: emailService.getSystemUpdateEmailTemplate({
-            updateType: updateType,
-            updateDetails: updateDetails,
-            affectedUsers: affectedUsers === 'all' ? 'All Users' : affectedUsers
-          })
-        };
-
-        const result = await this.createAndSendNotification(notificationData, emailData);
-        notifications.push(result);
-      }
-
-      return { 
-        success: true, 
-        message: `Notifications sent to ${usersToNotify.length} users`,
-        count: usersToNotify.length 
-      };
-
-    } catch (error) {
-      console.error('❌ System update notification error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Get user notifications
-  async getUserNotifications(userId, userModel, limit = 20, unreadOnly = false) {
-    try {
-      const query = {
-        recipient: userId,
-        recipientModel: userModel
-      };
-
-      if (unreadOnly) {
-        query.isRead = false;
-      }
-
-      const notifications = await Notification.find(query)
-        .sort({ createdAt: -1 })
-        .limit(limit);
-
-      const unreadCount = await Notification.getUnreadCount(userId, userModel);
-
-      return {
-        success: true,
-        notifications,
-        unreadCount
-      };
-    } catch (error) {
-      console.error('❌ Get notifications error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Mark notification as read
-  async markAsRead(notificationId) {
-    try {
-      const notification = await Notification.findById(notificationId);
-      if (!notification) {
-        return { success: false, message: 'Notification not found' };
-      }
-
-      await notification.markAsRead();
-      return { success: true, notification };
-    } catch (error) {
-      console.error('❌ Mark as read error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Mark all as read for a user
-  async markAllAsRead(userId, userModel) {
-    try {
-      await Notification.markAllAsRead(userId, userModel);
-      return { success: true, message: 'All notifications marked as read' };
-    } catch (error) {
-      console.error('❌ Mark all as read error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Delete notification
-  async deleteNotification(notificationId) {
-    try {
-      await Notification.findByIdAndDelete(notificationId);
-      return { success: true, message: 'Notification deleted' };
-    } catch (error) {
-      console.error('❌ Delete notification error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-}
-
-module.exports = new NotificationService();
+// ===== EXPORTS =====
+module.exports = {
+  createNotification, // ✅ ADDED - for direct use in controllers
+  notifyLeaveRequest,
+  notifyLeaveApproval,
+  notifyLeaveRejection,
+  notifyCorrectionRequest,
+  notifyCorrectionResolution,
+  sendAnnouncement
+};

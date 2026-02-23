@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import EmployeeNavbar from './EmployeeNavbar';
 import '../../styles/Employee.css';
-
 import employeeService from '../../services/employeeService';
 
 const EmployeeDashboard = () => {
@@ -10,15 +9,28 @@ const EmployeeDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [systemConfig, setSystemConfig] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
     fetchSystemConfig();
+    
+    // ✅ Auto-refresh every 10 seconds for real-time updates
+    const interval = setInterval(() => {
+      fetchDashboardData(true); // Silent refresh
+    }, 10000);
+    
+    setRefreshInterval(interval);
+    
+    // Cleanup on unmount
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await employeeService.getDashboardStats();
       
       if (response.success) {
@@ -27,7 +39,7 @@ const EmployeeDashboard = () => {
     } catch (error) {
       console.error('Error fetching dashboard:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -74,9 +86,11 @@ const EmployeeDashboard = () => {
         <div className="welcome-section">
           <h1>Welcome back, {employee.firstName} {employee.lastName}!</h1>
           <p>Here's your attendance overview</p>
+          <small style={{ color: '#666', fontSize: '12px' }}>
+            🔄 Auto-refreshing every 10 seconds
+          </small>
         </div>
 
-        {/* ✅ UPDATED Stats Grid - REMOVED PENDING LEAVES */}
         <div className="stats-grid">
           <div className="stat-card blue">
             <div className="stat-icon">📅</div>
@@ -113,10 +127,8 @@ const EmployeeDashboard = () => {
               <p>Late Days</p>
             </div>
           </div>
-          {/* ❌ REMOVED PENDING LEAVES CARD */}
         </div>
 
-        {/* Dashboard Actions */}
         <div className="dashboard-actions">
           <button 
             className="action-btn primary"
@@ -138,7 +150,6 @@ const EmployeeDashboard = () => {
           </button>
         </div>
 
-        {/* Recent Attendance */}
         <div className="recent-attendance-section">
           <h2>Recent Attendance</h2>
           <div className="table-container">
@@ -187,7 +198,6 @@ const EmployeeDashboard = () => {
           </div>
         </div>
 
-        {/* ✅ ENHANCED SYSTEM SETTINGS - Added Auto-Absent Policy */}
         <div className="quick-tips">
           <h3>📋 Office Hours & Policy</h3>
           {systemConfig ? (
@@ -210,14 +220,15 @@ const EmployeeDashboard = () => {
               <li>
                 📝 <strong>Monthly Leaves Allowed:</strong> {systemConfig.leavePolicy?.allowedLeaves || 2} days
               </li>
-              {/* ✅ NEW: Auto-Absent Policy */}
-              <li>
-                {systemConfig.leavePolicy?.autoAbsentOnExceed ? (
-                  <>⚠️ <strong>Policy:</strong> Exceeding {systemConfig.leavePolicy?.allowedLeaves} leaves will mark you as Absent</>
-                ) : (
-                  <>✅ <strong>Policy:</strong> No auto-absent on exceeding leave limit</>
-                )}
-              </li>
+              {systemConfig.leavePolicy?.autoAbsentOnExceed ? (
+                <li>
+                  ⚠️ <strong>Policy:</strong> Exceeding {systemConfig.leavePolicy?.allowedLeaves} leaves will mark you as Absent
+                </li>
+              ) : (
+                <li>
+                  ✅ <strong>Policy:</strong> No auto-absent on exceeding leave limit
+                </li>
+              )}
             </ul>
           ) : (
             <p style={{ textAlign: 'center', color: '#999' }}>Loading system settings...</p>

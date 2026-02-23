@@ -2,12 +2,21 @@ import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
 
+// ✅ Role-based token picker
 const getAuthHeader = () => {
+  const roles = ['manager', 'employee', 'admin'];
+  for (const role of roles) {
+    const token = localStorage.getItem(`${role}_token`);
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
+  }
   const token = localStorage.getItem('token');
-  return { Authorization: `Bearer ${token}` };
+  if (token) return { Authorization: `Bearer ${token}` };
+  return {};
 };
 
-// Get my notifications
+// ✅ Get my notifications
 export const getMyNotifications = async (limit = 20, unreadOnly = false) => {
   try {
     const response = await axios.get(
@@ -23,7 +32,7 @@ export const getMyNotifications = async (limit = 20, unreadOnly = false) => {
   }
 };
 
-// Get unread count
+// ✅ Get unread count
 export const getUnreadCount = async () => {
   try {
     const response = await axios.get(
@@ -36,7 +45,7 @@ export const getUnreadCount = async () => {
   }
 };
 
-// Mark notification as read
+// ✅ Mark single notification as read
 export const markAsRead = async (notificationId) => {
   try {
     const response = await axios.patch(
@@ -50,7 +59,7 @@ export const markAsRead = async (notificationId) => {
   }
 };
 
-// Mark all notifications as read
+// ✅ Mark all notifications as read
 export const markAllAsRead = async () => {
   try {
     const response = await axios.patch(
@@ -64,7 +73,7 @@ export const markAllAsRead = async () => {
   }
 };
 
-// Delete notification
+// ✅ Delete notification
 export const deleteNotification = async (notificationId) => {
   try {
     const response = await axios.delete(

@@ -1,12 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNotifications } from '../../context/NotificationContext';
-import { markAsRead, markAllAsRead, deleteNotification } from '../../services/notificationService';
+import { 
+  markAsRead, 
+  markAllAsRead, 
+  deleteNotification 
+} from '../../services/notificationService';
+import { 
+  approveLeaveRequest, 
+  rejectLeaveRequest 
+} from '../../services/leaveRequestService';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/NotificationStyles.css';
 
 const NotificationCenter = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
@@ -24,7 +33,6 @@ const NotificationCenter = () => {
     }
   }, [isOpen, showUnreadOnly]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -72,6 +80,68 @@ const NotificationCenter = () => {
     }
   };
 
+  // ===== QUICK ACTIONS =====
+  const handleQuickApprove = async (e, notification) => {
+    e.stopPropagation();
+    
+    if (!window.confirm('Are you sure you want to approve this leave request?')) {
+      return;
+    }
+
+    setActionLoading(notification._id);
+    try {
+      const leaveRequestId = notification.metadata?.leaveRequestId;
+      
+      if (!leaveRequestId) {
+        alert('Leave request ID not found');
+        return;
+      }
+
+      const response = await approveLeaveRequest(leaveRequestId);
+      
+      if (response.success) {
+        alert('✅ Leave request approved successfully!');
+        await handleDelete(e, notification._id);
+        await refreshNotifications();
+      }
+    } catch (error) {
+      alert(error.message || 'Failed to approve leave request');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleQuickReject = async (e, notification) => {
+    e.stopPropagation();
+    
+    const reason = prompt('Please enter rejection reason:');
+    if (!reason || !reason.trim()) {
+      return;
+    }
+
+    setActionLoading(notification._id);
+    try {
+      const leaveRequestId = notification.metadata?.leaveRequestId;
+      
+      if (!leaveRequestId) {
+        alert('Leave request ID not found');
+        return;
+      }
+
+      const response = await rejectLeaveRequest(leaveRequestId, reason);
+      
+      if (response.success) {
+        alert('❌ Leave request rejected');
+        await handleDelete(e, notification._id);
+        await refreshNotifications();
+      }
+    } catch (error) {
+      alert(error.message || 'Failed to reject leave request');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const getNotificationIcon = (type) => {
     const icons = {
       leave_request: '🏖️',
@@ -106,6 +176,12 @@ const NotificationCenter = () => {
       }
     }
     return 'Just now';
+  };
+
+  // ===== Check if notification has quick actions =====
+  const hasQuickActions = (notification) => {
+    return notification.type === 'leave_request' || 
+           notification.type === 'correction_request';
   };
 
   return (
@@ -167,6 +243,26 @@ const NotificationCenter = () => {
                     <span className="notification-time">
                       {getTimeAgo(notification.createdAt)}
                     </span>
+                    
+                    {/* ===== QUICK ACTIONS ===== */}
+                    {hasQuickActions(notification) && (
+                      <div className="notification-quick-actions" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="quick-action-btn approve"
+                          onClick={(e) => handleQuickApprove(e, notification)}
+                          disabled={actionLoading === notification._id}
+                        >
+                          ✅ Approve
+                        </button>
+                        <button
+                          className="quick-action-btn reject"
+                          onClick={(e) => handleQuickReject(e, notification)}
+                          disabled={actionLoading === notification._id}
+                        >
+                          ❌ Reject
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <button
                     className="notification-delete"

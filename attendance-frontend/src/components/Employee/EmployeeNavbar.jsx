@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/Employee.css';
+import NotificationCenter from '../Common/NotificationCenter';
 
 const EmployeeNavbar = () => {
   const navigate = useNavigate();
@@ -9,12 +10,10 @@ const EmployeeNavbar = () => {
   const [employeeName, setEmployeeName] = useState('Employee User');
 
   useEffect(() => {
-    // Current time update
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
 
-    // Employee info fetch
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       const user = JSON.parse(storedUser);
@@ -43,18 +42,12 @@ const EmployeeNavbar = () => {
   };
 
   const handleLogout = () => {
-    // ✅ Clear all auth data
     localStorage.removeItem('employee_token');
     localStorage.removeItem('employee_user');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    
-    // ✅ Clear session storage
     sessionStorage.clear();
-    
     console.log('🚪 Employee logged out');
-    
-    // ✅ Redirect to home
     navigate('/');
   };
 
@@ -84,6 +77,11 @@ const EmployeeNavbar = () => {
           <span className="badge-text">EMPLOYEE</span>
         </div>
 
+        {/* ✅ NOTIFICATION BELL */}
+        <div style={{ marginRight: '8px' }}>
+          <NotificationCenter userType="employee" />
+        </div>
+
         <div className="user-profile" onClick={toggleDropdown}>
           <div className="profile-avatar">
             {employeeName.charAt(0).toUpperCase()}
@@ -102,8 +100,7 @@ const EmployeeNavbar = () => {
               <div className="dropdown-item" onClick={() => navigate('/employee/my-attendance')}>
                 <span>📝</span> My Attendance
               </div>
-              
-              {/* ✅ NEW: Leave & Requests Section */}
+
               <div className="dropdown-divider"></div>
               <div className="dropdown-section-title">
                 <span>📋 Requests & Leave</span>
@@ -117,7 +114,7 @@ const EmployeeNavbar = () => {
               <div className="dropdown-item" onClick={() => navigate('/employee/my-requests')}>
                 <span>📋</span> My Requests
               </div>
-              
+
               <div className="dropdown-divider"></div>
               <div className="dropdown-item" onClick={() => navigate('/employee/profile-settings')}>
                 <span>⚙️</span> Settings

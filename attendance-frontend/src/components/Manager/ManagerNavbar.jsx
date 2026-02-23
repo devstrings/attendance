@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/Manager.css';
+import NotificationCenter from '../Common/NotificationCenter';
 
 const ManagerNavbar = () => {
   const navigate = useNavigate();
@@ -9,12 +10,10 @@ const ManagerNavbar = () => {
   const [managerName, setManagerName] = useState('Manager User');
 
   useEffect(() => {
-    // Current time update
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
 
-    // ✅ FIXED: Get manager-specific user data
     const storedUser = localStorage.getItem('manager_user');
     if (storedUser) {
       try {
@@ -48,15 +47,9 @@ const ManagerNavbar = () => {
 
   const handleLogout = () => {
     console.log('🚪 Logging out manager...');
-    
-    // ✅ FIXED: Clear manager-specific storage
     localStorage.removeItem('manager_token');
     localStorage.removeItem('manager_user');
-    
     console.log('✅ Manager session cleared');
-    console.log('🔄 Redirecting to landing page...');
-    
-    // ✅ FIXED: Redirect to landing page instead of /login
     navigate('/', { replace: true });
   };
 
@@ -84,6 +77,11 @@ const ManagerNavbar = () => {
         <div className="manager-badge">
           <span className="badge-icon">👔</span>
           <span className="badge-text">MANAGER</span>
+        </div>
+
+        {/* ✅ NOTIFICATION BELL */}
+        <div style={{ marginRight: '8px' }}>
+          <NotificationCenter userType="manager" />
         </div>
 
         <div className="user-profile" onClick={toggleDropdown}>

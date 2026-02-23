@@ -1,36 +1,32 @@
-const notificationService = require('../utils/notificationService');
 const Notification = require('../models/Notification');
 
-// Get user's notifications
+
+
+// ===== Get my notifications =====
 exports.getMyNotifications = async (req, res) => {
   try {
     const userId = req.user._id;
-    const userModel = req.user.role === 'admin' ? 'Admin' : 
-                      req.user.role === 'manager' ? 'Manager' : 'Employee';
-    
     const { limit = 20, unreadOnly = false } = req.query;
 
-    const result = await notificationService.getUserNotifications(
-      userId, 
-      userModel, 
-      parseInt(limit), 
-      unreadOnly === 'true'
-    );
+    console.log('📡 Fetching notifications for user:', userId);
+    console.log('   Unread only:', unreadOnly); 
 
-    if (!result.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to fetch notifications',
-        error: result.error
-      });
+    const query = { recipient: userId };
+    if (unreadOnly === 'true' || unreadOnly === true) {
+      query.isRead = false;
     }
+
+    const notifications = await Notification.find(query)
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+
+    console.log(`✅ Found ${notifications.length} notifications`);
 
     res.status(200).json({
       success: true,
       data: {
-        notifications: result.notifications,
-        unreadCount: result.unreadCount,
-        total: result.notifications.length
+        notifications,
+        count: notifications.length
       }
     });
 
@@ -44,48 +40,61 @@ exports.getMyNotifications = async (req, res) => {
   }
 };
 
-// Get unread count
+// ===== Get unread count =====
 exports.getUnreadCount = async (req, res) => {
   try {
     const userId = req.user._id;
-    const userModel = req.user.role === 'admin' ? 'Admin' : 
-                      req.user.role === 'manager' ? 'Manager' : 'Employee';
+    
+    const count = await Notification.countDocuments({
+      recipient: userId,
+      isRead: false
+    });
 
-    const count = await Notification.getUnreadCount(userId, userModel);
+    console.log(`🔔 Unread notifications for ${userId}: ${count}`);
 
     res.status(200).json({
       success: true,
-      data: { unreadCount: count }
+      data: {
+        unreadCount: count
+      }
     });
 
   } catch (error) {
     console.error('❌ Get unread count error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get unread count',
+      message: 'Failed to fetch unread count',
       error: error.message
     });
   }
 };
 
-// Mark notification as read
+// ===== Mark as read =====
 exports.markAsRead = async (req, res) => {
   try {
     const { notificationId } = req.params;
+    const userId = req.user._id;
 
-    const result = await notificationService.markAsRead(notificationId);
+    const notification = await Notification.findOne({
+      _id: notificationId,
+      recipient: userId
+    });
 
-    if (!result.success) {
+    if (!notification) {
       return res.status(404).json({
         success: false,
-        message: result.message || 'Failed to mark as read'
+        message: 'Notification not found'
       });
     }
+
+    notification.isRead = true;
+    notification.readAt = new Date();
+    await notification.save();
 
     res.status(200).json({
       success: true,
       message: 'Notification marked as read',
-      data: result.notification
+      data: notification
     });
 
   } catch (error) {
@@ -98,54 +107,60 @@ exports.markAsRead = async (req, res) => {
   }
 };
 
-// Mark all notifications as read
+// ===== Mark all as read =====
 exports.markAllAsRead = async (req, res) => {
   try {
     const userId = req.user._id;
-    const userModel = req.user.role === 'admin' ? 'Admin' : 
-                      req.user.role === 'manager' ? 'Manager' : 'Employee';
 
-    const result = await notificationService.markAllAsRead(userId, userModel);
-
-    if (!result.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to mark all as read'
-      });
-    }
+    const result = await Notification.updateMany(
+      { recipient: userId, isRead: false },
+      { 
+        $set: { 
+          isRead: true, 
+          readAt: new Date() 
+        } 
+      }
+    );
 
     res.status(200).json({
       success: true,
-      message: result.message
+      message: 'All notifications marked as read',
+      data: {
+        modifiedCount: result.modifiedCount
+      }
     });
 
   } catch (error) {
     console.error('❌ Mark all as read error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to mark all notifications as read',
+      message: 'Failed to mark all as read',
       error: error.message
     });
   }
 };
 
-// Delete notification
+// ===== Delete notification =====
 exports.deleteNotification = async (req, res) => {
   try {
     const { notificationId } = req.params;
+    const userId = req.user._id;
 
-    const result = await notificationService.deleteNotification(notificationId);
+    const notification = await Notification.findOneAndDelete({
+      _id: notificationId,
+      recipient: userId
+    });
 
-    if (!result.success) {
-      return res.status(500).json({
+    if (!notification) {
+      return res.status(404).json({
         success: false,
-        message: 'Failed to delete notification'
+        message: 'Notification not found'
       });
     }
 
     res.status(200).json({
       success: true,
-      message: result.message
+      message: 'Notification deleted'
     });
 
   } catch (error) {
@@ -158,83 +173,7 @@ exports.deleteNotification = async (req, res) => {
   }
 };
 
-// Get notification by ID
-exports.getNotificationById = async (req, res) => {
-  try {
-    const { notificationId } = req.params;
-
-    const notification = await Notification.findById(notificationId);
-
-    if (!notification) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notification not found'
-      });
-    }
-
-    // Auto mark as read when viewed
-    if (!notification.isRead) {
-      await notification.markAsRead();
-    }
-
-    res.status(200).json({
-      success: true,
-      data: notification
-    });
-
-  } catch (error) {
-    console.error('❌ Get notification error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch notification',
-      error: error.message
-    });
-  }
-};
-
-// Admin: Send broadcast notification
-exports.sendBroadcast = async (req, res) => {
-  try {
-    const { updateType, updateDetails, affectedUsers } = req.body;
-
-    if (!updateType || !updateDetails) {
-      return res.status(400).json({
-        success: false,
-        message: 'Update type and details are required'
-      });
-    }
-
-    const result = await notificationService.notifySystemUpdate(
-      updateType, 
-      updateDetails, 
-      affectedUsers || 'all'
-    );
-
-    if (!result.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to send broadcast',
-        error: result.error
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: result.message,
-      data: { count: result.count }
-    });
-
-  } catch (error) {
-    console.error('❌ Send broadcast error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to send broadcast notification',
-      error: error.message
-    });
-  }
-};
-
-// Get all notifications (Admin only)
+// ===== Get all notifications (Admin only) =====
 exports.getAllNotifications = async (req, res) => {
   try {
     const { page = 1, limit = 50, type, isRead } = req.query;
@@ -247,8 +186,7 @@ exports.getAllNotifications = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip((parseInt(page) - 1) * parseInt(limit))
-      .populate('recipient', 'name email')
-      .populate('sender', 'name email');
+      .populate('recipient', 'email role name firstName lastName');
 
     const total = await Notification.countDocuments(query);
 
@@ -259,7 +197,7 @@ exports.getAllNotifications = async (req, res) => {
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(total / limit),
-          totalNotifications: total,
+          total,
           limit: parseInt(limit)
         }
       }
@@ -269,8 +207,80 @@ exports.getAllNotifications = async (req, res) => {
     console.error('❌ Get all notifications error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch all notifications',
+      message: 'Failed to fetch notifications',
       error: error.message
     });
   }
+};
+
+// ===== Send broadcast (Admin only) =====
+exports.sendBroadcast = async (req, res) => {
+  try {
+    const { updateType, updateDetails, affectedUsers = 'all' } = req.body;
+
+    if (!updateType || !updateDetails) {
+      return res.status(400).json({
+        success: false,
+        message: 'Update type and details are required'
+      });
+    }
+
+    const notificationService = require('../utils/notificationService');
+    
+    // ✅ FIX: Get count from sendAnnouncement return value
+    const count = await notificationService.sendAnnouncement(
+      `📢 ${updateType}`,
+      updateDetails,
+      affectedUsers
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Broadcast sent successfully',
+      data: {
+        count: count || 0  // ✅ FIX: count included in response
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Send broadcast error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send broadcast',
+      error: error.message
+    });
+  }
+};
+
+// ===== Delete broadcast (Admin only) - deletes all notifications with given IDs =====
+exports.deleteBroadcast = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'Notification IDs required' });
+    }
+
+    const result = await Notification.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      success: true,
+      message: `Deleted ${result.deletedCount} notifications`,
+      data: { deletedCount: result.deletedCount }
+    });
+  } catch (error) {
+    console.error('❌ Delete broadcast error:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete broadcast', error: error.message });
+  }
+};
+
+module.exports = {
+  getMyNotifications: exports.getMyNotifications,
+  getUnreadCount: exports.getUnreadCount,
+  markAsRead: exports.markAsRead,
+  markAllAsRead: exports.markAllAsRead,
+  deleteNotification: exports.deleteNotification,
+  getAllNotifications: exports.getAllNotifications,
+  sendBroadcast: exports.sendBroadcast,
+  deleteBroadcast: exports.deleteBroadcast
 };

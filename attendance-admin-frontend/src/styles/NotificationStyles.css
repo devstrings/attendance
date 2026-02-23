@@ -1127,3 +1127,49 @@
     overflow-x: auto;
   }
 }
+/* Quick Actions in Notifications */
+.notification-quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.quick-action-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.quick-action-btn.approve {
+  background: #10b981;
+  color: white;
+}
+
+.quick-action-btn.approve:hover:not(:disabled) {
+  background: #059669;
+}
+
+.quick-action-btn.reject {
+  background: #ef4444;
+  color: white;
+}
+
+.quick-action-btn.reject:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.quick-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

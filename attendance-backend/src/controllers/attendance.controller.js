@@ -2,6 +2,7 @@ const Attendance = require('../models/Attendance');
 const Employee = require('../models/Employee');
 const Manager = require('../models/Manager');
 const Holiday = require('../models/Holiday');
+const notificationService = require('../utils/notificationService');
 
 /**
  * Get All Attendance Records (with filters)
@@ -22,17 +23,14 @@ const getAllAttendance = async (req, res) => {
 
     const query = {};
 
-    // Employee filter
     if (employeeId) {
       query.employeeId = employeeId;
     }
 
-    // Manager filter
     if (managerId) {
       query.managerId = managerId;
     }
 
-    // Single date filter
     if (date) {
       const dateObj = new Date(date);
       dateObj.setHours(0, 0, 0, 0);
@@ -42,7 +40,6 @@ const getAllAttendance = async (req, res) => {
       };
     }
 
-    // Date range filter
     if (startDate && endDate) {
       query.date = {
         $gte: new Date(startDate),
@@ -54,20 +51,17 @@ const getAllAttendance = async (req, res) => {
       query.date = { $lte: new Date(endDate) };
     }
 
-    // Status filter
     if (status) {
       query.status = status;
     }
 
-    // Department filter (requires population)
-    let attendanceRecords;
     if (department) {
       const employees = await Employee.find({ department, isActive: true }).select('_id');
       const employeeIds = employees.map(emp => emp._id);
       query.employeeId = { $in: employeeIds };
     }
 
-    attendanceRecords = await Attendance.find(query)
+    const attendanceRecords = await Attendance.find(query)
       .populate('employeeId', 'firstName lastName employeeCode department designation')
       .populate('managerId', 'firstName lastName email')
       .populate('markedBy', 'email role')
@@ -133,7 +127,6 @@ const getAttendanceById = async (req, res) => {
 /**
  * Create Attendance Record
  */
-// ✅ UPDATED: Admin ko bhi access de rahe hain
 const createAttendance = async (req, res) => {
   try {
     const {
@@ -149,7 +142,6 @@ const createAttendance = async (req, res) => {
     const userId = req.user.userId;
     const userRole = req.user.role;
 
-    // Validate required fields
     if (!employeeId || !date || !clockIn) {
       return res.status(400).json({
         success: false,
@@ -157,7 +149,6 @@ const createAttendance = async (req, res) => {
       });
     }
 
-    // Get employee details
     const employee = await Employee.findById(employeeId);
 
     if (!employee) {
@@ -167,7 +158,6 @@ const createAttendance = async (req, res) => {
       });
     }
 
-    // ✅ Check authorization - ADMIN KO BHI ACCESS
     if (userRole === 'manager') {
       const manager = await Manager.findOne({ userId });
       
@@ -189,7 +179,6 @@ const createAttendance = async (req, res) => {
         });
       }
     } else if (userRole === 'employee') {
-      // Employees can only mark their own attendance
       const employeeProfile = await Employee.findOne({ userId });
       
       if (!employeeProfile || employeeProfile._id.toString() !== employeeId) {
@@ -199,9 +188,8 @@ const createAttendance = async (req, res) => {
         });
       }
     }
-    // ✅ Admin ke liye koi check nahi - Full access hai
+    // Admin ke liye koi check nahi - Full access hai
 
-    // Check if attendance already exists for this date
     const attendanceDate = new Date(date);
     attendanceDate.setHours(0, 0, 0, 0);
 
@@ -220,7 +208,6 @@ const createAttendance = async (req, res) => {
       });
     }
 
-    // ✅ GRACE PERIOD: 10:00 - 10:30 AM
     const clockInTime = new Date(clockIn);
     const clockInHour = clockInTime.getHours();
     const clockInMinute = clockInTime.getMinutes();
@@ -235,7 +222,6 @@ const createAttendance = async (req, res) => {
       lateMinutes = totalMinutesNow - graceEndMinutes;
     }
 
-    // Calculate early leave if clockOut is provided
     let earlyLeave = false;
     let earlyLeaveMinutes = 0;
 
@@ -253,7 +239,6 @@ const createAttendance = async (req, res) => {
       }
     }
 
-    // Create attendance record
     const attendance = new Attendance({
       employeeId,
       managerId: employee.managerId,
@@ -268,7 +253,7 @@ const createAttendance = async (req, res) => {
       location,
       remarks,
       markedBy: userId,
-      isApproved: userRole === 'admin' || userRole === 'manager', // ✅ Admin auto-approve
+      isApproved: userRole === 'admin' || userRole === 'manager',
       approvedBy: userRole === 'admin' || userRole === 'manager' ? userId : null
     });
 
@@ -277,6 +262,31 @@ const createAttendance = async (req, res) => {
     const populatedAttendance = await Attendance.findById(attendance._id)
       .populate('employeeId', 'firstName lastName employeeCode')
       .populate('managerId', 'firstName lastName');
+
+    // Send notification to manager if admin marked attendance
+    if (userRole === 'admin' && employee.managerId) {
+      try {
+        const managerProfile = await Manager.findById(employee.managerId).populate('userId');
+        
+        if (managerProfile && managerProfile.userId) {
+          const employeeName = `${employee.firstName} ${employee.lastName}`;
+          const dateStr = attendanceDate.toLocaleDateString();
+          
+          await notificationService.createNotification(
+            managerProfile.userId._id,
+            '✅ Attendance Marked by Admin',
+            `Admin marked attendance for ${employeeName} on ${dateStr}. Status: ${status || 'present'}`,
+            'attendance_marked',
+            '/manager/attendance-history',
+            { employeeId: employee._id, date: attendanceDate, markedBy: 'admin' }
+          );
+          
+          console.log('✅ Manager notified about admin attendance marking');
+        }
+      } catch (notifError) {
+        console.error('⚠️ Failed to notify manager:', notifError);
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -303,7 +313,6 @@ const updateAttendance = async (req, res) => {
     const userId = req.user.userId;
     const userRole = req.user.role;
 
-    // Get attendance record
     const attendance = await Attendance.findById(attendanceId);
 
     if (!attendance) {
@@ -313,7 +322,6 @@ const updateAttendance = async (req, res) => {
       });
     }
 
-    // Check authorization
     if (userRole === 'manager') {
       const manager = await Manager.findOne({ userId });
       
@@ -330,12 +338,10 @@ const updateAttendance = async (req, res) => {
       });
     }
 
-    // Update with clockOut if provided
     if (updateData.clockOut && !attendance.clockOut) {
       updateData.clockOut = new Date(updateData.clockOut);
     }
 
-    // Update attendance
     const updatedAttendance = await Attendance.findByIdAndUpdate(
       attendanceId,
       { $set: updateData },
@@ -367,7 +373,6 @@ const deleteAttendance = async (req, res) => {
     const { attendanceId } = req.params;
     const userRole = req.user.role;
 
-    // Only admin can delete
     if (userRole !== 'admin') {
       return res.status(403).json({
         success: false,
@@ -406,13 +411,11 @@ const clockIn = async (req, res) => {
     const userId = req.user.userId;
     const { location } = req.body;
 
-    // ✅ CHECK OFFICE HOURS: 10:00 AM - 7:00 PM
     const now = new Date();
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
-    const currentDay = now.getDay(); // 0 = Sunday, 6 = Saturday
+    const currentDay = now.getDay();
 
-    // ✅ Check if weekend
     if (currentDay === 0 || currentDay === 6) {
       return res.status(400).json({
         success: false,
@@ -420,7 +423,6 @@ const clockIn = async (req, res) => {
       });
     }
 
-    // ✅ Check office opening time (10 AM)
     if (currentHour < 10) {
       return res.status(400).json({
         success: false,
@@ -428,7 +430,6 @@ const clockIn = async (req, res) => {
       });
     }
 
-    // ✅ Check office closing time (7 PM)
     if (currentHour >= 19) {
       return res.status(400).json({
         success: false,
@@ -436,7 +437,6 @@ const clockIn = async (req, res) => {
       });
     }
 
-    // Get employee or manager profile
     let employeeProfile = await Employee.findOne({ userId });
     let managerId = null;
 
@@ -456,7 +456,6 @@ const clockIn = async (req, res) => {
       managerId = employeeProfile.managerId;
     }
 
-    // Check if already clocked in today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -472,19 +471,16 @@ const clockIn = async (req, res) => {
       });
     }
 
-    // ✅ GRACE PERIOD LOGIC: 10:00 AM - 10:30 AM = ON TIME
-    // Late only if time is AFTER 10:30 AM
     let isLate = false;
     let lateMinutes = 0;
 
     if (currentHour > 10 || (currentHour === 10 && currentMinute > 30)) {
       isLate = true;
       const totalMinutesNow = (currentHour * 60) + currentMinute;
-      const graceEndMinutes = (10 * 60) + 30; // 10:30 AM
+      const graceEndMinutes = (10 * 60) + 30;
       lateMinutes = totalMinutesNow - graceEndMinutes;
     }
 
-    // Check if today is a holiday
     const holiday = await Holiday.findOne({
       date: {
         $gte: today,
@@ -492,7 +488,6 @@ const clockIn = async (req, res) => {
       }
     });
 
-    // Create clock-in record
     const attendance = new Attendance({
       employeeId: employeeProfile._id,
       managerId: managerId,
@@ -540,7 +535,6 @@ const clockOut = async (req, res) => {
     const userId = req.user.userId;
     const { location } = req.body;
 
-    // Get employee or manager profile
     let employeeProfile = await Employee.findOne({ userId });
 
     if (!employeeProfile) {
@@ -556,7 +550,6 @@ const clockOut = async (req, res) => {
       employeeProfile = { _id: managerProfile._id };
     }
 
-    // Find today's attendance
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -579,7 +572,6 @@ const clockOut = async (req, res) => {
       });
     }
 
-    // Update with clock-out
     attendance.clockOut = new Date();
     if (location) {
       attendance.location.clockOutLocation = location;
@@ -791,7 +783,7 @@ const bulkMarkAttendance = async (req, res) => {
           employeeId,
           managerId: employee.managerId,
           date: attendanceDate,
-          clockIn: new Date(attendanceDate.getTime() + 10 * 60 * 60 * 1000), // Default 10 AM
+          clockIn: new Date(attendanceDate.getTime() + 10 * 60 * 60 * 1000),
           status: status || 'present',
           remarks,
           markedBy: userId,

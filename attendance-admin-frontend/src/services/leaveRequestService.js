@@ -2,8 +2,9 @@ import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
 
+// ✅ FIX: Use admin_token
 const getAuthHeader = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
   return { Authorization: `Bearer ${token}` };
 };
 

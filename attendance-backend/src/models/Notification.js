@@ -3,21 +3,19 @@ const mongoose = require('mongoose');
 const notificationSchema = new mongoose.Schema({
   recipient: {
     type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     required: true,
-    refPath: 'recipientModel'
+    index: true
   },
-  recipientModel: {
+  title: {
     type: String,
     required: true,
-    enum: ['Admin', 'Manager', 'Employee']
+    trim: true
   },
-  sender: {
-    type: mongoose.Schema.Types.ObjectId,
-    refPath: 'senderModel'
-  },
-  senderModel: {
+  message: {
     type: String,
-    enum: ['Admin', 'Manager', 'Employee', 'System']
+    required: true,
+    trim: true
   },
   type: {
     type: String,
@@ -28,26 +26,15 @@ const notificationSchema = new mongoose.Schema({
       'leave_rejected',
       'correction_request',
       'correction_resolved',
-      'system_update',
       'attendance_marked',
-      'warning',
-      'announcement'
+      'system_update',
+      'announcement',
+      'warning'
     ]
-  },
-  title: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 200
-  },
-  message: {
-    type: String,
-    required: true,
-    maxlength: 1000
   },
   link: {
     type: String,
-    trim: true
+    default: null
   },
   metadata: {
     type: mongoose.Schema.Types.Mixed,
@@ -55,64 +42,46 @@ const notificationSchema = new mongoose.Schema({
   },
   isRead: {
     type: Boolean,
-    default: false
+    default: false,
+    index: true
   },
-  emailSent: {
-    type: Boolean,
-    default: false
-  },
-  emailSentAt: {
-    type: Date
-  },
-  priority: {
-    type: String,
-    enum: ['low', 'medium', 'high', 'urgent'],
-    default: 'medium'
+  readAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
 });
 
-// Indexes for faster queries
+// Indexes for better performance
 notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ type: 1, createdAt: -1 });
-notificationSchema.index({ recipient: 1, recipientModel: 1 });
-
-// Virtual for formatted date
-notificationSchema.virtual('formattedDate').get(function() {
-  return this.createdAt.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-});
 
 // Method to mark as read
 notificationSchema.methods.markAsRead = async function() {
   this.isRead = true;
-  return await this.save();
+  this.readAt = new Date();
+  await this.save();
 };
 
 // Static method to get unread count
-notificationSchema.statics.getUnreadCount = async function(recipientId, recipientModel) {
-  return await this.countDocuments({
-    recipient: recipientId,
-    recipientModel: recipientModel,
-    isRead: false
+notificationSchema.statics.getUnreadCount = async function(userId) {
+  return await this.countDocuments({ 
+    recipient: userId, 
+    isRead: false 
   });
 };
 
-// Static method to mark all as read for a user
-notificationSchema.statics.markAllAsRead = async function(recipientId, recipientModel) {
+// Static method to mark all as read
+notificationSchema.statics.markAllAsRead = async function(userId) {
   return await this.updateMany(
-    {
-      recipient: recipientId,
-      recipientModel: recipientModel,
-      isRead: false
-    },
-    { isRead: true }
+    { recipient: userId, isRead: false },
+    { 
+      $set: { 
+        isRead: true, 
+        readAt: new Date() 
+      } 
+    }
   );
 };
 

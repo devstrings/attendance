@@ -1,79 +1,81 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { getUnreadCount, getMyNotifications } from '../services/notificationService';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getMyNotifications, getUnreadCount } from '../services/notificationService';
 
 const NotificationContext = createContext();
+
+export const useNotifications = () => {
+  const context = useContext(NotificationContext);
+  if (!context) {
+    throw new Error('useNotifications must be used within NotificationProvider');
+  }
+  return context;
+};
 
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // ✅ FIXED: Get token based on current role
-  const getToken = () => {
-    const path = window.location.pathname;
-    let currentRole = null;
-
-    if (path.startsWith('/admin')) {
-      currentRole = 'admin';
-    } else if (path.startsWith('/manager')) {
-      currentRole = 'manager';
-    } else if (path.startsWith('/employee')) {
-      currentRole = 'employee';
-    }
-
-    const tokenKey = currentRole ? `${currentRole}_token` : 'token';
-    return localStorage.getItem(tokenKey);
+  // ✅ Check if user is logged in (any role)
+  const isLoggedIn = () => {
+    return (
+      localStorage.getItem('manager_token') ||
+      localStorage.getItem('employee_token') ||
+      localStorage.getItem('token')
+    );
   };
 
-  const fetchUnreadCount = async () => {
+  // ✅ Fetch notifications list
+  const fetchNotifications = useCallback(async (limit = 20, unreadOnly = false) => {
+    if (!isLoggedIn()) return;
     try {
-      const response = await getUnreadCount();
-      if (response.success) {
-        setUnreadCount(response.data.unreadCount);
-      }
-    } catch (error) {
-      console.error('Error fetching unread count:', error);
-    }
-  };
-
-  const fetchNotifications = async (limit = 20, unreadOnly = false) => {
-    setLoading(true);
-    try {
+      setLoading(true);
       const response = await getMyNotifications(limit, unreadOnly);
       if (response.success) {
-        setNotifications(response.data.notifications);
-        setUnreadCount(response.data.unreadCount);
+        setNotifications(response.data.notifications || []);
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('Failed to fetch notifications:', error);
+      setNotifications([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const refreshNotifications = async () => {
-    await Promise.all([fetchUnreadCount(), fetchNotifications()]);
-  };
-
-  useEffect(() => {
-    // ✅ FIXED: Use role-based token
-    const token = getToken();
-    
-    if (token) {
-      console.log('✅ Notification context initialized with token');
-      fetchUnreadCount();
-      fetchNotifications();
-
-      // Poll for new notifications every 30 seconds
-      const interval = setInterval(() => {
-        fetchUnreadCount();
-      }, 30000);
-
-      return () => clearInterval(interval);
-    } else {
-      console.log('ℹ️ No token found, skipping notification fetch');
+  // ✅ Fetch unread count only (lightweight)
+  const fetchUnreadCount = useCallback(async () => {
+    if (!isLoggedIn()) return;
+    try {
+      const response = await getUnreadCount();
+      if (response.success) {
+        setUnreadCount(response.data.unreadCount || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch unread count:', error);
+      setUnreadCount(0);
     }
-  }, []); // Empty dependency array - only run once on mount
+  }, []);
+
+  // ✅ Refresh both
+  const refreshNotifications = useCallback(async () => {
+    await Promise.all([
+      fetchNotifications(20, false),
+      fetchUnreadCount()
+    ]);
+  }, [fetchNotifications, fetchUnreadCount]);
+
+  // ✅ Auto-refresh every 30 seconds
+  useEffect(() => {
+    if (!isLoggedIn()) return;
+
+    fetchUnreadCount(); // Initial load
+
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const value = {
     notifications,
@@ -90,14 +92,6 @@ export const NotificationProvider = ({ children }) => {
       {children}
     </NotificationContext.Provider>
   );
-};
-
-export const useNotifications = () => {
-  const context = useContext(NotificationContext);
-  if (!context) {
-    throw new Error('useNotifications must be used within NotificationProvider');
-  }
-  return context;
 };
 
 export default NotificationContext;
