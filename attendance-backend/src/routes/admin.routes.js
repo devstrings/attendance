@@ -52,4 +52,6 @@ router.get('/leaves', adminController.getAllLeaves);
 router.get('/settings', adminController.getSettings);
 router.get('/summary-report', adminController.getSummaryReport);
 
+router.post('/fix-employee-links', adminController.fixEmployeeManagerLinks);
+
 module.exports = router;

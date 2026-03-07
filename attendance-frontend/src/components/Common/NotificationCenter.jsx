@@ -1,404 +1,323 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNotifications } from '../../context/NotificationContext';
-import { markAsRead, markAllAsRead, deleteNotification } from '../../services/notificationService';
 import { useNavigate } from 'react-router-dom';
 
-const NotificationCenter = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-  const dropdownRef = useRef(null);
+const NotificationCenter = ({ userType = 'employee' }) => {
   const navigate = useNavigate();
+  const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const dropdownRef = useRef(null);
 
-  const {
-    notifications,
-    unreadCount,
-    loading,
-    fetchNotifications,
-    refreshNotifications
-  } = useNotifications();
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchNotifications(20, showUnreadOnly);
+  // ── Routes per userType ──
+  const viewAllPath = userType === 'admin'
+    ? '/admin/notifications'
+    : userType === 'manager'
+    ? '/manager/notifications'
+    : '/employee/notifications';
+
+  // ✅ FIXED: Correct API base URL
+  const getApiBase = () => `${API_URL}/notifications`;
+
+  // ✅ FIXED: Get correct token
+  const getToken = () => {
+    return localStorage.getItem(`${userType}_token`) || localStorage.getItem('token');
+  };
+
+  // ── Fetch notifications ──
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const token = getToken();
+      
+      if (!token) {
+        console.error('❌ No token found for', userType);
+        return;
+      }
+
+      const res = await fetch(`${getApiBase()}/my-notifications?limit=10`, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        console.log('✅ Notifications fetched:', data);
+        const notifs = data.data?.notifications || data.notifications || [];
+        setNotifications(notifs);
+        setUnreadCount(notifs.filter(n => !n.isRead).length);
+      } else {
+        console.error('❌ Fetch failed:', res.status, await res.text());
+      }
+    } catch (err) {
+      console.error('❌ Notification fetch error:', err);
+    } finally {
+      setLoading(false);
     }
-  }, [isOpen, showUnreadOnly]);
+  };
 
-  // Close on outside click
+  // ── Mark one as read ──
+  const markAsRead = async (id) => {
+    try {
+      const token = getToken();
+      const res = await fetch(`${getApiBase()}/${id}/read`, {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (res.ok) {
+        setNotifications(prev =>
+          prev.map(n => n._id === id ? { ...n, isRead: true } : n)
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      console.error('❌ Mark read error:', err);
+    }
+  };
+
+  // ── Mark all as read ──
+  const markAllRead = async () => {
+    try {
+      const token = getToken();
+      const res = await fetch(`${getApiBase()}/mark-all-read`, {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        setUnreadCount(0);
+      }
+    } catch (err) {
+      console.error('❌ Mark all read error:', err);
+    }
+  };
+
+  // ── Close on outside click ──
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleNotificationClick = async (notification) => {
-    try {
-      if (!notification.isRead) {
-        await markAsRead(notification._id);
-        await refreshNotifications();
-      }
-      if (notification.link) {
-        navigate(notification.link);
-      }
-      setIsOpen(false);
-    } catch (error) {
-      console.error('Error handling notification click:', error);
-    }
-  };
+  // ── Auto fetch ──
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Every 30 seconds
+    return () => clearInterval(interval);
+  }, [userType]);
 
-  const handleMarkAllRead = async () => {
-    try {
-      await markAllAsRead();
-      await refreshNotifications();
-    } catch (error) {
-      console.error('Error marking all as read:', error);
-    }
-  };
+  useEffect(() => {
+    if (isOpen) fetchNotifications();
+  }, [isOpen]);
 
-  const handleDelete = async (e, notificationId) => {
-    e.stopPropagation();
-    try {
-      await deleteNotification(notificationId);
-      await refreshNotifications();
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-    }
-  };
-
-  const getNotificationIcon = (type) => {
-    const icons = {
-      leave_request:      '🏖️',
-      leave_approved:     '✅',
-      leave_rejected:     '❌',
-      correction_request: '⚠️',
-      correction_resolved:'✅',
-      system_update:      '📢',
-      attendance_marked:  '✓',
-      warning:            '⚡',
-      announcement:       '📣'
-    };
-    return icons[type] || '🔔';
-  };
+  const displayed = showUnreadOnly
+    ? notifications.filter(n => !n.isRead)
+    : notifications;
 
   const getTimeAgo = (date) => {
-    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-    const intervals = {
-      year: 31536000, month: 2592000, week: 604800,
-      day: 86400, hour: 3600, minute: 60
-    };
-    for (const [unit, value] of Object.entries(intervals)) {
-      const interval = Math.floor(seconds / value);
-      if (interval >= 1) return `${interval} ${unit}${interval > 1 ? 's' : ''} ago`;
-    }
-    return 'Just now';
+    const diff = Date.now() - new Date(date).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} hour${hrs > 1 ? 's' : ''} ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+  };
+
+  const getIcon = (type) => {
+    if (!type) return '🔔';
+    if (type.includes('leave'))       return '🏖️';
+    if (type.includes('attendance'))  return '✅';
+    if (type.includes('broadcast'))   return '📢';
+    if (type.includes('correction'))  return '⚠️';
+    return '🔔';
   };
 
   return (
-    <div style={styles.wrapper} ref={dropdownRef}>
-      {/* ===== BELL BUTTON ===== */}
+    <div style={{ position: 'relative' }} ref={dropdownRef}>
+
+      {/* ── Bell Button ── */}
       <button
-        style={styles.bellBtn}
         onClick={() => setIsOpen(!isOpen)}
-        aria-label="Notifications"
+        style={S.bellBtn}
+        title="Notifications"
       >
-        <span style={styles.bellIcon}>🔔</span>
+        🔔
         {unreadCount > 0 && (
-          <span style={styles.badge}>
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
+          <span style={S.badge}>{unreadCount > 99 ? '99+' : unreadCount}</span>
         )}
       </button>
 
-      {/* ===== DROPDOWN ===== */}
+      {/* ── Dropdown ── */}
       {isOpen && (
-        <div style={styles.dropdown}>
+        <div style={S.dropdown}>
+
           {/* Header */}
-          <div style={styles.dropHeader}>
-            <span style={styles.dropTitle}>Notifications</span>
-            <div style={styles.dropActions}>
+          <div style={S.dropHeader}>
+            <span style={S.dropTitle}>Notifications</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <button
-                style={styles.filterBtn}
+                style={{
+                  ...S.filterBtn,
+                  background: showUnreadOnly ? '#667eea' : 'white',
+                  color: showUnreadOnly ? 'white' : '#6b7280',
+                }}
                 onClick={() => setShowUnreadOnly(!showUnreadOnly)}
               >
-                {showUnreadOnly ? 'All' : 'Unread'}
+                Unread
               </button>
               {unreadCount > 0 && (
-                <button style={styles.markAllBtn} onClick={handleMarkAllRead}>
+                <button style={S.markAllBtn} onClick={markAllRead}>
                   Mark all read
                 </button>
               )}
             </div>
           </div>
 
-          {/* List */}
-          <div style={styles.list}>
+          {/* Notifications List */}
+          <div style={S.listBox}>
             {loading ? (
-              <div style={styles.center}>Loading...</div>
-            ) : notifications.length === 0 ? (
-              <div style={styles.empty}>
-                <div style={styles.emptyIcon}>📭</div>
-                <p style={styles.emptyText}>No notifications</p>
+              <div style={S.emptyBox}>
+                <div style={S.spinner}></div>
               </div>
-            ) : (
-              notifications.map((n) => (
-                <div
-                  key={n._id}
-                  style={{
-                    ...styles.item,
-                    ...(n.isRead ? {} : styles.itemUnread)
-                  }}
-                  onClick={() => handleNotificationClick(n)}
-                >
-                  {/* Unread dot */}
-                  {!n.isRead && <span style={styles.unreadDot} />}
-
-                  <div style={styles.itemIcon}>{getNotificationIcon(n.type)}</div>
-
-                  <div style={styles.itemBody}>
-                    <div style={styles.itemTitle}>{n.title}</div>
-                    <div style={styles.itemMsg}>{n.message}</div>
-                    <div style={styles.itemTime}>{getTimeAgo(n.createdAt)}</div>
-                  </div>
-
-                  <button
-                    style={styles.deleteBtn}
-                    onClick={(e) => handleDelete(e, n._id)}
-                    title="Delete"
-                  >
-                    ×
-                  </button>
+            ) : displayed.length === 0 ? (
+              <div style={S.emptyBox}>
+                <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.4 }}>📭</div>
+                <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>No notifications</p>
+              </div>
+            ) : displayed.map(notif => (
+              <div
+                key={notif._id}
+                style={{
+                  ...S.notifItem,
+                  background: notif.isRead ? 'white' : '#f0f4ff',
+                  borderLeft: notif.isRead ? '3px solid transparent' : '3px solid #667eea',
+                }}
+                onClick={() => {
+                  if (!notif.isRead) markAsRead(notif._id);
+                }}
+              >
+                <div style={S.notifIcon}>{getIcon(notif.type)}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={S.notifTitle}>{notif.title || 'Notification'}</div>
+                  {notif.message && (
+                    <div style={S.notifMsg}>{notif.message}</div>
+                  )}
+                  <div style={S.notifTime}>{getTimeAgo(notif.createdAt)}</div>
                 </div>
-              ))
-            )}
+                {!notif.isRead && <div style={S.unreadDot}></div>}
+              </div>
+            ))}
           </div>
 
-          {/* Footer */}
-          <div style={styles.dropFooter}>
-            <button
-              style={styles.viewAllBtn}
-              onClick={() => {
-                navigate('/employee/my-requests');
-                setIsOpen(false);
-              }}
-            >
-              View My Requests
-            </button>
-          </div>
+          {/* ── View All Button ── */}
+          <button
+            style={S.viewAllBtn}
+            onClick={() => { setIsOpen(false); navigate(viewAllPath); }}
+          >
+            View All Notifications
+          </button>
+
         </div>
       )}
+
+      <style>{`@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}`}</style>
     </div>
   );
 };
 
-// ===== STYLES =====
-const styles = {
-  wrapper: {
-    position: 'relative',
-    display: 'inline-block'
-  },
+const S = {
   bellBtn: {
-    position: 'relative',
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    padding: '8px',
-    borderRadius: '50%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'background 0.2s',
-  },
-  bellIcon: {
-    fontSize: '22px',
-    lineHeight: 1
+    position: 'relative', background: 'none', border: 'none',
+    fontSize: 22, cursor: 'pointer', padding: '4px 8px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center'
   },
   badge: {
-    position: 'absolute',
-    top: '2px',
-    right: '2px',
-    background: '#ef4444',
-    color: 'white',
-    fontSize: '10px',
-    fontWeight: '700',
-    borderRadius: '10px',
-    minWidth: '18px',
-    height: '18px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '0 4px',
-    lineHeight: 1,
-    boxShadow: '0 0 0 2px white'
+    position: 'absolute', top: -4, right: -4,
+    background: '#ef4444', color: 'white',
+    fontSize: 10, fontWeight: 700,
+    minWidth: 18, height: 18, borderRadius: 9,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '0 4px', lineHeight: 1,
+    border: '2px solid white'
   },
   dropdown: {
-    position: 'absolute',
-    top: 'calc(100% + 8px)',
-    right: '0',
-    width: '360px',
-    maxHeight: '480px',
-    background: 'white',
-    borderRadius: '16px',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 4px 20px rgba(0,0,0,0.1)',
-    border: '1px solid #e5e7eb',
-    zIndex: 9999,
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column'
+    position: 'absolute', top: '100%', right: 0,
+    width: 360, background: 'white',
+    borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+    border: '1px solid #e5e7eb', zIndex: 9999,
+    overflow: 'hidden', marginTop: 8
   },
   dropHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '16px 20px',
-    borderBottom: '1px solid #f3f4f6',
-    background: '#fafafa'
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    padding: '16px 20px', borderBottom: '1px solid #f3f4f6'
   },
-  dropTitle: {
-    fontWeight: '700',
-    fontSize: '15px',
-    color: '#111827'
-  },
-  dropActions: {
-    display: 'flex',
-    gap: '8px'
-  },
+  dropTitle: { fontSize: 16, fontWeight: 700, color: '#111827' },
   filterBtn: {
-    padding: '4px 10px',
-    fontSize: '12px',
-    fontWeight: '600',
-    border: '1px solid #d1d5db',
-    borderRadius: '20px',
-    background: 'white',
-    cursor: 'pointer',
-    color: '#374151',
-    transition: 'all 0.2s'
+    padding: '4px 12px', border: '1px solid #e5e7eb',
+    borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer'
   },
   markAllBtn: {
-    padding: '4px 10px',
-    fontSize: '12px',
-    fontWeight: '600',
-    border: 'none',
-    borderRadius: '20px',
-    background: '#667eea',
-    cursor: 'pointer',
-    color: 'white',
-    transition: 'all 0.2s'
+    padding: '4px 12px',
+    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+    color: 'white', border: 'none',
+    borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer'
   },
-  list: {
-    overflowY: 'auto',
-    flex: 1,
-    maxHeight: '360px'
+  listBox: { maxHeight: 320, overflowY: 'auto' },
+  emptyBox: {
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    padding: '40px 20px'
   },
-  center: {
-    padding: '40px',
-    textAlign: 'center',
-    color: '#9ca3af',
-    fontSize: '14px'
+  spinner: {
+    width: 36, height: 36, border: '3px solid #f3f3f3',
+    borderTop: '3px solid #667eea', borderRadius: '50%',
+    animation: 'spin 1s linear infinite'
   },
-  empty: {
-    padding: '40px 20px',
-    textAlign: 'center'
+  notifItem: {
+    display: 'flex', alignItems: 'flex-start', gap: 12,
+    padding: '14px 20px', cursor: 'pointer',
+    borderBottom: '1px solid #f9fafb', transition: 'background 0.2s'
   },
-  emptyIcon: {
-    fontSize: '40px',
-    marginBottom: '8px'
+  notifIcon: {
+    fontSize: 20, flexShrink: 0,
+    width: 36, height: 36, borderRadius: '50%',
+    background: '#f3f4f6', display: 'flex',
+    alignItems: 'center', justifyContent: 'center'
   },
-  emptyText: {
-    color: '#9ca3af',
-    fontSize: '14px',
-    margin: 0
-  },
-  item: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '12px',
-    padding: '14px 20px',
-    cursor: 'pointer',
-    borderBottom: '1px solid #f9fafb',
-    transition: 'background 0.15s',
-    position: 'relative',
-    background: 'white',
-  },
-  itemUnread: {
-    background: '#f0f4ff'
-  },
-  unreadDot: {
-    position: 'absolute',
-    left: '8px',
-    top: '18px',
-    width: '6px',
-    height: '6px',
-    borderRadius: '50%',
-    background: '#667eea',
-    flexShrink: 0
-  },
-  itemIcon: {
-    fontSize: '22px',
-    marginLeft: '4px',
-    flexShrink: 0,
-    lineHeight: 1.4
-  },
-  itemBody: {
-    flex: 1,
-    minWidth: 0
-  },
-  itemTitle: {
-    fontSize: '13px',
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: '3px',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis'
-  },
-  itemMsg: {
-    fontSize: '12px',
-    color: '#6b7280',
-    marginBottom: '4px',
-    lineHeight: '1.4',
-    display: '-webkit-box',
-    WebkitLineClamp: 2,
-    WebkitBoxOrient: 'vertical',
-    overflow: 'hidden'
-  },
-  itemTime: {
-    fontSize: '11px',
-    color: '#9ca3af',
-    fontWeight: '500'
-  },
-  deleteBtn: {
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    color: '#d1d5db',
-    fontSize: '18px',
-    lineHeight: 1,
-    padding: '2px 4px',
-    borderRadius: '4px',
-    flexShrink: 0,
-    transition: 'color 0.2s',
-    fontWeight: '300'
-  },
-  dropFooter: {
-    padding: '12px 20px',
-    borderTop: '1px solid #f3f4f6',
-    background: '#fafafa'
+  notifTitle: { fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 },
+  notifMsg:   { fontSize: 12, color: '#6b7280', marginBottom: 4, lineHeight: 1.4,
+    overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
+    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' },
+  notifTime:  { fontSize: 11, color: '#9ca3af' },
+  unreadDot:  {
+    width: 8, height: 8, borderRadius: '50%',
+    background: '#667eea', flexShrink: 0, marginTop: 4
   },
   viewAllBtn: {
-    width: '100%',
-    padding: '10px',
-    background: 'linear-gradient(135deg, #667eea, #764ba2)',
-    color: 'white',
-    border: 'none',
-    borderRadius: '10px',
-    fontSize: '13px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'opacity 0.2s'
-  }
+    width: '100%', padding: '14px', background: '#f9fafb',
+    color: '#374151', border: 'none', borderTop: '1px solid #f3f4f6',
+    fontSize: 14, fontWeight: 600, cursor: 'pointer',
+    transition: 'background 0.2s'
+  },
 };
 
 export default NotificationCenter;

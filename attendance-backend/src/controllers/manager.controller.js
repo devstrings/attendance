@@ -3,61 +3,88 @@ const Employee = require('../models/Employee');
 const Manager = require('../models/Manager');
 const Attendance = require('../models/Attendance');
 const Leave = require('../models/Leave');
+const Holiday = require('../models/Holiday');
+const SystemConfig = require('../models/SystemConfig');
 const { validateEmail } = require('../utils/validators');
 
+// ===== HELPER: Working Days Calculate =====
+const calculateWorkingDays = async (startDate, endDate, workingDayNames) => {
+  const holidays = await Holiday.find({
+    date: { $gte: startDate, $lte: endDate }
+  });
+  const holidaySet = new Set(holidays.map(h => new Date(h.date).toDateString()));
+
+  let count = 0;
+  const current = new Date(startDate);
+  current.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(23, 59, 59, 999);
+
+  while (current <= end) {
+    const dayName = current.toLocaleDateString('en-US', { weekday: 'long' });
+    const isWorkingDay = workingDayNames.includes(dayName);
+    const isHoliday = holidaySet.has(current.toDateString());
+    if (isWorkingDay && !isHoliday) count++;
+    current.setDate(current.getDate() + 1);
+  }
+  return count;
+};
+
 /**
- * Manager Dashboard - Get Overview
+ * ✅ Manager Dashboard - FIXED & EXPORTED
+ * - Leave: both 'leave' AND 'on-leave'
+ * - Absent = Total - Present - Leave
+ * - Pending from LeaveRequest model
  */
 const getDashboard = async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    // Get manager profile
     const manager = await Manager.findOne({ userId })
       .populate('employeesUnder', 'firstName lastName employeeCode isActive');
 
     if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
+      return res.status(404).json({ success: false, message: 'Manager profile not found.' });
     }
 
-    // Count active employees under this manager
-    const totalEmployees = manager.employeesUnder.filter(emp => emp.isActive).length;
+    const activeEmployees = manager.employeesUnder.filter(emp => emp.isActive);
+    const totalEmployees = activeEmployees.length;
+    const employeeIds = activeEmployees.map(emp => emp._id);
 
-    // Today's attendance
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
+    // ✅ Present count
     const todayAttendance = await Attendance.countDocuments({
-      managerId: manager._id,
-      date: { $gte: today },
-      status: 'present'
+      employeeId: { $in: employeeIds },
+      date: { $gte: today, $lt: tomorrow },
+      status: { $in: ['present', 'half-day', 'late'] }
     });
 
-    // Pending leaves under this manager
-    const pendingLeaves = await Leave.countDocuments({
-      managerId: manager._id,
+    // ✅ Leave count - BOTH 'leave' AND 'on-leave'
+    const leaveToday = await Attendance.countDocuments({
+      employeeId: { $in: employeeIds },
+      date: { $gte: today, $lt: tomorrow },
+      status: { $in: ['leave', 'on-leave'] }
+    });
+
+    // ✅ Absent = Total - Present - Leave
+    const absentToday = Math.max(0, totalEmployees - todayAttendance - leaveToday);
+
+    // ✅ Pending leaves from LeaveRequest model
+    const LeaveRequest = require('../models/LeaveRequest');
+    const pendingLeaves = await LeaveRequest.countDocuments({
+      employee: { $in: employeeIds },
       status: 'pending'
     });
 
-    // Employees absent today
-    const employeeIds = manager.employeesUnder.map(emp => emp._id);
-    
-    const presentToday = await Attendance.find({
-      employeeId: { $in: employeeIds },
-      date: { $gte: today }
-    }).distinct('employeeId');
-
-    const absentToday = totalEmployees - presentToday.length;
-
-    // Recent attendance records
+    // ✅ Recent attendance
     const recentAttendance = await Attendance.find({
-      managerId: manager._id
+      employeeId: { $in: employeeIds }
     })
-      .sort({ createdAt: -1 })
-      .limit(5)
+      .sort({ date: -1, createdAt: -1 })
+      .limit(10)
       .populate('employeeId', 'firstName lastName employeeCode');
 
     res.status(200).json({
@@ -66,6 +93,7 @@ const getDashboard = async (req, res) => {
         stats: {
           totalEmployees,
           todayAttendance,
+          leaveToday,
           pendingLeaves,
           absentToday
         },
@@ -73,12 +101,8 @@ const getDashboard = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get manager dashboard error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch dashboard data.',
-      error: error.message
-    });
+    console.error('❌ Get manager dashboard error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch dashboard data.', error: error.message });
   }
 };
 
@@ -90,22 +114,10 @@ const getMyEmployees = async (req, res) => {
     const userId = req.user.userId;
     const { page = 1, limit = 10, search = '', department = '' } = req.query;
 
-    // Get manager profile
     const manager = await Manager.findOne({ userId });
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
 
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
-    }
-
-    const query = {
-  _id: { $in: manager.employeesUnder },  // Sirf manager ke employees
-  isActive: true
-};
-
-    // Search filter
+    const query = { _id: { $in: manager.employeesUnder }, isActive: true };
     if (search) {
       query.$or = [
         { firstName: { $regex: search, $options: 'i' } },
@@ -113,11 +125,7 @@ const getMyEmployees = async (req, res) => {
         { employeeCode: { $regex: search, $options: 'i' } }
       ];
     }
-
-    // Department filter
-    if (department) {
-      query.department = department;
-    }
+    if (department) query.department = department;
 
     const employees = await Employee.find(query)
       .populate('userId', 'email isActive lastLogin')
@@ -129,20 +137,10 @@ const getMyEmployees = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: {
-        employees,
-        totalPages: Math.ceil(count / limit),
-        currentPage: page,
-        totalEmployees: count
-      }
+      data: { employees, totalPages: Math.ceil(count / limit), currentPage: page, totalEmployees: count }
     });
   } catch (error) {
-    console.error('Get my employees error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch employees.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch employees.', error: error.message });
   }
 };
 
@@ -154,51 +152,20 @@ const getEmployeeDetails = async (req, res) => {
     const userId = req.user.userId;
     const { employeeId } = req.params;
 
-    // Get manager profile
     const manager = await Manager.findOne({ userId });
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
 
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
-    }
+    const hasAccess = manager.employeesUnder.some(emp => emp.toString() === employeeId);
+    if (!hasAccess) return res.status(403).json({ success: false, message: 'Access denied.' });
 
-    // Check if employee is under this manager
-    const hasAccess = manager.employeesUnder.some(
-      emp => emp.toString() === employeeId
-    );
-
-    if (!hasAccess) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. This employee is not under your supervision.'
-      });
-    }
-
-    // Get employee details
     const employee = await Employee.findById(employeeId)
       .populate('userId', 'email isActive lastLogin')
       .populate('managerId', 'firstName lastName email');
+    if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' });
 
-    if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: 'Employee not found.'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: { employee }
-    });
+    res.status(200).json({ success: true, data: { employee } });
   } catch (error) {
-    console.error('Get employee details error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch employee details.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch employee details.', error: error.message });
   }
 };
 
@@ -208,105 +175,52 @@ const getEmployeeDetails = async (req, res) => {
 const markAttendance = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const {
-      employeeId,
-      date,
-      clockIn,
-      clockOut,
-      status,
-      remarks,
-      location
-    } = req.body;
+    const { employeeId, date, clockIn, clockOut, status, remarks, location } = req.body;
 
-    // Validate required fields
     if (!employeeId || !date || !clockIn) {
-      return res.status(400).json({
-        success: false,
-        message: 'Employee ID, date, and clock-in time are required.'
-      });
+      return res.status(400).json({ success: false, message: 'Employee ID, date, and clock-in time are required.' });
     }
 
-    // Get manager profile
     const manager = await Manager.findOne({ userId });
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
 
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
-    }
+    const hasAccess = manager.employeesUnder.some(emp => emp.toString() === employeeId);
+    if (!hasAccess) return res.status(403).json({ success: false, message: 'Access denied.' });
 
-    // Check if employee is under this manager
-    const hasAccess = manager.employeesUnder.some(
-      emp => emp.toString() === employeeId
-    );
-
-    if (!hasAccess) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. This employee is not under your supervision.'
-      });
-    }
-
-    // Get employee details
     const employee = await Employee.findById(employeeId);
+    if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' });
 
-    if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: 'Employee not found.'
-      });
-    }
-
-    // Check if attendance already exists for this date
     const attendanceDate = new Date(date);
     attendanceDate.setHours(0, 0, 0, 0);
 
     const existingAttendance = await Attendance.findOne({
       employeeId,
-      date: {
-        $gte: attendanceDate,
-        $lt: new Date(attendanceDate.getTime() + 24 * 60 * 60 * 1000)
-      }
+      date: { $gte: attendanceDate, $lt: new Date(attendanceDate.getTime() + 24 * 60 * 60 * 1000) }
     });
+    if (existingAttendance) return res.status(400).json({ success: false, message: 'Attendance already marked for this date.' });
 
-    if (existingAttendance) {
-      return res.status(400).json({
-        success: false,
-        message: 'Attendance already marked for this date.'
-      });
-    }
-
-    // Calculate if employee is late
     const clockInTime = new Date(clockIn);
-    const shiftStartTime = employee.workSchedule.shiftStartTime || '09:00';
+    const shiftStartTime = employee.workSchedule?.shiftStartTime || '09:00';
     const [startHour, startMinute] = shiftStartTime.split(':').map(Number);
-    
     const expectedClockIn = new Date(clockInTime);
     expectedClockIn.setHours(startHour, startMinute, 0, 0);
 
     const lateMinutes = Math.max(0, Math.floor((clockInTime - expectedClockIn) / (1000 * 60)));
-    const isLate = lateMinutes > 15; // Grace period of 15 minutes
+    const isLate = lateMinutes > 15;
 
-    // Calculate early leave if clockOut is provided
-    let earlyLeave = false;
-    let earlyLeaveMinutes = 0;
-
+    let earlyLeave = false, earlyLeaveMinutes = 0;
     if (clockOut) {
       const clockOutTime = new Date(clockOut);
-      const shiftEndTime = employee.workSchedule.shiftEndTime || '17:00';
+      const shiftEndTime = employee.workSchedule?.shiftEndTime || '17:00';
       const [endHour, endMinute] = shiftEndTime.split(':').map(Number);
-      
       const expectedClockOut = new Date(clockOutTime);
       expectedClockOut.setHours(endHour, endMinute, 0, 0);
-
       if (clockOutTime < expectedClockOut) {
         earlyLeaveMinutes = Math.floor((expectedClockOut - clockOutTime) / (1000 * 60));
-        earlyLeave = earlyLeaveMinutes > 15; // Grace period of 15 minutes
+        earlyLeave = earlyLeaveMinutes > 15;
       }
     }
 
-    // Create attendance record
     const attendance = new Attendance({
       employeeId,
       managerId: manager._id,
@@ -326,19 +240,9 @@ const markAttendance = async (req, res) => {
     });
 
     await attendance.save();
-
-    res.status(201).json({
-      success: true,
-      message: 'Attendance marked successfully.',
-      data: { attendance }
-    });
+    res.status(201).json({ success: true, message: 'Attendance marked successfully.', data: { attendance } });
   } catch (error) {
-    console.error('Mark attendance error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to mark attendance.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to mark attendance.', error: error.message });
   }
 };
 
@@ -351,53 +255,23 @@ const updateAttendance = async (req, res) => {
     const { attendanceId } = req.params;
     const updateData = req.body;
 
-    // Get manager profile
     const manager = await Manager.findOne({ userId });
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
 
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
-    }
-
-    // Get attendance record
     const attendance = await Attendance.findById(attendanceId);
+    if (!attendance) return res.status(404).json({ success: false, message: 'Attendance record not found.' });
 
-    if (!attendance) {
-      return res.status(404).json({
-        success: false,
-        message: 'Attendance record not found.'
-      });
-    }
-
-    // Check if manager has access to this attendance record
     if (attendance.managerId.toString() !== manager._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. You can only update attendance records of your employees.'
-      });
+      return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
-    // Update attendance
     const updatedAttendance = await Attendance.findByIdAndUpdate(
-      attendanceId,
-      { $set: updateData },
-      { new: true, runValidators: true }
+      attendanceId, { $set: updateData }, { new: true, runValidators: true }
     ).populate('employeeId', 'firstName lastName employeeCode');
 
-    res.status(200).json({
-      success: true,
-      message: 'Attendance updated successfully.',
-      data: { attendance: updatedAttendance }
-    });
+    res.status(200).json({ success: true, message: 'Attendance updated successfully.', data: { attendance: updatedAttendance } });
   } catch (error) {
-    console.error('Update attendance error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update attendance.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to update attendance.', error: error.message });
   }
 };
 
@@ -408,54 +282,19 @@ const getEmployeeAttendanceHistory = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { employeeId } = req.params;
-    const { 
-      page = 1, 
-      limit = 10, 
-      startDate = '', 
-      endDate = '', 
-      status = '' 
-    } = req.query;
+    const { page = 1, limit = 10, startDate = '', endDate = '', status = '' } = req.query;
 
-    // Get manager profile
     const manager = await Manager.findOne({ userId });
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
 
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
-    }
-
-    // Check if employee is under this manager
-    const hasAccess = manager.employeesUnder.some(
-      emp => emp.toString() === employeeId
-    );
-
-    if (!hasAccess) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. This employee is not under your supervision.'
-      });
-    }
+    const hasAccess = manager.employeesUnder.some(emp => emp.toString() === employeeId);
+    if (!hasAccess) return res.status(403).json({ success: false, message: 'Access denied.' });
 
     const query = { employeeId };
-
-    // Date range filter
-    if (startDate && endDate) {
-      query.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
-    } else if (startDate) {
-      query.date = { $gte: new Date(startDate) };
-    } else if (endDate) {
-      query.date = { $lte: new Date(endDate) };
-    }
-
-    // Status filter
-    if (status) {
-      query.status = status;
-    }
+    if (startDate && endDate) query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    else if (startDate) query.date = { $gte: new Date(startDate) };
+    else if (endDate) query.date = { $lte: new Date(endDate) };
+    if (status) query.status = status;
 
     const attendanceRecords = await Attendance.find(query)
       .populate('employeeId', 'firstName lastName employeeCode')
@@ -466,206 +305,164 @@ const getEmployeeAttendanceHistory = async (req, res) => {
 
     const count = await Attendance.countDocuments(query);
 
-    // Calculate statistics
-    const totalPresent = await Attendance.countDocuments({
-      employeeId,
-      status: 'present'
-    });
-
-    const totalAbsent = await Attendance.countDocuments({
-      employeeId,
-      status: 'absent'
-    });
-
-    const totalLate = await Attendance.countDocuments({
-      employeeId,
-      isLate: true
-    });
+    // ✅ Stats with both leave statuses
+    const allRecords = await Attendance.find({ employeeId });
+    const statistics = {
+      totalPresent: allRecords.filter(a => ['present', 'half-day', 'late'].includes(a.status)).length,
+      totalAbsent: allRecords.filter(a => a.status === 'absent').length,
+      totalLate: allRecords.filter(a => a.isLate === true).length,
+      totalLeave: allRecords.filter(a => ['leave', 'on-leave'].includes(a.status)).length
+    };
 
     res.status(200).json({
       success: true,
-      data: {
-        attendance: attendanceRecords,
-        totalPages: Math.ceil(count / limit),
-        currentPage: page,
-        totalRecords: count,
-        statistics: {
-          totalPresent,
-          totalAbsent,
-          totalLate
-        }
-      }
+      data: { attendance: attendanceRecords, totalPages: Math.ceil(count / limit), currentPage: page, totalRecords: count, statistics }
     });
   } catch (error) {
-    console.error('Get employee attendance history error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch attendance history.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch attendance history.', error: error.message });
   }
 };
 
 /**
- * Manager Clock In/Out (Manager's own attendance)
+ * ✅ Manager Attendance History - with working days calculation
+ */
+const getManagerAttendanceHistory = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { month, year } = req.query;
+
+    const manager = await Manager.findOne({ userId })
+      .populate('employeesUnder', 'firstName lastName employeeCode isActive joiningDate department');
+
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
+
+    const systemConfig = await SystemConfig.findOne({ isActive: true });
+    const configWorkingDays = systemConfig?.workingDays || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    let startDate, endDate;
+    if (month && year) {
+      startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+      endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
+    } else {
+      startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59);
+    }
+
+    // Cap at today
+    const effectiveEnd = endDate > today ? today : endDate;
+
+    const activeEmployees = manager.employeesUnder.filter(emp => emp.isActive);
+    const employeeIds = activeEmployees.map(emp => emp._id);
+
+    const allAttendance = await Attendance.find({
+      employeeId: { $in: employeeIds },
+      date: { $gte: startDate, $lte: effectiveEnd }
+    }).populate('employeeId', 'firstName lastName employeeCode joiningDate department');
+
+    // Per-employee stats with joining date consideration
+    const employeeStats = await Promise.all(activeEmployees.map(async emp => {
+      const joiningDate = emp.joiningDate ? new Date(emp.joiningDate) : startDate;
+      joiningDate.setHours(0, 0, 0, 0);
+
+      const empStart = joiningDate > startDate ? joiningDate : startDate;
+      const workingDays = await calculateWorkingDays(empStart, effectiveEnd, configWorkingDays);
+
+      const empAtt = allAttendance.filter(a => a.employeeId?._id?.toString() === emp._id.toString());
+
+      return {
+        employeeId: emp._id,
+        name: `${emp.firstName} ${emp.lastName}`,
+        employeeCode: emp.employeeCode,
+        department: emp.department,
+        joiningDate: emp.joiningDate,
+        workingDays,
+        present: empAtt.filter(a => ['present', 'half-day', 'late'].includes(a.status)).length,
+        absent: empAtt.filter(a => a.status === 'absent').length,
+        leave: empAtt.filter(a => ['leave', 'on-leave'].includes(a.status)).length,
+        late: empAtt.filter(a => a.isLate === true).length
+      };
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        employeeStats,
+        period: { startDate, endDate: effectiveEnd }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch attendance history.', error: error.message });
+  }
+};
+
+/**
+ * Clock In/Out (Manager's own attendance)
  */
 const clockInOut = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { action, location } = req.body; // action: 'clock-in' or 'clock-out'
+    const { action, location } = req.body;
 
     if (!action || !['clock-in', 'clock-out'].includes(action)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid action. Use "clock-in" or "clock-out".'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid action.' });
     }
 
-    // Get manager profile
     const manager = await Manager.findOne({ userId });
-
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
-    }
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     if (action === 'clock-in') {
-      // Check if already clocked in today
-      const existingAttendance = await Attendance.findOne({
-        employeeId: manager._id, // Using manager._id as employeeId
-        date: { $gte: today }
-      });
+      const existingAttendance = await Attendance.findOne({ employeeId: manager._id, date: { $gte: today } });
+      if (existingAttendance) return res.status(400).json({ success: false, message: 'Already clocked in today.' });
 
-      if (existingAttendance) {
-        return res.status(400).json({
-          success: false,
-          message: 'You have already clocked in today.'
-        });
-      }
-
-      // Create clock-in record
       const attendance = new Attendance({
-        employeeId: manager._id,
-        managerId: manager._id,
-        date: today,
-        clockIn: new Date(),
-        status: 'present',
-        location: {
-          clockInLocation: location
-        },
-        markedBy: userId,
-        isApproved: true,
-        approvedBy: userId
+        employeeId: manager._id, managerId: manager._id, date: today,
+        clockIn: new Date(), status: 'present',
+        location: { clockInLocation: location },
+        markedBy: userId, isApproved: true, approvedBy: userId
       });
-
       await attendance.save();
-
-      return res.status(201).json({
-        success: true,
-        message: 'Clocked in successfully.',
-        data: { attendance }
-      });
+      return res.status(201).json({ success: true, message: 'Clocked in successfully.', data: { attendance } });
     } else {
-      // Clock-out
-      const attendance = await Attendance.findOne({
-        employeeId: manager._id,
-        date: { $gte: today }
-      });
+      const attendance = await Attendance.findOne({ employeeId: manager._id, date: { $gte: today } });
+      if (!attendance) return res.status(400).json({ success: false, message: 'No clock-in record found for today.' });
+      if (attendance.clockOut) return res.status(400).json({ success: false, message: 'Already clocked out today.' });
 
-      if (!attendance) {
-        return res.status(400).json({
-          success: false,
-          message: 'No clock-in record found for today.'
-        });
-      }
-
-      if (attendance.clockOut) {
-        return res.status(400).json({
-          success: false,
-          message: 'You have already clocked out today.'
-        });
-      }
-
-      // Update with clock-out
       attendance.clockOut = new Date();
-      if (location) {
-        attendance.location.clockOutLocation = location;
-      }
-
+      if (location) attendance.location.clockOutLocation = location;
       await attendance.save();
-
-      return res.status(200).json({
-        success: true,
-        message: 'Clocked out successfully.',
-        data: { attendance }
-      });
+      return res.status(200).json({ success: true, message: 'Clocked out successfully.', data: { attendance } });
     }
   } catch (error) {
-    console.error('Clock in/out error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to process clock in/out.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to process clock in/out.', error: error.message });
   }
 };
 
 /**
- * Get Manager's Own Attendance History
+ * Get Manager's Own Attendance
  */
 const getMyAttendance = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { page = 1, limit = 10, startDate = '', endDate = '' } = req.query;
 
-    // Get manager profile
     const manager = await Manager.findOne({ userId });
-
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
-    }
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
 
     const query = { employeeId: manager._id };
+    if (startDate && endDate) query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
 
-    // Date range filter
-    if (startDate && endDate) {
-      query.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
-    }
-
-    const attendanceRecords = await Attendance.find(query)
-      .sort({ date: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
+    const attendanceRecords = await Attendance.find(query).sort({ date: -1 }).limit(limit * 1).skip((page - 1) * limit);
     const count = await Attendance.countDocuments(query);
 
-    res.status(200).json({
-      success: true,
-      data: {
-        attendance: attendanceRecords,
-        totalPages: Math.ceil(count / limit),
-        currentPage: page,
-        totalRecords: count
-      }
-    });
+    res.status(200).json({ success: true, data: { attendance: attendanceRecords, totalPages: Math.ceil(count / limit), currentPage: page, totalRecords: count } });
   } catch (error) {
-    console.error('Get my attendance error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch attendance history.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch attendance history.', error: error.message });
   }
 };
 
@@ -677,21 +474,11 @@ const getLeaveRequests = async (req, res) => {
     const userId = req.user.userId;
     const { page = 1, limit = 10, status = '' } = req.query;
 
-    // Get manager profile
     const manager = await Manager.findOne({ userId });
-
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
-    }
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
 
     const query = { managerId: manager._id };
-
-    if (status) {
-      query.status = status;
-    }
+    if (status) query.status = status;
 
     const leaves = await Leave.find(query)
       .populate('employeeId', 'firstName lastName employeeCode')
@@ -702,22 +489,9 @@ const getLeaveRequests = async (req, res) => {
 
     const count = await Leave.countDocuments(query);
 
-    res.status(200).json({
-      success: true,
-      data: {
-        leaves,
-        totalPages: Math.ceil(count / limit),
-        currentPage: page,
-        totalLeaves: count
-      }
-    });
+    res.status(200).json({ success: true, data: { leaves, totalPages: Math.ceil(count / limit), currentPage: page, totalLeaves: count } });
   } catch (error) {
-    console.error('Get leave requests error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch leave requests.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch leave requests.', error: error.message });
   }
 };
 
@@ -731,70 +505,32 @@ const updateLeaveStatus = async (req, res) => {
     const { status, rejectionReason } = req.body;
 
     if (!['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid status. Use "approved" or "rejected".'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid status.' });
     }
 
-    // Get manager profile
     const manager = await Manager.findOne({ userId });
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
 
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
-    }
-
-    // Get leave request
     const leave = await Leave.findById(leaveId);
+    if (!leave) return res.status(404).json({ success: false, message: 'Leave request not found.' });
 
-    if (!leave) {
-      return res.status(404).json({
-        success: false,
-        message: 'Leave request not found.'
-      });
-    }
-
-    // Check if manager has access
     if (leave.managerId.toString() !== manager._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. You can only manage leave requests from your employees.'
-      });
+      return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
     if (leave.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: `Leave request is already ${leave.status}.`
-      });
+      return res.status(400).json({ success: false, message: `Leave is already ${leave.status}.` });
     }
 
-    // Update leave status
     leave.status = status;
     leave.approvedBy = userId;
     leave.approvedAt = new Date();
-
-    if (status === 'rejected' && rejectionReason) {
-      leave.rejectionReason = rejectionReason;
-    }
-
+    if (status === 'rejected' && rejectionReason) leave.rejectionReason = rejectionReason;
     await leave.save();
 
-    res.status(200).json({
-      success: true,
-      message: `Leave request ${status} successfully.`,
-      data: { leave }
-    });
+    res.status(200).json({ success: true, message: `Leave ${status} successfully.`, data: { leave } });
   } catch (error) {
-    console.error('Update leave status error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update leave status.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to update leave status.', error: error.message });
   }
 };
 
@@ -804,29 +540,13 @@ const updateLeaveStatus = async (req, res) => {
 const getMyProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
-
     const manager = await Manager.findOne({ userId })
       .populate('userId', 'email isActive lastLogin')
       .populate('employeesUnder', 'firstName lastName employeeCode');
-
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: { manager }
-    });
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
+    res.status(200).json({ success: true, data: { manager } });
   } catch (error) {
-    console.error('Get my profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch profile.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch profile.', error: error.message });
   }
 };
 
@@ -837,47 +557,29 @@ const updateMyProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
     const updateData = req.body;
-
-    // Remove fields that shouldn't be updated by manager
     delete updateData.salary;
     delete updateData.employeesUnder;
     delete updateData.isActive;
 
-    const manager = await Manager.findOneAndUpdate(
-      { userId },
-      { $set: updateData },
-      { new: true, runValidators: true }
-    ).populate('userId', 'email').populate('employeesUnder', 'firstName lastName employeeCode');
+    const manager = await Manager.findOneAndUpdate({ userId }, { $set: updateData }, { new: true, runValidators: true })
+      .populate('userId', 'email')
+      .populate('employeesUnder', 'firstName lastName employeeCode');
+    if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
 
-    if (!manager) {
-      return res.status(404).json({
-        success: false,
-        message: 'Manager profile not found.'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Profile updated successfully.',
-      data: { manager }
-    });
+    res.status(200).json({ success: true, message: 'Profile updated successfully.', data: { manager } });
   } catch (error) {
-    console.error('Update my profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update profile.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to update profile.', error: error.message });
   }
 };
 
 module.exports = {
-  getDashboard,
+  getDashboard,           // ✅ FIXED - leave + absent calculation correct
   getMyEmployees,
   getEmployeeDetails,
   markAttendance,
   updateAttendance,
   getEmployeeAttendanceHistory,
+  getManagerAttendanceHistory,
   clockInOut,
   getMyAttendance,
   getLeaveRequests,

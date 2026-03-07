@@ -4,47 +4,111 @@ const Employee = require('../models/Employee');
 const User = require('../models/User');
 const Manager = require('../models/Manager');
 const MonthlyConfig = require('../models/MonthlyConfig');
+const SystemConfig = require('../models/SystemConfig');
+const SystemSettings = require('../models/SystemSettings');
+const Attendance = require('../models/Attendance');
+
+// ===== HELPER: Get Allowed Leaves =====
+const getAllowedLeaves = async () => {
+  const sysConfig = await SystemConfig.findOne({}).sort({ updatedAt: -1 });
+  const sysSettings = await SystemSettings.findOne({}).sort({ updatedAt: -1 });
+  const monthlyConfig = await MonthlyConfig.findOne({}).sort({ updatedAt: -1 });
+
+  return (
+    sysConfig?.leavePolicy?.allowedLeaves ||
+    sysSettings?.leavePolicy?.allowedLeavesPerMonth ||
+    monthlyConfig?.allowedLeavesPerMonth ||
+    2
+  );
+};
+
+// ===== HELPER: Get Auto Mark Absent =====
+const getAutoMarkAbsent = async () => {
+  const sysConfig = await SystemConfig.findOne({}).sort({ updatedAt: -1 });
+  const sysSettings = await SystemSettings.findOne({}).sort({ updatedAt: -1 });
+  const monthlyConfig = await MonthlyConfig.findOne({}).sort({ updatedAt: -1 });
+
+  if (sysConfig?.leavePolicy?.autoAbsentOnExceed !== undefined) return sysConfig.leavePolicy.autoAbsentOnExceed;
+  if (sysSettings?.leavePolicy?.autoMarkAbsent !== undefined) return sysSettings.leavePolicy.autoMarkAbsent;
+  if (monthlyConfig?.autoMarkAbsent !== undefined) return monthlyConfig.autoMarkAbsent;
+  return false;
+};
 
 // ===== HELPER: Get Employee with User Data =====
 const getEmployeeWithUser = async (employeeId) => {
   const employee = await Employee.findById(employeeId).populate('userId');
-  if (!employee) {
-    throw new Error('Employee not found');
-  }
+  if (!employee) throw new Error('Employee not found');
   return {
     _id: employee._id,
+    userId: employee.userId?._id,
     name: employee.fullName || `${employee.firstName} ${employee.lastName}`,
     email: employee.userId?.email || 'no-email@example.com',
-    employeeCode: employee.employeeCode
+    employeeCode: employee.employeeCode,
+    managerId: employee.managerId
   };
 };
 
-// ===== Get Leave Policy and Employee Balance =====
+// ===== HELPER: Mark Attendance as Leave =====
+// ✅ FIX: employeeId field use kiya (employee nahi)
+const markAttendanceAsLeave = async (employeeId, managerId, fromDate, toDate, leaveType, reason, markedBy) => {
+  const from = new Date(fromDate);
+  const to = new Date(toDate);
+
+  for (let date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
+    const attendanceDate = new Date(date);
+    attendanceDate.setHours(0, 0, 0, 0);
+
+    // ✅ FIX: employeeId field se dhundho
+    let attendance = await Attendance.findOne({
+      employeeId: employeeId,
+      date: attendanceDate
+    });
+
+    if (attendance) {
+      // Update existing
+      attendance.status = 'leave';
+      attendance.leaveType = leaveType;
+      attendance.remarks = `Leave approved: ${reason}`;
+      await attendance.save();
+      console.log(`✅ Updated attendance to LEAVE for ${attendanceDate.toDateString()}`);
+    } else {
+      // ✅ FIX: Naya record banao - managerId required hai Attendance model mein
+      // Agar managerId nahi hai to dummy value use karo
+      const attendanceManagerId = managerId || employeeId; // fallback
+
+      attendance = new Attendance({
+        employeeId: employeeId,          // ✅ employeeId field
+        managerId: attendanceManagerId,   // ✅ required field
+        date: attendanceDate,
+        clockIn: new Date(attendanceDate.getTime() + 10 * 60 * 60 * 1000), // 10 AM dummy
+        status: 'leave',
+        leaveType: leaveType,
+        remarks: `Leave approved: ${reason}`,
+        markedBy: markedBy,
+        isApproved: true,
+        approvedBy: markedBy
+      });
+      await attendance.save();
+      console.log(`✅ Created LEAVE attendance for ${attendanceDate.toDateString()}`);
+    }
+  }
+};
+
+// ===== Get Leave Policy =====
 exports.getLeavePolicy = async (req, res) => {
   try {
     const userId = req.user._id;
-    
     console.log('📋 Getting leave policy for user:', userId);
-    
-    // Find employee by userId
+
     const employee = await Employee.findOne({ userId }).populate('userId');
-    
     if (!employee) {
-      console.error('❌ Employee profile not found for userId:', userId);
-      return res.status(404).json({
-        success: false,
-        message: 'Employee profile not found. Please contact admin.'
-      });
+      return res.status(404).json({ success: false, message: 'Employee profile not found.' });
     }
 
-    console.log('✅ Employee found:', employee._id);
+    const allowedLeavesPerMonth = await getAllowedLeaves();
+    const autoMarkAbsent = await getAutoMarkAbsent();
+    console.log('✅ Leave policy:', allowedLeavesPerMonth, 'leaves/month');
 
-    // Get leave policy from MonthlyConfig
-    const config = await MonthlyConfig.findOne({}).sort({ updatedAt: -1 });
-    const allowedLeavesPerMonth = config?.allowedLeavesPerMonth || 2;
-    const autoMarkAbsent = config?.autoMarkAbsent || false;
-
-    // Get current month's leave usage
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
@@ -55,78 +119,49 @@ exports.getLeavePolicy = async (req, res) => {
       fromDate: { $gte: startOfMonth, $lte: endOfMonth }
     });
 
-    const usedLeaves = currentMonthLeaves.reduce((sum, leave) => sum + leave.numberOfDays, 0);
-    const remainingLeaves = allowedLeavesPerMonth - usedLeaves;
+    const usedLeaves = currentMonthLeaves.reduce((sum, l) => sum + l.numberOfDays, 0);
 
     res.status(200).json({
       success: true,
       data: {
-        policy: {
-          allowedLeavesPerMonth,
-          autoMarkAbsent
-        },
+        policy: { allowedLeavesPerMonth, autoMarkAbsent },
         balance: {
           allowed: allowedLeavesPerMonth,
           used: usedLeaves,
-          remaining: Math.max(0, remainingLeaves),
+          remaining: Math.max(0, allowedLeavesPerMonth - usedLeaves),
           currentMonth: now.toLocaleString('default', { month: 'long', year: 'numeric' })
         }
       }
     });
-
   } catch (error) {
     console.error('❌ Get leave policy error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch leave policy',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch leave policy', error: error.message });
   }
 };
 
-// ===== Employee: Create leave request =====
+// ===== Employee: Create Leave Request =====
 exports.createLeaveRequest = async (req, res) => {
   try {
     const userId = req.user._id;
     const { leaveType, fromDate, toDate, numberOfDays, reason, attachments } = req.body;
 
-    console.log('📝 Creating leave request for user:', userId);
-
-    // Validation
     if (!leaveType || !fromDate || !toDate || !reason) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide all required fields'
-      });
+      return res.status(400).json({ success: false, message: 'Please provide all required fields' });
     }
 
-    // Check if fromDate is before toDate
     if (new Date(fromDate) > new Date(toDate)) {
-      return res.status(400).json({
-        success: false,
-        message: 'From date cannot be after to date'
-      });
+      return res.status(400).json({ success: false, message: 'From date cannot be after to date' });
     }
 
-    // Get employee details with user
     const employee = await Employee.findOne({ userId }).populate('userId');
-    
     if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: 'Employee profile not found. Please contact admin.'
-      });
+      return res.status(404).json({ success: false, message: 'Employee profile not found.' });
     }
 
     const employeeName = employee.fullName || `${employee.firstName} ${employee.lastName}`;
     const employeeEmail = employee.userId?.email || '';
 
-    console.log('✅ Employee:', employeeName, employeeEmail);
-
-    // Check leave balance
-    const config = await MonthlyConfig.findOne({}).sort({ updatedAt: -1 });
-    const allowedLeavesPerMonth = config?.allowedLeavesPerMonth || 2;
-
+    const allowedLeavesPerMonth = await getAllowedLeaves();
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
@@ -137,21 +172,20 @@ exports.createLeaveRequest = async (req, res) => {
       fromDate: { $gte: startOfMonth, $lte: endOfMonth }
     });
 
-    const usedLeaves = currentMonthLeaves.reduce((sum, leave) => sum + leave.numberOfDays, 0);
+    const usedLeaves = currentMonthLeaves.reduce((sum, l) => sum + l.numberOfDays, 0);
     const requestedDays = numberOfDays || 1;
 
     if (usedLeaves + requestedDays > allowedLeavesPerMonth) {
       return res.status(400).json({
         success: false,
-        message: `Leave limit exceeded! You have ${allowedLeavesPerMonth - usedLeaves} days remaining this month.`
+        message: `Leave limit exceeded! You have ${allowedLeavesPerMonth - usedLeaves} days remaining.`
       });
     }
 
-    // Create leave request
     const leaveRequest = new LeaveRequest({
       employee: employee._id,
-      employeeName: employeeName,
-      employeeEmail: employeeEmail,
+      employeeName,
+      employeeEmail,
       leaveType,
       fromDate: new Date(fromDate),
       toDate: new Date(toDate),
@@ -164,103 +198,59 @@ exports.createLeaveRequest = async (req, res) => {
     await leaveRequest.save();
     console.log('✅ Leave request created:', leaveRequest._id);
 
-    // Send notification to admin
+    // Notify admin
     try {
-      await notificationService.notifyLeaveRequest(leaveRequest, {
-        name: employeeName,
-        email: employeeEmail
-      });
-      console.log('✅ Notification sent to admin');
-    } catch (notifError) {
-      console.error('⚠️ Notification error:', notifError);
-      // Continue even if notification fails
-    }
+      await notificationService.notifyLeaveRequest(leaveRequest, { name: employeeName, email: employeeEmail });
+    } catch (e) { console.error('⚠️ Notification error:', e); }
 
-    res.status(201).json({
-      success: true,
-      message: 'Leave request submitted successfully',
-      data: leaveRequest
-    });
-
+    res.status(201).json({ success: true, message: 'Leave request submitted successfully', data: leaveRequest });
   } catch (error) {
     console.error('❌ Create leave request error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create leave request',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to create leave request', error: error.message });
   }
 };
 
-// ===== Employee: Get my leave requests =====
+// ===== Employee: Get My Leave Requests =====
 exports.getMyLeaveRequests = async (req, res) => {
   try {
     const userId = req.user._id;
     const { status, year } = req.query;
 
-    console.log('📋 Getting leave requests for user:', userId);
-
-    // Find employee
     const employee = await Employee.findOne({ userId });
     if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: 'Employee profile not found'
-      });
+      return res.status(404).json({ success: false, message: 'Employee profile not found' });
     }
 
     const query = { employee: employee._id };
-    
-    if (status) {
-      query.status = status;
-    }
-
+    if (status) query.status = status;
     if (year) {
-      const startOfYear = new Date(year, 0, 1);
-      const endOfYear = new Date(year, 11, 31, 23, 59, 59);
-      query.fromDate = { $gte: startOfYear, $lte: endOfYear };
+      query.fromDate = {
+        $gte: new Date(year, 0, 1),
+        $lte: new Date(year, 11, 31, 23, 59, 59)
+      };
     }
 
     const leaveRequests = await LeaveRequest.find(query)
       .sort({ createdAt: -1 })
       .populate('approvedBy', 'firstName lastName');
 
-    // Get leave stats
     const currentYear = new Date().getFullYear();
     const stats = await LeaveRequest.getEmployeeLeaveStats(employee._id, year || currentYear);
 
-    res.status(200).json({
-      success: true,
-      data: {
-        leaveRequests,
-        stats
-      }
-    });
-
+    res.status(200).json({ success: true, data: { leaveRequests, stats } });
   } catch (error) {
     console.error('❌ Get my leave requests error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch leave requests',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch leave requests', error: error.message });
   }
 };
 
-// ===== Admin/Manager: Get all leave requests =====
+// ===== Admin/Manager: Get All Leave Requests =====
 exports.getAllLeaveRequests = async (req, res) => {
   try {
     const { status, employeeId, page = 1, limit = 20 } = req.query;
-
     const query = {};
-    
-    if (status) {
-      query.status = status;
-    }
-
-    if (employeeId) {
-      query.employee = employeeId;
-    }
+    if (status) query.status = status;
+    if (employeeId) query.employee = employeeId;
 
     const leaveRequests = await LeaveRequest.find(query)
       .sort({ createdAt: -1 })
@@ -276,178 +266,157 @@ exports.getAllLeaveRequests = async (req, res) => {
       success: true,
       data: {
         leaveRequests,
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(total / limit),
-          total,
-          limit: parseInt(limit)
-        },
+        pagination: { currentPage: parseInt(page), totalPages: Math.ceil(total / limit), total, limit: parseInt(limit) },
         pendingCount
       }
     });
-
   } catch (error) {
     console.error('❌ Get all leave requests error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch leave requests',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch leave requests', error: error.message });
   }
 };
 
-// ===== Admin/Manager: Get leave request by ID =====
+// ===== Admin/Manager: Get Leave Request By ID =====
 exports.getLeaveRequestById = async (req, res) => {
   try {
-    const { requestId } = req.params;
-
-    const leaveRequest = await LeaveRequest.findById(requestId)
+    const leaveRequest = await LeaveRequest.findById(req.params.requestId)
       .populate('employee', 'firstName lastName employeeCode phoneNumber')
       .populate('approvedBy');
 
     if (!leaveRequest) {
-      return res.status(404).json({
-        success: false,
-        message: 'Leave request not found'
-      });
+      return res.status(404).json({ success: false, message: 'Leave request not found' });
     }
 
-    res.status(200).json({
-      success: true,
-      data: leaveRequest
-    });
-
+    res.status(200).json({ success: true, data: leaveRequest });
   } catch (error) {
-    console.error('❌ Get leave request error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch leave request',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch leave request', error: error.message });
   }
 };
 
-// ===== Admin/Manager: Approve leave request =====
+// ===== Admin/Manager: Approve Leave Request =====
+// ✅ FIX: Sab jagah update hota hai - Attendance, Employee Notification, Dashboard
 exports.approveLeaveRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const userId = req.user._id;
     const userRole = req.user.role;
 
+    // ✅ employee populate karo taake managerId mile
     const leaveRequest = await LeaveRequest.findById(requestId).populate('employee');
-
     if (!leaveRequest) {
-      return res.status(404).json({
-        success: false,
-        message: 'Leave request not found'
-      });
+      return res.status(404).json({ success: false, message: 'Leave request not found' });
     }
 
     if (leaveRequest.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: `Leave request is already ${leaveRequest.status}`
-      });
+      return res.status(400).json({ success: false, message: `Leave request is already ${leaveRequest.status}` });
     }
 
-    // Get approver details
+    // Approver details
     let approver;
     if (userRole === 'admin') {
       approver = await User.findById(userId);
     } else if (userRole === 'manager') {
-      const managerProfile = await Manager.findOne({ userId });
-      approver = {
-        _id: userId,
-        name: managerProfile?.fullName || 'Manager'
-      };
+      const mp = await Manager.findOne({ userId });
+      approver = { _id: userId, name: mp?.fullName || `${mp?.firstName} ${mp?.lastName}` || 'Manager' };
     }
 
-    // Update leave request
+    const approverName = approver?.name || approver?.email || 'Admin';
+
+    // ✅ STEP 1: LeaveRequest update karo
     leaveRequest.status = 'approved';
     leaveRequest.approvedBy = userId;
     leaveRequest.approverModel = userRole === 'admin' ? 'Admin' : 'Manager';
-    leaveRequest.approverName = approver?.name || approver?.email || 'Admin';
+    leaveRequest.approverName = approverName;
     leaveRequest.approvedAt = new Date();
-
     await leaveRequest.save();
+    console.log('✅ LeaveRequest approved');
 
-    // ✅ NEW: Mark attendance as "leave" for the leave dates
+    // ✅ STEP 2: Attendance model update karo (employeeId field use karo)
     try {
-      const Attendance = require('../models/Attendance');
-      
-      const fromDate = new Date(leaveRequest.fromDate);
-      const toDate = new Date(leaveRequest.toDate);
-      
-      // Loop through each date in the leave range
-      for (let date = new Date(fromDate); date <= toDate; date.setDate(date.getDate() + 1)) {
-        const attendanceDate = new Date(date);
-        attendanceDate.setHours(0, 0, 0, 0);
-        
-        // Check if attendance already exists for this date
-        let attendance = await Attendance.findOne({
-          employeeId: leaveRequest.employee._id,
-          date: attendanceDate
-        });
+      const employeeDoc = leaveRequest.employee; // already populated
+      const managerId = employeeDoc?.managerId || userId; // fallback to approver
 
-        if (attendance) {
-          // Update existing attendance to "leave"
-          attendance.status = 'leave';
-          attendance.leaveType = leaveRequest.leaveType;
-          attendance.remarks = `Leave approved: ${leaveRequest.reason}`;
-          await attendance.save();
-          console.log(`✅ Updated attendance to leave for ${attendanceDate.toDateString()}`);
-        } else {
-          // Create new attendance record with "leave" status
-          attendance = new Attendance({
-            employeeId: leaveRequest.employee._id,
-            date: attendanceDate,
-            status: 'leave',
-            leaveType: leaveRequest.leaveType,
-            remarks: `Leave approved: ${leaveRequest.reason}`,
-            clockIn: null,
-            clockOut: null
-          });
-          await attendance.save();
-          console.log(`✅ Created leave attendance for ${attendanceDate.toDateString()}`);
-        }
-      }
-    } catch (attendanceError) {
-      console.error('⚠️ Error marking attendance as leave:', attendanceError);
-      // Continue even if attendance marking fails
+      await markAttendanceAsLeave(
+        employeeDoc._id,
+        managerId,
+        leaveRequest.fromDate,
+        leaveRequest.toDate,
+        leaveRequest.leaveType,
+        leaveRequest.reason,
+        userId
+      );
+      console.log('✅ Attendance marked as leave');
+    } catch (attErr) {
+      console.error('⚠️ Attendance mark error:', attErr);
+      // Continue - attendance error se approval fail nahi hona chahiye
     }
 
-    // Get employee details with user
-    const employee = await getEmployeeWithUser(leaveRequest.employee._id);
-
-    // Send notification to employee
+    // ✅ STEP 3: Employee ko notification bhejo (userId se)
     try {
-      await notificationService.notifyLeaveApproval(leaveRequest, employee, {
-        _id: userId,
-        name: approver?.name || approver?.email,
-        role: userRole
-      });
-      console.log('✅ Notification sent to employee');
-    } catch (notifError) {
-      console.error('⚠️ Notification error:', notifError);
+      // Employee ka userId find karo
+      const employeeWithUser = await Employee.findById(leaveRequest.employee._id).populate('userId');
+
+      if (employeeWithUser && employeeWithUser.userId) {
+        await notificationService.createNotification(
+          employeeWithUser.userId._id,        // ✅ Employee ka User._id
+          '✅ Leave Request Approved',
+          `Your ${leaveRequest.leaveType} leave request for ${leaveRequest.numberOfDays} day(s) from ${new Date(leaveRequest.fromDate).toLocaleDateString()} has been approved by ${approverName}.`,
+          'leave_approved',
+          '/employee/my-requests',
+          {
+            leaveRequestId: leaveRequest._id,
+            approverName: approverName,
+            leaveType: leaveRequest.leaveType,
+            numberOfDays: leaveRequest.numberOfDays,
+            fromDate: leaveRequest.fromDate,
+            toDate: leaveRequest.toDate
+          }
+        );
+        console.log('✅ Employee notification sent to userId:', employeeWithUser.userId._id);
+      } else {
+        console.error('❌ Employee userId not found for notification');
+      }
+    } catch (notifErr) {
+      console.error('⚠️ Notification error:', notifErr);
+    }
+
+    // ✅ STEP 4: Manager ko bhi notify karo (agar admin ne approve kiya)
+    if (userRole === 'admin') {
+      try {
+        const employeeDoc = await Employee.findById(leaveRequest.employee._id);
+        if (employeeDoc?.managerId) {
+          const managerDoc = await Manager.findById(employeeDoc.managerId).populate('userId');
+          if (managerDoc?.userId) {
+            const empName = employeeDoc.fullName || `${employeeDoc.firstName} ${employeeDoc.lastName}`;
+            await notificationService.createNotification(
+              managerDoc.userId._id,
+              '📋 Leave Approved by Admin',
+              `Admin approved ${empName}'s ${leaveRequest.leaveType} leave from ${new Date(leaveRequest.fromDate).toLocaleDateString()} to ${new Date(leaveRequest.toDate).toLocaleDateString()}.`,
+              'leave_approved',
+              '/manager/dashboard',
+              { leaveRequestId: leaveRequest._id, employeeName: empName }
+            );
+            console.log('✅ Manager notification sent');
+          }
+        }
+      } catch (mgrNotifErr) {
+        console.error('⚠️ Manager notification error:', mgrNotifErr);
+      }
     }
 
     res.status(200).json({
       success: true,
-      message: 'Leave request approved and attendance marked',
+      message: 'Leave request approved, attendance marked, and notifications sent',
       data: leaveRequest
     });
 
   } catch (error) {
     console.error('❌ Approve leave request error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to approve leave request',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to approve leave request', error: error.message });
   }
 };
 
-// ===== Admin/Manager: Reject leave request =====
+// ===== Admin/Manager: Reject Leave Request =====
 exports.rejectLeaveRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
@@ -456,133 +425,96 @@ exports.rejectLeaveRequest = async (req, res) => {
     const userRole = req.user.role;
 
     const leaveRequest = await LeaveRequest.findById(requestId).populate('employee');
-
     if (!leaveRequest) {
-      return res.status(404).json({
-        success: false,
-        message: 'Leave request not found'
-      });
+      return res.status(404).json({ success: false, message: 'Leave request not found' });
     }
 
     if (leaveRequest.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: `Leave request is already ${leaveRequest.status}`
-      });
+      return res.status(400).json({ success: false, message: `Leave request is already ${leaveRequest.status}` });
     }
 
-    // Get approver details
     let approver;
     if (userRole === 'admin') {
       approver = await User.findById(userId);
     } else if (userRole === 'manager') {
-      const managerProfile = await Manager.findOne({ userId });
-      approver = {
-        _id: userId,
-        name: managerProfile?.fullName || 'Manager'
-      };
+      const mp = await Manager.findOne({ userId });
+      approver = { _id: userId, name: mp?.fullName || `${mp?.firstName} ${mp?.lastName}` || 'Manager' };
     }
 
-    // Update leave request
+    const approverName = approver?.name || approver?.email || 'Admin';
+
     leaveRequest.status = 'rejected';
     leaveRequest.approvedBy = userId;
     leaveRequest.approverModel = userRole === 'admin' ? 'Admin' : 'Manager';
-    leaveRequest.approverName = approver?.name || approver?.email || 'Admin';
+    leaveRequest.approverName = approverName;
     leaveRequest.approvedAt = new Date();
     leaveRequest.rejectionReason = rejectionReason || 'No reason provided';
-
     await leaveRequest.save();
 
-    // Get employee details with user
-    const employee = await getEmployeeWithUser(leaveRequest.employee._id);
-
-    // Send notification to employee
+    // ✅ Employee ko rejection notification bhejo
     try {
-      await notificationService.notifyLeaveRejection(leaveRequest, employee, {
-        _id: userId,
-        name: approver?.name || approver?.email,
-        role: userRole
-      }, rejectionReason);
-    } catch (notifError) {
-      console.error('⚠️ Notification error:', notifError);
+      const employeeWithUser = await Employee.findById(leaveRequest.employee._id).populate('userId');
+      if (employeeWithUser && employeeWithUser.userId) {
+        await notificationService.createNotification(
+          employeeWithUser.userId._id,
+          '❌ Leave Request Rejected',
+          `Your ${leaveRequest.leaveType} leave request has been rejected by ${approverName}. Reason: ${rejectionReason || 'No reason provided'}`,
+          'leave_rejected',
+          '/employee/my-requests',
+          {
+            leaveRequestId: leaveRequest._id,
+            approverName: approverName,
+            rejectionReason: rejectionReason
+          }
+        );
+        console.log('✅ Employee rejection notification sent');
+      }
+    } catch (notifErr) {
+      console.error('⚠️ Notification error:', notifErr);
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Leave request rejected',
-      data: leaveRequest
-    });
-
+    res.status(200).json({ success: true, message: 'Leave request rejected', data: leaveRequest });
   } catch (error) {
     console.error('❌ Reject leave request error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to reject leave request',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to reject leave request', error: error.message });
   }
 };
 
-// ===== Employee: Cancel leave request =====
+// ===== Employee: Cancel Leave Request =====
 exports.cancelLeaveRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const userId = req.user._id;
 
-    // Find employee
     const employee = await Employee.findOne({ userId });
     if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: 'Employee profile not found'
-      });
+      return res.status(404).json({ success: false, message: 'Employee profile not found' });
     }
 
     const leaveRequest = await LeaveRequest.findById(requestId);
-
     if (!leaveRequest) {
-      return res.status(404).json({
-        success: false,
-        message: 'Leave request not found'
-      });
+      return res.status(404).json({ success: false, message: 'Leave request not found' });
     }
 
-    // Check if request belongs to this employee
     if (leaveRequest.employee.toString() !== employee._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Unauthorized to cancel this request'
-      });
+      return res.status(403).json({ success: false, message: 'Unauthorized to cancel this request' });
     }
 
-    // Can only cancel pending requests
     if (leaveRequest.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: 'Can only cancel pending requests'
-      });
+      return res.status(400).json({ success: false, message: 'Can only cancel pending requests' });
     }
 
     leaveRequest.status = 'cancelled';
     await leaveRequest.save();
 
-    res.status(200).json({
-      success: true,
-      message: 'Leave request cancelled successfully',
-      data: leaveRequest
-    });
-
+    res.status(200).json({ success: true, message: 'Leave request cancelled successfully', data: leaveRequest });
   } catch (error) {
     console.error('❌ Cancel leave request error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to cancel leave request',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to cancel leave request', error: error.message });
   }
 };
 
-// ===== Admin/Manager: Add comment to leave request =====
+// ===== Admin/Manager: Add Comment =====
 exports.addComment = async (req, res) => {
   try {
     const { requestId } = req.params;
@@ -591,56 +523,37 @@ exports.addComment = async (req, res) => {
     const userRole = req.user.role;
 
     if (!text) {
-      return res.status(400).json({
-        success: false,
-        message: 'Comment text is required'
-      });
+      return res.status(400).json({ success: false, message: 'Comment text is required' });
     }
 
     const leaveRequest = await LeaveRequest.findById(requestId);
-
     if (!leaveRequest) {
-      return res.status(404).json({
-        success: false,
-        message: 'Leave request not found'
-      });
+      return res.status(404).json({ success: false, message: 'Leave request not found' });
     }
 
-    // Get user details
     let user;
-    if (userRole === 'admin') {
-      user = await User.findById(userId);
-    } else if (userRole === 'manager') {
-      const manager = await Manager.findOne({ userId });
-      user = { name: manager?.fullName || 'Manager' };
+    if (userRole === 'admin') user = await User.findById(userId);
+    else if (userRole === 'manager') {
+      const m = await Manager.findOne({ userId });
+      user = { name: m?.fullName || 'Manager' };
     } else if (userRole === 'employee') {
-      const employee = await Employee.findOne({ userId });
-      user = { name: employee?.fullName || 'Employee' };
+      const e = await Employee.findOne({ userId });
+      user = { name: e?.fullName || 'Employee' };
     }
 
     leaveRequest.comments.push({
       by: userId,
-      byModel: userRole === 'admin' ? 'Admin' : 
-              userRole === 'manager' ? 'Manager' : 'Employee',
+      byModel: userRole === 'admin' ? 'Admin' : userRole === 'manager' ? 'Manager' : 'Employee',
       byName: user?.name || user?.email || 'User',
-      text: text,
+      text,
       createdAt: new Date()
     });
 
     await leaveRequest.save();
 
-    res.status(200).json({
-      success: true,
-      message: 'Comment added successfully',
-      data: leaveRequest
-    });
-
+    res.status(200).json({ success: true, message: 'Comment added successfully', data: leaveRequest });
   } catch (error) {
     console.error('❌ Add comment error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to add comment',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to add comment', error: error.message });
   }
 };

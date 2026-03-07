@@ -6,7 +6,7 @@ import './../../styles/NotificationStyles.css';
 
 const NotificationHistory = () => {
   // ===== TAB STATE =====
-  const [activeTab, setActiveTab] = useState('requests'); // 'requests' or 'broadcasts'
+  const [activeTab, setActiveTab] = useState('requests');
   
   // ===== BROADCAST STATE =====
   const [broadcastGroups, setBroadcastGroups] = useState([]);
@@ -22,8 +22,17 @@ const NotificationHistory = () => {
   const [correctionRequests, setCorrectionRequests] = useState([]);
   
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(null); // ✅ NEW: Track which request is processing
 
   useEffect(() => { fetchAllData(); }, []);
+
+  // ✅ AUTO-REFRESH every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAllData();
+    }, 10000); // 10 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   // ===== FETCH ALL DATA =====
   const fetchAllData = async () => {
@@ -35,10 +44,10 @@ const NotificationHistory = () => {
         setBroadcastGroups(groupBroadcasts(response.data.notifications));
       }
 
-      // ✅ FIXED: Fetch leave requests (PENDING ONLY)
+      // ✅ Fetch leave requests (PENDING ONLY)
       try {
         console.log('🔍 Fetching leave requests...');
-        const leaveRes = await leaveRequestService.getAllLeaveRequests('pending'); // ✅ Backend filter
+        const leaveRes = await leaveRequestService.getAllLeaveRequests('pending');
         console.log('✅ Leave Response:', leaveRes);
         
         if (leaveRes.success) {
@@ -50,10 +59,10 @@ const NotificationHistory = () => {
         console.error('❌ Error fetching leave requests:', err);
       }
 
-      // ✅ FIXED: Fetch correction requests (PENDING ONLY)
+      // ✅ Fetch correction requests (PENDING ONLY)
       try {
         console.log('🔍 Fetching correction requests...');
-        const correctionRes = await correctionRequestService.getAllCorrectionRequests('pending'); // ✅ Backend filter
+        const correctionRes = await correctionRequestService.getAllCorrectionRequests('pending');
         console.log('✅ Correction Response:', correctionRes);
         
         if (correctionRes.success) {
@@ -128,17 +137,25 @@ const NotificationHistory = () => {
   // ===== REQUEST FUNCTIONS =====
   const handleApproveLeave = async (requestId) => {
     if (!window.confirm('Approve this leave request?')) return;
+    
+    setProcessing(requestId); // ✅ Show loading
     try {
       const result = await leaveRequestService.approveLeaveRequest(requestId);
       if (result.success) {
-        alert('✅ Leave request approved!');
-        fetchAllData(); // ✅ Refresh data
+        console.log('✅ Leave approved successfully');
+        
+        // ✅ CRITICAL: Fetch data again to refresh bell icon
+        await fetchAllData();
+        
+        alert('✅ Leave request approved! Notification sent to employee.');
       } else {
         alert('Failed: ' + (result.message || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error approving leave:', error);
+      console.error('❌ Error approving leave:', error);
       alert('Failed to approve leave request');
+    } finally {
+      setProcessing(null); // ✅ Hide loading
     }
   };
 
@@ -146,22 +163,31 @@ const NotificationHistory = () => {
     const reason = window.prompt('Enter rejection reason (optional):');
     if (reason === null) return; // User cancelled
     
+    setProcessing(requestId); // ✅ Show loading
     try {
       const result = await leaveRequestService.rejectLeaveRequest(requestId, reason || 'No reason provided');
       if (result.success) {
-        alert('❌ Leave request rejected');
-        fetchAllData(); // ✅ Refresh data
+        console.log('✅ Leave rejected successfully');
+        
+        // ✅ CRITICAL: Fetch data again to refresh bell icon
+        await fetchAllData();
+        
+        alert('❌ Leave request rejected. Notification sent to employee.');
       } else {
         alert('Failed: ' + (result.message || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error rejecting leave:', error);
+      console.error('❌ Error rejecting leave:', error);
       alert('Failed to reject leave request');
+    } finally {
+      setProcessing(null); // ✅ Hide loading
     }
   };
 
   const handleApproveCorrection = async (requestId) => {
     if (!window.confirm('Approve this correction request?')) return;
+    
+    setProcessing(requestId); // ✅ Show loading
     try {
       const result = await correctionRequestService.approveCorrectionRequest(
         requestId, 
@@ -170,14 +196,20 @@ const NotificationHistory = () => {
         true // updateAttendance
       );
       if (result.success) {
+        console.log('✅ Correction approved successfully');
+        
+        // ✅ CRITICAL: Fetch data again to refresh bell icon
+        await fetchAllData();
+        
         alert('✅ Correction request approved!');
-        fetchAllData(); // ✅ Refresh data
       } else {
         alert('Failed: ' + (result.message || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error approving correction:', error);
+      console.error('❌ Error approving correction:', error);
       alert('Failed to approve correction request');
+    } finally {
+      setProcessing(null); // ✅ Hide loading
     }
   };
 
@@ -185,6 +217,7 @@ const NotificationHistory = () => {
     const reason = window.prompt('Enter rejection reason (optional):');
     if (reason === null) return; // User cancelled
     
+    setProcessing(requestId); // ✅ Show loading
     try {
       const result = await correctionRequestService.rejectCorrectionRequest(
         requestId,
@@ -192,14 +225,20 @@ const NotificationHistory = () => {
         'Request rejected'
       );
       if (result.success) {
+        console.log('✅ Correction rejected successfully');
+        
+        // ✅ CRITICAL: Fetch data again to refresh bell icon
+        await fetchAllData();
+        
         alert('❌ Correction request rejected');
-        fetchAllData(); // ✅ Refresh data
       } else {
         alert('Failed: ' + (result.message || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error rejecting correction:', error);
+      console.error('❌ Error rejecting correction:', error);
       alert('Failed to reject correction request');
+    } finally {
+      setProcessing(null); // ✅ Hide loading
     }
   };
 
@@ -261,6 +300,8 @@ const NotificationHistory = () => {
       <div style={s.list}>
         {allRequests.map((req) => {
           const isLeave = req.leaveType !== undefined;
+          const isProcessing = processing === req._id; // ✅ Check if processing
+          
           return (
             <div key={req._id} style={s.requestCard}>
               <div style={s.reqIcon}>{isLeave ? '🏖️' : '🔧'}</div>
@@ -291,16 +332,26 @@ const NotificationHistory = () => {
               </div>
               <div style={s.reqActions}>
                 <button 
-                  style={s.approveBtn}
+                  style={{
+                    ...s.approveBtn,
+                    opacity: isProcessing ? 0.6 : 1,
+                    cursor: isProcessing ? 'not-allowed' : 'pointer'
+                  }}
                   onClick={() => isLeave ? handleApproveLeave(req._id) : handleApproveCorrection(req._id)}
+                  disabled={isProcessing}
                 >
-                  ✅ Approve
+                  {isProcessing ? '⏳ Processing...' : '✅ Approve'}
                 </button>
                 <button 
-                  style={s.rejectBtn}
+                  style={{
+                    ...s.rejectBtn,
+                    opacity: isProcessing ? 0.6 : 1,
+                    cursor: isProcessing ? 'not-allowed' : 'pointer'
+                  }}
                   onClick={() => isLeave ? handleRejectLeave(req._id) : handleRejectCorrection(req._id)}
+                  disabled={isProcessing}
                 >
-                  ❌ Reject
+                  {isProcessing ? '⏳ Processing...' : '❌ Reject'}
                 </button>
               </div>
             </div>
@@ -518,8 +569,8 @@ const s = {
   reqReason: { fontSize: '13px', color: '#6b7280', fontStyle: 'italic', marginBottom: '8px', padding: '8px', background: '#f9fafb', borderRadius: '6px' },
   reqTime: { fontSize: '11px', color: '#9ca3af' },
   reqActions: { display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 },
-  approveBtn: { padding: '8px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' },
-  rejectBtn: { padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' },
+  approveBtn: { padding: '8px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' },
+  rejectBtn: { padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' },
 
   // Broadcasts
   card: { display: 'flex', alignItems: 'center', gap: '16px', background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', border: '1px solid #e5e7eb', cursor: 'pointer' },

@@ -12,6 +12,11 @@ import { NotificationProvider } from './context/NotificationContext';
 // Context & Hooks
 import useAuth from './hooks/useAuth';
 
+
+import EmployeeNotifications from './components/Employee/EmployeeNotifications';
+import ManagerNotifications from './components/Manager/ManagerNotifications';
+
+
 // Manager
 import ManagerProfile from './components/Manager/ManagerProfile';
 import ManagerDashboard from './components/Manager/ManagerDashboard';
@@ -77,6 +82,20 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/employee/notifications" element={
+  <ProtectedRoute allowedRoles={['employee']}>
+    <EmployeeNotifications />
+  </ProtectedRoute>
+} />
+
+<Route
+  path="/manager/notifications"
+  element={
+    <ProtectedRoute allowedRoles={['manager']}>
+      <ManagerNotifications />
+    </ProtectedRoute>
+  }
+/>
           <Route
             path="/manager/profile"
             element={

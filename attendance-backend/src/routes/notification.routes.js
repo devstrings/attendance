@@ -17,6 +17,6 @@ router.delete('/:notificationId', notificationController.deleteNotification);
 // ===== ADMIN ROUTES =====
 router.get('/admin/all', isAdmin, notificationController.getAllNotifications);
 router.post('/admin/broadcast', isAdmin, notificationController.sendBroadcast);
-router.delete('/admin/broadcast/bulk', isAdmin, notificationController.deleteBroadcast);
+router.delete('/admin/broadcast/bulk', isAdmin, notificationController.deleteBroadcast); // ✅ NEW
 
 module.exports = router;

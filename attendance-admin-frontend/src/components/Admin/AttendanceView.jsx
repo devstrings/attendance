@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import AdminNavbar from './AdminNavbar';
 import AdminSidebar from './AdminSidebar';
 import adminService from '../../services/adminService';
-import adminAttendanceService from '../../services/adminAttendanceService'; // ✅ ADD THIS
+import adminAttendanceService from '../../services/adminAttendanceService';
 import MarkAttendanceModal from './MarkAttendanceModal';
 import '../../styles/Admin.css';
 
@@ -17,9 +17,9 @@ const AttendanceView = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
   const [showMarkAttendanceModal, setShowMarkAttendanceModal] = useState(false);
-  const [totalEmployees, setTotalEmployees] = useState(0); // ✅ ADD THIS
+  const [totalEmployees, setTotalEmployees] = useState(0);
 
-  const statuses = ['present', 'absent', 'on-leave', 'holiday'];
+  const statuses = ['present', 'absent', 'leave', 'on-leave', 'holiday'];
 
   useEffect(() => {
     fetchData();
@@ -31,14 +31,10 @@ const AttendanceView = () => {
     // eslint-disable-next-line
   }, [searchTerm, filterStatus, filterDepartment, attendanceRecords]);
 
-  // ✅ UPDATED: Fetch both attendance and total employees
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch attendance records
       const attendanceResponse = await adminService.getAllAttendance({ date: selectedDate });
-      
-      // Fetch total employees
       const employeesResponse = await adminAttendanceService.getAllEmployees();
       
       if (attendanceResponse.success) {
@@ -58,13 +54,9 @@ const AttendanceView = () => {
         setAttendanceRecords([]);
       }
 
-      // Set total employees count
       if (employeesResponse.success && employeesResponse.data.employees) {
         const realEmployees = employeesResponse.data.employees.filter(emp => 
-          emp.firstName && 
-          emp.lastName && 
-          emp.employeeCode && 
-          !emp.employeeCode.includes('TEST')
+          emp.firstName && emp.lastName && emp.employeeCode && !emp.employeeCode.includes('TEST')
         );
         setTotalEmployees(realEmployees.length);
       } else {
@@ -94,7 +86,12 @@ const AttendanceView = () => {
     }
 
     if (filterStatus) {
-      filtered = filtered.filter(record => record.status === filterStatus);
+      // ✅ Filter: 'leave' aur 'on-leave' dono ko 'leave' filter se match karo
+      if (filterStatus === 'leave' || filterStatus === 'on-leave') {
+        filtered = filtered.filter(record => record.status === 'leave' || record.status === 'on-leave');
+      } else {
+        filtered = filtered.filter(record => record.status === filterStatus);
+      }
     }
 
     if (filterDepartment) {
@@ -104,9 +101,9 @@ const AttendanceView = () => {
     setFilteredRecords(filtered);
   };
 
-  // ✅ FIXED: Stats calculation with proper variable definitions
+  // ✅ FIXED: 'leave' AND 'on-leave' dono count karo
   const presentCount = filteredRecords.filter(r => r.status === 'present').length;
-  const leaveCount = filteredRecords.filter(r => r.status === 'on-leave').length;
+  const leaveCount = filteredRecords.filter(r => r.status === 'leave' || r.status === 'on-leave').length;
   const holidayCount = filteredRecords.filter(r => r.status === 'holiday').length;
   const absentCount = Math.max(0, totalEmployees - presentCount - leaveCount - holidayCount);
 
@@ -183,36 +180,16 @@ const AttendanceView = () => {
           </div>
 
           {/* Mark Attendance Button */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'flex-end', 
-            marginBottom: '16px' 
-          }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
             <button
               className="btn-primary"
               onClick={() => setShowMarkAttendanceModal(true)}
               style={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                padding: '12px 24px',
-                borderRadius: '10px',
-                border: 'none',
-                fontSize: '15px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
-                transition: 'all 0.3s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 16px rgba(102, 126, 234, 0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
+                color: 'white', padding: '12px 24px', borderRadius: '10px',
+                border: 'none', fontSize: '15px', fontWeight: '600', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '8px',
+                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)', transition: 'all 0.3s'
               }}
             >
               <span style={{ fontSize: '18px' }}>✓</span>
@@ -228,21 +205,16 @@ const AttendanceView = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
               <option value="">All Status</option>
-              {statuses.map((s, i) => (
-                <option key={i} value={s}>{s}</option>
-              ))}
+              <option value="present">Present</option>
+              <option value="absent">Absent</option>
+              <option value="leave">Leave</option>
+              <option value="holiday">Holiday</option>
             </select>
-
             <button
               className="btn-secondary"
-              onClick={() => {
-                setSearchTerm('');
-                setFilterDepartment('');
-                setFilterStatus('');
-              }}
+              onClick={() => { setSearchTerm(''); setFilterDepartment(''); setFilterStatus(''); }}
             >
               Clear Filters
             </button>
@@ -272,8 +244,9 @@ const AttendanceView = () => {
                       <td>{record.employeeName}</td>
                       <td>{record.department}</td>
                       <td>
-                        <span className={`status-badge ${record.status}`}>
-                          {record.status}
+                        {/* ✅ Both 'leave' and 'on-leave' show as 'Leave' badge */}
+                        <span className={`status-badge ${(record.status === 'leave' || record.status === 'on-leave') ? 'leave' : record.status}`}>
+                          {(record.status === 'leave' || record.status === 'on-leave') ? 'Leave' : record.status}
                         </span>
                       </td>
                       <td>{record.clockIn || '-'}</td>
@@ -281,10 +254,7 @@ const AttendanceView = () => {
                       <td>{record.hoursWorked} hrs</td>
                       <td>{record.notes || '-'}</td>
                       <td>
-                        <button
-                          className="btn-icon view"
-                          onClick={() => handleViewDetails(record.id)}
-                        >
+                        <button className="btn-icon view" onClick={() => handleViewDetails(record.id)}>
                           👁
                         </button>
                       </td>
@@ -307,7 +277,6 @@ const AttendanceView = () => {
         </div>
       </div>
 
-      {/* Mark Attendance Modal */}
       {showMarkAttendanceModal && (
         <MarkAttendanceModal
           selectedDate={selectedDate}

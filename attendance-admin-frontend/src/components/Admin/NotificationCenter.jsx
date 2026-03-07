@@ -97,12 +97,21 @@ const NotificationCenter = () => {
         return;
       }
 
+      // ✅ Step 1: Approve leave request
       const response = await approveLeaveRequest(leaveRequestId);
       
       if (response.success) {
-        alert('✅ Leave request approved successfully!');
-        await handleDelete(e, notification._id);
+        // ✅ Step 2: Notification ko database se delete karo
+        try {
+          await deleteNotification(notification._id);
+        } catch (delErr) {
+          console.error('⚠️ Could not delete notification:', delErr);
+        }
+
+        // ✅ Step 3: Bell refresh karo taake notification hat jaye
         await refreshNotifications();
+        
+        alert('✅ Leave request approved successfully!');
       }
     } catch (error) {
       alert(error.message || 'Failed to approve leave request');
@@ -128,12 +137,21 @@ const NotificationCenter = () => {
         return;
       }
 
+      // ✅ Step 1: Reject leave request
       const response = await rejectLeaveRequest(leaveRequestId, reason);
       
       if (response.success) {
-        alert('❌ Leave request rejected');
-        await handleDelete(e, notification._id);
+        // ✅ Step 2: Notification ko database se delete karo
+        try {
+          await deleteNotification(notification._id);
+        } catch (delErr) {
+          console.error('⚠️ Could not delete notification:', delErr);
+        }
+
+        // ✅ Step 3: Bell refresh karo taake notification hat jaye
         await refreshNotifications();
+
+        alert('❌ Leave request rejected');
       }
     } catch (error) {
       alert(error.message || 'Failed to reject leave request');
@@ -180,8 +198,10 @@ const NotificationCenter = () => {
 
   // ===== Check if notification has quick actions =====
   const hasQuickActions = (notification) => {
-    return notification.type === 'leave_request' || 
-           notification.type === 'correction_request';
+    // ✅ Sirf pending leave/correction requests par buttons dikhao
+    return (notification.type === 'leave_request' || 
+            notification.type === 'correction_request') &&
+            !notification.isProcessed; // processed ho to buttons mat dikhao
   };
 
   return (
@@ -252,14 +272,14 @@ const NotificationCenter = () => {
                           onClick={(e) => handleQuickApprove(e, notification)}
                           disabled={actionLoading === notification._id}
                         >
-                          ✅ Approve
+                          {actionLoading === notification._id ? '⏳' : '✅'} Approve
                         </button>
                         <button
                           className="quick-action-btn reject"
                           onClick={(e) => handleQuickReject(e, notification)}
                           disabled={actionLoading === notification._id}
                         >
-                          ❌ Reject
+                          {actionLoading === notification._id ? '⏳' : '❌'} Reject
                         </button>
                       </div>
                     )}
