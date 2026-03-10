@@ -54,5 +54,5 @@ router.delete('/',
   authorizeRoles('admin'), 
   smtpController.deleteSmtpSettings
 );
-
+s
 module.exports = router;

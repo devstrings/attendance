@@ -6,20 +6,18 @@ import '../../styles/Employee.css';
 const EmployeeNotifications = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('notifications');
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
 
   // ── Notifications state ──
   const [notifications, setNotifications] = useState([]);
   const [notifsLoading, setNotifsLoading] = useState(true);
-  const [notifsFilter, setNotifsFilter] = useState('all');
-  const [deleting, setDeleting] = useState(null); // ✅ NEW: Track deleting notification
+  const [notifsFilter, setNotifsFilter] = useState('all'); // all | unread
 
   // ── My Requests state ──
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [correctionRequests, setCorrectionRequests] = useState([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
-  const [requestsTab, setRequestsTab] = useState('leave');
-  const [requestsFilter, setRequestsFilter] = useState('all');
+  const [requestsTab, setRequestsTab] = useState('leave'); // leave | correction
+  const [requestsFilter, setRequestsFilter] = useState('all'); // all | pending | approved | rejected
 
   useEffect(() => {
     fetchNotifications();
@@ -31,24 +29,17 @@ const EmployeeNotifications = () => {
     try {
       setNotifsLoading(true);
       const token = localStorage.getItem('token') || localStorage.getItem('employee_token');
-      
-      const res = await fetch(`${API_URL}/notifications/my-notifications?limit=50`, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      const res = await fetch('/api/employee/notifications?limit=50', {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      
       if (res.ok) {
         const data = await res.json();
-        console.log('✅ Employee notifications:', data);
         setNotifications(data.data?.notifications || data.notifications || []);
       } else {
-        console.error('❌ Fetch failed:', res.status);
         setNotifications([]);
       }
     } catch (err) {
-      console.error('❌ Notifications error:', err);
+      console.error('Notifications error:', err);
       setNotifications([]);
     } finally {
       setNotifsLoading(false);
@@ -60,34 +51,23 @@ const EmployeeNotifications = () => {
     try {
       setRequestsLoading(true);
       const token = localStorage.getItem('token') || localStorage.getItem('employee_token');
-      
+      const API = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
       const [leaveRes, correctionRes] = await Promise.all([
-        fetch(`${API_URL}/leave-requests/my-requests`, { 
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          } 
-        }),
-        fetch(`${API_URL}/correction-requests/my-requests`, { 
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          } 
-        })
+        fetch(`${API}/leave-requests/my-requests`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API}/correction-requests/my-requests`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => ({ ok: false }))
       ]);
-      
       if (leaveRes.ok) {
         const d = await leaveRes.json();
-        console.log('✅ Leave requests:', d);
-        setLeaveRequests(d.data?.leaveRequests || d.leaveRequests || []);
+        const requests = d.data?.leaveRequests || d.data?.requests || d.leaveRequests || d.requests || [];
+        setLeaveRequests(requests);
       }
       if (correctionRes.ok) {
         const d = await correctionRes.json();
-        console.log('✅ Correction requests:', d);
-        setCorrectionRequests(d.data?.correctionRequests || d.correctionRequests || []);
+        const requests = d.data?.correctionRequests || d.data?.requests || d.correctionRequests || d.requests || [];
+        setCorrectionRequests(requests);
       }
     } catch (err) {
-      console.error('❌ Requests error:', err);
+      console.error('Requests error:', err);
     } finally {
       setRequestsLoading(false);
     }
@@ -97,70 +77,26 @@ const EmployeeNotifications = () => {
   const markAsRead = async (id) => {
     try {
       const token = localStorage.getItem('token') || localStorage.getItem('employee_token');
-      
-      await fetch(`${API_URL}/notifications/${id}/read`, {
+      await fetch(`/api/employee/notifications/${id}/read`, {
         method: 'PATCH',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
     } catch (err) {
-      console.error('❌ Mark as read error:', err);
+      console.error(err);
     }
   };
 
   const markAllRead = async () => {
     try {
       const token = localStorage.getItem('token') || localStorage.getItem('employee_token');
-      
-      await fetch(`${API_URL}/notifications/mark-all-read`, {
+      await fetch('/api/employee/notifications/mark-all-read', {
         method: 'PATCH',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     } catch (err) {
-      console.error('❌ Mark all read error:', err);
-    }
-  };
-
-  // ✅ NEW: Delete notification function
-  const deleteNotification = async (id, e) => {
-    e.stopPropagation(); // Prevent marking as read when clicking delete
-    
-    if (!window.confirm('Are you sure you want to delete this notification?')) {
-      return;
-    }
-
-    try {
-      setDeleting(id);
-      const token = localStorage.getItem('token') || localStorage.getItem('employee_token');
-      
-      const res = await fetch(`${API_URL}/notifications/${id}`, {
-        method: 'DELETE',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (res.ok) {
-        // Remove notification from state
-        setNotifications(prev => prev.filter(n => n._id !== id));
-        console.log('✅ Notification deleted');
-      } else {
-        console.error('❌ Delete failed:', res.status);
-        alert('Failed to delete notification');
-      }
-    } catch (err) {
-      console.error('❌ Delete notification error:', err);
-      alert('Failed to delete notification');
-    } finally {
-      setDeleting(null);
+      console.error(err);
     }
   };
 
@@ -315,20 +251,6 @@ const EmployeeNotifications = () => {
                       )}
                       <div style={S.notifTime}>{getTimeAgo(notif.createdAt)}</div>
                     </div>
-
-                    {/* ✅ NEW: Delete Button */}
-                    <button
-                      onClick={(e) => deleteNotification(notif._id, e)}
-                      disabled={deleting === notif._id}
-                      style={{
-                        ...S.deleteBtn,
-                        opacity: deleting === notif._id ? 0.5 : 1,
-                        cursor: deleting === notif._id ? 'not-allowed' : 'pointer'
-                      }}
-                      title="Delete notification"
-                    >
-                      {deleting === notif._id ? '...' : '×'}
-                    </button>
                   </div>
                 ))}
               </div>
@@ -435,8 +357,8 @@ const EmployeeNotifications = () => {
                           <div>
                             <div style={S.reqTitle}>🏖️ {req.leaveType || 'Leave'} Request</div>
                             <div style={S.reqDate}>
-                              {new Date(req.fromDate).toLocaleDateString('en-GB')}
-                              {req.toDate && req.toDate !== req.fromDate && ` → ${new Date(req.toDate).toLocaleDateString('en-GB')}`}
+                              {new Date(req.startDate).toLocaleDateString('en-GB')}
+                              {req.endDate && req.endDate !== req.startDate && ` → ${new Date(req.endDate).toLocaleDateString('en-GB')}`}
                             </div>
                             {req.reason && (
                               <div style={S.reqReason}>{req.reason}</div>
@@ -450,9 +372,9 @@ const EmployeeNotifications = () => {
                             {st.label}
                           </span>
                         </div>
-                        {req.rejectionReason && (
+                        {req.adminComment && (
                           <div style={S.adminComment}>
-                            <strong>Rejection Reason:</strong> {req.rejectionReason}
+                            <strong>Admin Note:</strong> {req.adminComment}
                           </div>
                         )}
                         <div style={S.reqFooter}>
@@ -491,11 +413,11 @@ const EmployeeNotifications = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
                           <div>
                             <div style={S.reqTitle}>⚠️ {req.issueType || 'Correction'} Request</div>
-                            {req.attendanceDate && (
-                              <div style={S.reqDate}>{new Date(req.attendanceDate).toLocaleDateString('en-GB')}</div>
+                            {req.date && (
+                              <div style={S.reqDate}>{new Date(req.date).toLocaleDateString('en-GB')}</div>
                             )}
-                            {req.reason && (
-                              <div style={S.reqReason}>{req.reason}</div>
+                            {req.description && (
+                              <div style={S.reqReason}>{req.description}</div>
                             )}
                           </div>
                           <span style={{
@@ -506,9 +428,9 @@ const EmployeeNotifications = () => {
                             {st.label}
                           </span>
                         </div>
-                        {req.resolution && (
+                        {req.adminComment && (
                           <div style={S.adminComment}>
-                            <strong>Resolution:</strong> {req.resolution}
+                            <strong>Admin Note:</strong> {req.adminComment}
                           </div>
                         )}
                         <div style={S.reqFooter}>
@@ -549,7 +471,7 @@ const S = {
   spinner:   { width: 40, height: 40, border: '3px solid #f3f3f3', borderTop: '3px solid #667eea', borderRadius: '50%', animation: 'spin 1s linear infinite' },
   emptyBox:  { textAlign: 'center', padding: '60px 20px' },
 
-  notifCard:   { display: 'flex', gap: 14, padding: '16px 20px', borderRadius: 12, border: '1px solid #f3f4f6', transition: 'all 0.2s', position: 'relative' },
+  notifCard:   { display: 'flex', gap: 14, padding: '16px 20px', borderRadius: 12, border: '1px solid #f3f4f6', transition: 'all 0.2s' },
   notifIconBox:{ width: 44, height: 44, borderRadius: '50%', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 },
   notifTitle:  { fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 },
   notifMsg:    { fontSize: 13, color: '#6b7280', marginBottom: 4, lineHeight: 1.5 },
@@ -565,26 +487,6 @@ const S = {
   reqReason:  { fontSize: 13, color: '#6b7280', marginTop: 4 },
   adminComment:{ marginTop: 12, padding: '10px 14px', background: '#fffbeb', borderRadius: 8, fontSize: 13, color: '#92400e', border: '1px solid #fde68a' },
   reqFooter:  { marginTop: 12, fontSize: 12, color: '#9ca3af', borderTop: '1px solid #e5e7eb', paddingTop: 10 },
-
-  // ✅ NEW: Delete button styles
-  deleteBtn:  { 
-    width: 28, 
-    height: 28, 
-    borderRadius: '50%', 
-    background: '#fee2e2', 
-    border: '1px solid #fecaca', 
-    color: '#dc2626', 
-    fontSize: 20, 
-    fontWeight: 700, 
-    display: 'flex', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    flexShrink: 0, 
-    transition: 'all 0.2s',
-    lineHeight: 1,
-    padding: 0,
-    cursor: 'pointer'
-  },
 };
 
 export default EmployeeNotifications;

@@ -1,13 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  getMyLeaveRequests, 
-  cancelLeaveRequest 
-} from '../../services/leaveRequestService';
-import { getMyCorrectionRequests } from '../../services/correctionRequestService';
 import { useNavigate } from 'react-router-dom';
 import './../../styles/NotificationStyles.css';
 
 const MyRequests = () => {
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
   const [activeTab, setActiveTab] = useState('leave');
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [correctionRequests, setCorrectionRequests] = useState([]);
@@ -15,34 +11,75 @@ const MyRequests = () => {
   const [correctionStats, setCorrectionStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [cancelling, setCancelling] = useState(null); // ✅ Track cancellation
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchRequests();
   }, [activeTab, filter]);
 
+  // ✅ AUTO-REFRESH every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchRequests();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [activeTab, filter]);
+
   const fetchRequests = async () => {
     setLoading(true);
     try {
+      const token = localStorage.getItem('token') || localStorage.getItem('employee_token');
+
       if (activeTab === 'leave') {
-        const response = await getMyLeaveRequests(
-          filter === 'all' ? null : filter
-        );
-        if (response.success) {
-          setLeaveRequests(response.data.leaveRequests);
-          setLeaveStats(response.data.stats);
+        // ✅ FIXED: Correct API endpoint
+        const url = filter === 'all' 
+          ? `${API_URL}/leave-requests/my-requests`
+          : `${API_URL}/leave-requests/my-requests?status=${filter}`;
+
+        console.log('📋 Fetching leave requests:', url);
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Leave requests response:', data);
+          setLeaveRequests(data.data?.leaveRequests || []);
+          setLeaveStats(data.data?.stats || null);
+        } else {
+          console.error('❌ Failed to fetch leave requests:', response.status);
         }
       } else {
-        const response = await getMyCorrectionRequests(
-          filter === 'all' ? null : filter
-        );
-        if (response.success) {
-          setCorrectionRequests(response.data.correctionRequests);
-          setCorrectionStats(response.data.stats);
+        // ✅ FIXED: Correct API endpoint for correction requests
+        const url = filter === 'all'
+          ? `${API_URL}/correction-requests/my-requests`
+          : `${API_URL}/correction-requests/my-requests?status=${filter}`;
+
+        console.log('🔧 Fetching correction requests:', url);
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Correction requests response:', data);
+          setCorrectionRequests(data.data?.correctionRequests || []);
+          setCorrectionStats(data.data?.stats || null);
+        } else {
+          console.error('❌ Failed to fetch correction requests:', response.status);
         }
       }
     } catch (error) {
-      console.error('Error fetching requests:', error);
+      console.error('❌ Error fetching requests:', error);
     } finally {
       setLoading(false);
     }
@@ -53,14 +90,29 @@ const MyRequests = () => {
       return;
     }
 
+    setCancelling(requestId);
     try {
-      const response = await cancelLeaveRequest(requestId);
-      if (response.success) {
-        alert('Leave request cancelled successfully');
-        fetchRequests();
+      const token = localStorage.getItem('token') || localStorage.getItem('employee_token');
+      
+      const response = await fetch(`${API_URL}/leave-requests/${requestId}/cancel`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        alert('✅ Leave request cancelled successfully');
+        fetchRequests(); // ✅ Refresh list
+      } else {
+        const data = await response.json();
+        alert(data.message || 'Failed to cancel leave request');
       }
     } catch (error) {
       alert(error.message || 'Failed to cancel leave request');
+    } finally {
+      setCancelling(null);
     }
   };
 
@@ -111,11 +163,11 @@ const MyRequests = () => {
       {activeTab === 'leave' && leaveStats && (
         <div className="stats-grid">
           <div className="stat-card">
-            <span className="stat-number">{leaveStats.totalApproved}</span>
+            <span className="stat-number">{leaveStats.totalApproved || 0}</span>
             <span className="stat-label">Approved Leaves</span>
           </div>
           <div className="stat-card">
-            <span className="stat-number">{leaveStats.totalDays}</span>
+            <span className="stat-number">{leaveStats.totalDays || 0}</span>
             <span className="stat-label">Total Days Taken</span>
           </div>
         </div>
@@ -124,19 +176,19 @@ const MyRequests = () => {
       {activeTab === 'correction' && correctionStats && (
         <div className="stats-grid">
           <div className="stat-card">
-            <span className="stat-number">{correctionStats.total}</span>
+            <span className="stat-number">{correctionStats.total || 0}</span>
             <span className="stat-label">Total Requests</span>
           </div>
           <div className="stat-card">
-            <span className="stat-number">{correctionStats.pending}</span>
+            <span className="stat-number">{correctionStats.pending || 0}</span>
             <span className="stat-label">Pending</span>
           </div>
           <div className="stat-card">
-            <span className="stat-number">{correctionStats.approved}</span>
+            <span className="stat-number">{correctionStats.approved || 0}</span>
             <span className="stat-label">Approved</span>
           </div>
           <div className="stat-card">
-            <span className="stat-number">{correctionStats.approvalRate}%</span>
+            <span className="stat-number">{correctionStats.approvalRate || 0}%</span>
             <span className="stat-label">Approval Rate</span>
           </div>
         </div>
@@ -149,13 +201,13 @@ const MyRequests = () => {
             className={activeTab === 'leave' ? 'active' : ''}
             onClick={() => setActiveTab('leave')}
           >
-            🏖️ Leave Requests
+            🏖️ Leave Requests ({leaveRequests.length})
           </button>
           <button
             className={activeTab === 'correction' ? 'active' : ''}
             onClick={() => setActiveTab('correction')}
           >
-            ⚠️ Correction Requests
+            ⚠️ Correction Requests ({correctionRequests.length})
           </button>
         </div>
       </div>
@@ -253,7 +305,7 @@ const MyRequests = () => {
                         <p className="reason-text">{request.reason}</p>
                       </div>
 
-                      {request.status !== 'pending' && (
+                      {request.status !== 'pending' && request.approverName && (
                         <div className="detail-row full-width">
                           <span className="detail-label">
                             {request.status === 'approved' ? 'Approved' : 'Rejected'} by:
@@ -280,8 +332,9 @@ const MyRequests = () => {
                         <button
                           className="btn btn-reject btn-small"
                           onClick={() => handleCancelLeave(request._id)}
+                          disabled={cancelling === request._id}
                         >
-                          Cancel Request
+                          {cancelling === request._id ? 'Cancelling...' : 'Cancel Request'}
                         </button>
                       )}
                     </div>
@@ -312,7 +365,7 @@ const MyRequests = () => {
                     <div className="request-header">
                       <div className="issue-info">
                         <span className="issue-type">
-                          {request.issueType.replace('_', ' ')}
+                          {request.issueType?.replace('_', ' ')}
                         </span>
                       </div>
                       <div className="badges">
@@ -322,12 +375,14 @@ const MyRequests = () => {
                         >
                           {request.status}
                         </span>
-                        <span 
-                          className="priority-badge" 
-                          style={{ backgroundColor: getStatusColor(request.priority) }}
-                        >
-                          {request.priority}
-                        </span>
+                        {request.priority && (
+                          <span 
+                            className="priority-badge" 
+                            style={{ backgroundColor: getStatusColor(request.priority) }}
+                          >
+                            {request.priority}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -339,24 +394,26 @@ const MyRequests = () => {
                         </span>
                       </div>
 
-                      <div className="status-change-row">
-                        <div className="status-box current">
-                          <span className="status-label">Current:</span>
-                          <span className="status-value">{request.currentStatus}</span>
+                      {request.currentStatus && request.requestedStatus && (
+                        <div className="status-change-row">
+                          <div className="status-box current">
+                            <span className="status-label">Current:</span>
+                            <span className="status-value">{request.currentStatus}</span>
+                          </div>
+                          <div className="arrow">→</div>
+                          <div className="status-box requested">
+                            <span className="status-label">Requested:</span>
+                            <span className="status-value">{request.requestedStatus}</span>
+                          </div>
                         </div>
-                        <div className="arrow">→</div>
-                        <div className="status-box requested">
-                          <span className="status-label">Requested:</span>
-                          <span className="status-value">{request.requestedStatus}</span>
-                        </div>
-                      </div>
+                      )}
 
                       <div className="detail-row full-width">
                         <span className="detail-label">Reason:</span>
                         <p className="reason-text">{request.reason}</p>
                       </div>
 
-                      {request.status !== 'pending' && (
+                      {request.status !== 'pending' && request.resolverName && (
                         <>
                           <div className="detail-row full-width">
                             <span className="detail-label">Resolved by:</span>
