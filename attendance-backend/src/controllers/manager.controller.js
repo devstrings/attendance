@@ -200,13 +200,15 @@ const markAttendance = async (req, res) => {
     if (existingAttendance) return res.status(400).json({ success: false, message: 'Attendance already marked for this date.' });
 
     const clockInTime = new Date(clockIn);
-    const shiftStartTime = employee.workSchedule?.shiftStartTime || '09:00';
-    const [startHour, startMinute] = shiftStartTime.split(':').map(Number);
+    // ✅ Use SystemConfig lateEntryTime for late calculation
+    const systemConfig = await SystemConfig.findOne({ isActive: true });
+    const lateEntryStr = systemConfig?.workingHours?.lateEntryTime || employee.workSchedule?.shiftStartTime || '09:00';
+    const [startHour, startMinute] = lateEntryStr.split(':').map(Number);
     const expectedClockIn = new Date(clockInTime);
     expectedClockIn.setHours(startHour, startMinute, 0, 0);
 
     const lateMinutes = Math.max(0, Math.floor((clockInTime - expectedClockIn) / (1000 * 60)));
-    const isLate = lateMinutes > 15;
+    const isLate = clockInTime > expectedClockIn; // Late if past lateEntryTime
 
     let earlyLeave = false, earlyLeaveMinutes = 0;
     if (clockOut) {

@@ -31,32 +31,18 @@ const managerService = {
   },
 
   // ============ ATTENDANCE ============
-
-  // ✅ NEW: Get attendance by specific date (for MarkAttendance page)
   getAttendanceByDate: async ({ date } = {}) => {
     try {
       const targetDate = date || new Date().toISOString().split('T')[0];
-      console.log('📅 Fetching attendance for date:', targetDate);
-
-      // Try manager-specific endpoint first
       try {
-        const response = await api.get('/manager/attendance', {
-          params: { date: targetDate, limit: 100 }
-        });
-        console.log('✅ Manager attendance response:', response.data);
+        const response = await api.get('/manager/attendance', { params: { date: targetDate, limit: 100 } });
         return response.data;
       } catch (managerErr) {
         console.log('⚠️ Manager endpoint failed, trying general attendance...');
       }
-
-      // Fallback: general attendance endpoint
-      const response = await api.get('/attendance', {
-        params: { date: targetDate, limit: 100 }
-      });
-      console.log('✅ General attendance response:', response.data);
+      const response = await api.get('/attendance', { params: { date: targetDate, limit: 100 } });
       return response.data;
     } catch (error) {
-      console.error('❌ getAttendanceByDate error:', error.response?.data || error);
       return { success: false, data: { attendance: [] } };
     }
   },
@@ -64,26 +50,19 @@ const managerService = {
   getTodayAttendance: async (date) => {
     try {
       const response = await api.get('/attendance', {
-        params: {
-          date: date || new Date().toISOString().split('T')[0],
-          limit: 100
-        }
+        params: { date: date || new Date().toISOString().split('T')[0], limit: 100 }
       });
       return response.data;
     } catch (error) {
-      console.error('getTodayAttendance error:', error);
       throw error;
     }
   },
 
   markAttendance: async (attendanceData) => {
     try {
-      console.log('📝 Marking attendance:', attendanceData);
       const response = await api.post('/manager/mark-attendance', attendanceData);
-      console.log('✅ Attendance marked:', response.data);
       return response.data;
     } catch (error) {
-      console.error('❌ Error marking attendance:', error.response?.data || error);
       throw error.response?.data || { success: false, message: 'Failed to mark attendance' };
     }
   },
@@ -99,9 +78,7 @@ const managerService = {
 
   bulkMarkAttendance: async (attendanceList) => {
     try {
-      const response = await api.post('/attendance/bulk-mark', {
-        attendanceData: attendanceList
-      });
+      const response = await api.post('/attendance/bulk-mark', { attendanceData: attendanceList });
       return response.data;
     } catch (error) {
       throw error;
@@ -128,9 +105,7 @@ const managerService = {
 
   getEmployeeAttendanceHistory: async (employeeId, filters = {}) => {
     try {
-      const response = await api.get(`/manager/attendance-history/${employeeId}`, {
-        params: filters
-      });
+      const response = await api.get(`/manager/attendance-history/${employeeId}`, { params: filters });
       return response.data;
     } catch (error) {
       throw error;
@@ -149,10 +124,7 @@ const managerService = {
 
   updateLeaveStatus: async (leaveId, status, rejectionReason = '') => {
     try {
-      const response = await api.put(`/manager/leave/${leaveId}/status`, {
-        status,
-        rejectionReason
-      });
+      const response = await api.put(`/manager/leave/${leaveId}/status`, { status, rejectionReason });
       return response.data;
     } catch (error) {
       throw error;
@@ -173,8 +145,7 @@ const managerService = {
     try {
       const response = await api.put('/manager/profile', profileData);
       const user = JSON.parse(localStorage.getItem('manager_user') || '{}');
-      const updatedUser = { ...user, ...profileData };
-      localStorage.setItem('manager_user', JSON.stringify(updatedUser));
+      localStorage.setItem('manager_user', JSON.stringify({ ...user, ...profileData }));
       return response.data;
     } catch (error) {
       throw error;
@@ -212,9 +183,7 @@ const managerService = {
   // ============ REPORTS ============
   getTeamSummary: async (month, year) => {
     try {
-      const response = await api.get('/report/monthly-attendance', {
-        params: { month, year }
-      });
+      const response = await api.get('/report/monthly-attendance', { params: { month, year } });
       return response.data;
     } catch (error) {
       throw error;
@@ -223,12 +192,32 @@ const managerService = {
 
   getEmployeeReport: async (employeeId, startDate, endDate) => {
     try {
-      const response = await api.get('/report/employee-attendance-summary', {
-        params: { employeeId, startDate, endDate }
-      });
+      const response = await api.get('/report/employee-attendance-summary', { params: { employeeId, startDate, endDate } });
       return response.data;
     } catch (error) {
       throw error;
+    }
+  },
+
+  // ✅ NEW: Real office policy from SystemConfig
+  // Route already exists: GET /admin/system-config/public (no admin auth required)
+  getSystemConfig: async () => {
+    try {
+      const response = await api.get('/admin/system-config/public');
+      return response.data;
+    } catch (error) {
+      console.error('❌ getSystemConfig error:', error);
+      // Fallback default agar backend fail ho
+      return {
+        success: true,
+        data: {
+          config: {
+            shiftStartTime: '09:00',
+            shiftEndTime: '17:00',
+            workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+          }
+        }
+      };
     }
   }
 };
