@@ -91,12 +91,13 @@ const EmployeeDashboard = () => {
   const joinDate         = employee.joiningDate ? new Date(employee.joiningDate) : null;
   const totalWorkingDays = monthlyStats.workingDays ?? 0;
 
-  // ── Attendance rate ─────────────────────────────────────────────────────────
-  const totalForRate = (monthlyStats.present || 0) + (monthlyStats.absent || 0) + (monthlyStats.onLeave || 0);
-  const presentPct  = totalForRate ? Math.round(((monthlyStats.present  || 0) / totalForRate) * 100) : 0;
-  const absentPct   = totalForRate ? Math.round(((monthlyStats.absent   || 0) / totalForRate) * 100) : 0;
-  const leavePct    = totalForRate ? Math.round(((monthlyStats.onLeave  || 0) / totalForRate) * 100) : 0;
-  const latePct     = totalForRate ? Math.round(((monthlyStats.late     || 0) / totalForRate) * 100) : 0;
+  // ── Attendance rate — totalWorkingDays se divide (MyAttendance ki tarah) ────
+const rateBase  = totalWorkingDays > 0 ? totalWorkingDays : 1;
+const realAbsent = Math.max(0, totalWorkingDays - (monthlyStats.present || 0) - (monthlyStats.onLeave || 0));
+const presentPct = Math.round(((monthlyStats.present  || 0) / rateBase) * 100);
+const absentPct  = Math.round((realAbsent              / rateBase) * 100);
+const leavePct   = Math.round(((monthlyStats.onLeave  || 0) / rateBase) * 100);
+const latePct    = Math.round(((monthlyStats.late     || 0) / rateBase) * 100);
 
   // ── Today status cards ─────────────────────────────────────────────────────
   const todayCards = [
@@ -231,7 +232,7 @@ const EmployeeDashboard = () => {
               <div style={s.legend}>
                 {[
                   { label: 'Present', value: monthlyStats.present || 0, pct: presentPct, color: '#10b981' },
-                  { label: 'Absent',  value: monthlyStats.absent  || 0, pct: absentPct,  color: '#ef4444' },
+                  { label: 'Absent',  value: realAbsent, pct: absentPct,  color: '#ef4444' },
                   { label: 'Leave',   value: monthlyStats.onLeave || 0, pct: leavePct,   color: '#f59e0b' },
                   { label: 'Late',    value: monthlyStats.late    || 0, pct: latePct,    color: '#8b5cf6' },
                 ].map(item => (

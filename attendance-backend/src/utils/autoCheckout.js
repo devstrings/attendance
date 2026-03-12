@@ -2,180 +2,136 @@ const cron = require('node-cron');
 const Attendance = require('../models/Attendance');
 const SystemConfig = require('../models/SystemConfig');
 
-/**
- * Auto Checkout Cron Job
- * Runs every minute to check for auto checkout
- */
+// ─── Helper: Get current time in PKT (UTC+5) ─────────────────────────────────
+const getPKTTime = () => {
+  const now = new Date();
+  // PKT = UTC + 5 hours
+  const pktOffset = 5 * 60; // minutes
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const pktMinutes = utcMinutes + pktOffset;
+  const pktHour   = Math.floor(pktMinutes / 60) % 24;
+  const pktMinute = pktMinutes % 60;
+  return { pktHour, pktMinute };
+};
+
+// ─── Core checkout logic (shared between cron & manual) ──────────────────────
+const performAutoCheckout = async (forcedEndTime = null) => {
+  const config = await SystemConfig.findOne({ isActive: true });
+
+  if (!config) {
+    console.log('⏭️ [Auto Checkout] No active system config found');
+    return { success: false, message: 'No active system config found', count: 0 };
+  }
+
+  const endTime = forcedEndTime || config.workingHours?.endTime || '19:00';
+  const [endHour, endMinute] = endTime.split(':').map(Number);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const openAttendance = await Attendance.find({
+    date: { $gte: today },
+    clockOut: null,
+    status: { $in: ['present', 'late'] }
+  }).populate('employeeId', 'firstName lastName employeeCode');
+
+  if (openAttendance.length === 0) {
+    console.log('✅ [Auto Checkout] No open attendance records found');
+    return { success: true, message: 'No open attendance records to checkout', count: 0 };
+  }
+
+  console.log(`📋 [Auto Checkout] Found ${openAttendance.length} open records`);
+
+  let checkedOutCount = 0;
+
+  for (const attendance of openAttendance) {
+    // Clock out time = today at configured end time (PKT, stored as local server time)
+    const clockOutTime = new Date();
+    clockOutTime.setHours(endHour, endMinute, 0, 0);
+
+    // If clockOut time is before clockIn (e.g., server timezone mismatch), skip
+    const clockInTime = new Date(attendance.clockIn);
+    if (clockOutTime <= clockInTime) {
+      console.warn(`⚠️ [Auto Checkout] Skipping ${attendance.employeeId?.employeeCode} — clockOut <= clockIn`);
+      continue;
+    }
+
+    let workHours = (clockOutTime - clockInTime) / (1000 * 60 * 60);
+    const breakHours = (config.breakTime || 60) / 60;
+    workHours = Math.max(0, workHours - breakHours);
+
+    attendance.clockOut   = clockOutTime;
+    attendance.workHours  = parseFloat(workHours.toFixed(2));
+    attendance.autoCheckedOut = true; // ← new flag for tracking
+    attendance.remarks    = [attendance.remarks, `Auto checkout at ${endTime} PKT`]
+                              .filter(Boolean).join(' | ');
+
+    await attendance.save();
+    checkedOutCount++;
+
+    console.log(
+      `✅ [Auto Checkout] ${attendance.employeeId?.employeeCode} ` +
+      `${attendance.employeeId?.firstName} ${attendance.employeeId?.lastName} ` +
+      `checked out at ${endTime}`
+    );
+  }
+
+  console.log(`🎉 [Auto Checkout] Done — ${checkedOutCount} employees checked out`);
+  return {
+    success: true,
+    message: `Successfully checked out ${checkedOutCount} employees`,
+    count: checkedOutCount
+  };
+};
+
+// ─── Cron Job ─────────────────────────────────────────────────────────────────
+// Runs every minute — but only acts once, right after grace period ends
 const autoCheckoutJob = cron.schedule('* * * * *', async () => {
   try {
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    
-    console.log(`🕐 [Auto Checkout] Running at ${currentHour}:${String(currentMinute).padStart(2, '0')}`);
-    
-    // Get active system configuration
     const config = await SystemConfig.findOne({ isActive: true });
-    
-    if (!config) {
-      console.log('⏭️ [Auto Checkout] No active system config found');
-      return;
-    }
+    if (!config) return;
 
-    // Parse configured end time (e.g., "19:00")
-    const endTime = config.workingHours?.endTime || '19:00';
+    const endTime     = config.workingHours?.endTime || '19:00';
     const [endHour, endMinute] = endTime.split(':').map(Number);
-    
-    // Grace period is 15 minutes
     const graceMinutes = 15;
-    let graceEndHour = endHour;
-    let graceEndMinute = endMinute + graceMinutes;
-    
-    // Handle minute overflow
-    if (graceEndMinute >= 60) {
-      graceEndHour += 1;
-      graceEndMinute -= 60;
-    }
-    
-    // Check if current time is past grace period
-    const isPastGracePeriod = 
-      currentHour > graceEndHour ||
-      (currentHour === graceEndHour && currentMinute >= graceEndMinute);
 
-    if (!isPastGracePeriod) {
-      console.log(`⏰ [Auto Checkout] Not yet past grace period (${graceEndHour}:${String(graceEndMinute).padStart(2, '0')})`);
-      return;
-    }
+    // Grace period end (in total minutes)
+    const graceEndTotal = endHour * 60 + endMinute + graceMinutes;
+    const graceEndHour  = Math.floor(graceEndTotal / 60);
+    const graceEndMin   = graceEndTotal % 60;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // ✅ Use PKT time — NOT new Date() which is UTC on most servers
+    const { pktHour, pktMinute } = getPKTTime();
+    const nowTotal = pktHour * 60 + pktMinute;
 
-    // Find all open attendance records
-    const openAttendance = await Attendance.find({
-      date: { $gte: today },
-      clockOut: null,
-      status: { $in: ['present', 'late'] }
-    }).populate('employeeId', 'firstName lastName employeeCode');
+    // Only trigger in the window: graceEnd <= now < graceEnd+2 minutes
+    // This prevents firing every minute all night
+    const triggerStart = graceEndTotal;
+    const triggerEnd   = graceEndTotal + 2;
 
-    if (openAttendance.length === 0) {
-      console.log('✅ [Auto Checkout] No open attendance records found');
-      return;
+    if (nowTotal < triggerStart || nowTotal >= triggerEnd) {
+      return; // Outside trigger window — do nothing
     }
 
-    console.log(`📋 [Auto Checkout] Found ${openAttendance.length} open attendance records`);
+    console.log(
+      `🕐 [Auto Checkout] Triggered at PKT ${pktHour}:${String(pktMinute).padStart(2,'0')} ` +
+      `(grace end was ${graceEndHour}:${String(graceEndMin).padStart(2,'0')})`
+    );
 
-    let checkedOutCount = 0;
-
-    // Auto checkout each record
-    for (const attendance of openAttendance) {
-      const clockOutTime = new Date();
-      clockOutTime.setHours(endHour, endMinute, 0, 0);
-
-      // Calculate work hours
-      const clockInTime = new Date(attendance.clockIn);
-      let workHours = (clockOutTime - clockInTime) / (1000 * 60 * 60);
-      
-      // Subtract break time
-      const breakHours = (config.breakTime || 60) / 60;
-      workHours = Math.max(0, workHours - breakHours);
-      
-      attendance.clockOut = clockOutTime;
-      attendance.workHours = parseFloat(workHours.toFixed(2));
-      attendance.remarks = `${attendance.remarks ? attendance.remarks + ' | ' : ''}Auto checkout at ${clockOutTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
-      
-      await attendance.save();
-      
-      checkedOutCount++;
-
-      console.log(`✅ [Auto Checkout] ${attendance.employeeId?.employeeCode} - ${attendance.employeeId?.firstName} ${attendance.employeeId?.lastName} auto checked out at ${clockOutTime.toLocaleTimeString()}`);
-    }
-
-    console.log(`🎉 [Auto Checkout] Completed - ${checkedOutCount} employees checked out`);
+    await performAutoCheckout(endTime);
 
   } catch (error) {
-    console.error('❌ [Auto Checkout] Error:', error);
+    console.error('❌ [Auto Checkout Cron] Error:', error);
   }
 }, {
-  scheduled: false, // Don't start automatically, we'll start it manually
-  timezone: 'Asia/Karachi' // Pakistan timezone
+  scheduled: false,
+  timezone: 'Asia/Karachi'
 });
 
-/**
- * Manual trigger for testing
- */
+// ─── Manual Trigger ───────────────────────────────────────────────────────────
 const runAutoCheckoutManually = async () => {
-  try {
-    console.log('🔧 [Manual Trigger] Running auto checkout...');
-    
-    const config = await SystemConfig.findOne({ isActive: true });
-    
-    if (!config) {
-      return {
-        success: false,
-        message: 'No active system config found',
-        count: 0
-      };
-    }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const openAttendance = await Attendance.find({
-      date: { $gte: today },
-      clockOut: null,
-      status: { $in: ['present', 'late'] }
-    }).populate('employeeId', 'firstName lastName employeeCode');
-
-    if (openAttendance.length === 0) {
-      return {
-        success: true,
-        message: 'No open attendance records to checkout',
-        count: 0
-      };
-    }
-
-    const endTime = config.workingHours?.endTime || '19:00';
-    const [endHour, endMinute] = endTime.split(':').map(Number);
-
-    let checkedOutCount = 0;
-
-    for (const attendance of openAttendance) {
-      const clockOutTime = new Date();
-      clockOutTime.setHours(endHour, endMinute, 0, 0);
-
-      const clockInTime = new Date(attendance.clockIn);
-      let workHours = (clockOutTime - clockInTime) / (1000 * 60 * 60);
-      
-      const breakHours = (config.breakTime || 60) / 60;
-      workHours = Math.max(0, workHours - breakHours);
-      
-      attendance.clockOut = clockOutTime;
-      attendance.workHours = parseFloat(workHours.toFixed(2));
-      attendance.remarks = `${attendance.remarks ? attendance.remarks + ' | ' : ''}Manual auto checkout at ${clockOutTime.toLocaleTimeString()}`;
-      
-      await attendance.save();
-      checkedOutCount++;
-
-      console.log(`✅ [Manual] ${attendance.employeeId?.employeeCode} checked out`);
-    }
-
-    return {
-      success: true,
-      message: `Successfully checked out ${checkedOutCount} employees`,
-      count: checkedOutCount
-    };
-
-  } catch (error) {
-    console.error('❌ [Manual Trigger] Error:', error);
-    return {
-      success: false,
-      message: error.message,
-      count: 0
-    };
-  }
+  console.log('🔧 [Manual Trigger] Running auto checkout...');
+  return await performAutoCheckout();
 };
 
-module.exports = {
-  autoCheckoutJob,
-  runAutoCheckoutManually
-};
+module.exports = { autoCheckoutJob, runAutoCheckoutManually };
