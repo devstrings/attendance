@@ -1,45 +1,14 @@
 const Notification = require('../models/Notification');
 const User = require('../models/User');
-const emailService = require('./emailService'); // ✅ Email service import
+const emailService = require('./Services/emailService');
 
-// ===================================================================
-// HELPER: Send email silently (never crash main flow)
-// ===================================================================
-const sendEmailSilently = async (recipientEmail, subject, htmlContent) => {
-  if (!recipientEmail) return;
+// ===== Helper: Create Notification + Email =====
+const createNotification = async (recipientId, title, message, type, link = null, metadata = {}) => {
   try {
-    await emailService.sendNotificationEmail(recipientEmail, subject, htmlContent);
-    console.log('📧 Email sent to:', recipientEmail);
-  } catch (err) {
-    console.error('⚠️ Email send failed (non-fatal):', err.message);
-  }
-};
+    console.log('📢 Creating notification for:', recipientId);
+    console.log('   Title:', title);
+    console.log('   Type:', type);
 
-// ===================================================================
-// HELPER: Get user email by userId
-// ===================================================================
-const getUserEmail = async (userId) => {
-  try {
-    const user = await User.findById(userId).select('email');
-    return user?.email || null;
-  } catch (err) {
-    return null;
-  }
-};
-
-// ===================================================================
-// createNotification — DB notification + email
-// ===================================================================
-const createNotification = async (
-  recipientId,
-  title,
-  message,
-  type,
-  link = null,
-  metadata = {}
-) => {
-  try {
-    // 1. Save to DB
     const notification = new Notification({
       recipient: recipientId,
       title,
@@ -49,273 +18,338 @@ const createNotification = async (
       metadata,
       isRead: false
     });
+
     await notification.save();
-    console.log('✅ Notification created for user:', recipientId);
+    console.log('✅ Notification created successfully:', notification._id);
 
-    // 2. Send email (async, non-blocking)
-    const email = await getUserEmail(recipientId);
-    if (email) {
-      let subject = title;
-      let html = getGenericEmailTemplate({ title, message, type });
-
-      // Use specific templates where available
-      if (type === 'leave_approved' && metadata) {
-        subject = '✅ Leave Request Approved – Attendance System';
-        html = emailService.getLeaveApprovedEmailTemplate({
-          employeeName:  metadata.employeeName  || 'Employee',
-          leaveType:     metadata.leaveType     || '',
-          fromDate:      metadata.fromDate       || new Date(),
-          toDate:        metadata.toDate         || new Date(),
-          numberOfDays:  metadata.numberOfDays   || 1,
-          approverName:  metadata.approverName   || 'Admin'
-        });
-      } else if (type === 'leave_rejected' && metadata) {
-        subject = '❌ Leave Request Not Approved – Attendance System';
-        html = emailService.getLeaveRejectedEmailTemplate({
-          employeeName:    metadata.employeeName    || 'Employee',
-          leaveType:       metadata.leaveType       || '',
-          fromDate:        metadata.fromDate         || new Date(),
-          toDate:          metadata.toDate           || new Date(),
-          rejectionReason: metadata.rejectionReason || 'No reason provided',
-          approverName:    metadata.approverName    || 'Admin'
-        });
-      } else if (type === 'announcement') {
-        subject = `📢 Announcement – ${title}`;
-        html = emailService.getSystemUpdateEmailTemplate({
-          updateType:    title,
-          updateDetails: message,
-          affectedUsers: metadata.broadcastRole || 'all'
-        });
+    // ===== AUTO EMAIL: Har notification ke saath email bhi =====
+    try {
+      const user = await User.findById(recipientId).select('email');
+      if (user?.email) {
+        const emailHtml = getNotificationEmailTemplate({ title, message, type, link });
+        await emailService.sendNotificationEmail(
+          user.email,
+          title,
+          emailHtml
+        );
+        console.log(`✅ Email sent to ${user.email} for notification type: ${type}`);
       }
-
-      await sendEmailSilently(email, subject, html);
+    } catch (emailErr) {
+      console.warn('⚠️ Email send failed (non-fatal):', emailErr.message);
     }
 
     return notification;
   } catch (error) {
-    console.error('❌ createNotification error:', error);
+    console.error('❌ Create notification error:', error);
     throw error;
   }
 };
 
-// ===================================================================
-// notifyAdmin — notify all admins + email each admin
-// ===================================================================
+// ===== Generic Notification Email Template =====
+const getNotificationEmailTemplate = ({ title, message, type, link }) => {
+  // Type ke hisaab se color aur icon
+  const typeConfig = {
+    leave_request:      { color: '#3b82f6', icon: '🏖️', label: 'Leave Request' },
+    leave_approved:     { color: '#10b981', icon: '✅', label: 'Leave Approved' },
+    leave_rejected:     { color: '#ef4444', icon: '❌', label: 'Leave Rejected' },
+    correction_request: { color: '#f59e0b', icon: '⚠️', label: 'Correction Request' },
+    correction_resolved:{ color: '#8b5cf6', icon: '🔧', label: 'Correction Resolved' },
+    announcement:       { color: '#6366f1', icon: '📢', label: 'Announcement' },
+    system:             { color: '#0ea5e9', icon: '⚙️', label: 'System Notification' },
+  };
+
+  const cfg = typeConfig[type] || { color: '#6b7280', icon: '🔔', label: 'Notification' };
+
+  const actionButton = link
+    ? `<div style="text-align:center;margin-top:24px;">
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}${link}"
+           style="display:inline-block;background:${cfg.color};color:#fff;text-decoration:none;
+                  padding:13px 36px;border-radius:50px;font-size:15px;font-weight:600;">
+          View Details →
+        </a>
+       </div>`
+    : '';
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f0f4f8;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:30px 0;">
+    <tr><td align="center">
+      <table width="580" cellpadding="0" cellspacing="0"
+             style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:${cfg.color};padding:32px 30px;text-align:center;">
+            <div style="font-size:44px;margin-bottom:8px;">${cfg.icon}</div>
+            <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">${cfg.label}</h1>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:32px 36px;">
+            <h2 style="color:#1f2937;font-size:18px;margin:0 0 12px;">${title}</h2>
+            <p style="color:#4b5563;font-size:15px;line-height:1.7;margin:0 0 20px;">
+              ${message}
+            </p>
+
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:14px;">
+              <p style="margin:0;color:#9ca3af;font-size:12px;">
+                🕐 ${new Date().toLocaleString('en-PK', { dateStyle: 'full', timeStyle: 'short' })}
+              </p>
+            </div>
+
+            ${actionButton}
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f9fafb;padding:16px;text-align:center;border-top:1px solid #e5e7eb;">
+            <p style="margin:0;color:#9ca3af;font-size:12px;">
+              © ${new Date().getFullYear()} Attendance System — Automated Notification
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+};
+
+// ===== Send Notification to Admin =====
 const notifyAdmin = async (title, message, type, link = null, metadata = {}) => {
   try {
+    console.log('📢 Finding admins...');
+
     const admins = await User.find({ role: 'admin', isActive: true });
-    if (!admins.length) {
-      console.log('⚠️ No active admins found');
+    console.log(`✅ Found ${admins.length} admin(s)`);
+
+    if (admins.length === 0) {
+      console.warn('⚠️  No active admins found!');
       return;
     }
 
-    await Promise.all(
-      admins.map(admin =>
-        createNotification(admin._id, title, message, type, link, {
-          ...metadata,
-          recipientEmail: admin.email
-        })
-      )
-    );
-    console.log(`✅ Notified ${admins.length} admins`);
+    const promises = admins.map(admin => {
+      console.log(`   Creating notification for admin: ${admin.email}`);
+      return createNotification(admin._id, title, message, type, link, metadata);
+    });
+
+    await Promise.all(promises);
+    console.log(`✅ Successfully sent notifications + emails to ${admins.length} admin(s)`);
   } catch (error) {
-    console.error('❌ notifyAdmin error:', error);
+    console.error('❌ Notify admin error:', error);
     throw error;
   }
 };
 
-// ===================================================================
-// notifyLeaveRequest — employee submits leave → notify + email admin
-// ===================================================================
+// ===== LEAVE REQUEST: Notify Admin =====
 const notifyLeaveRequest = async (leaveRequest, employee) => {
   try {
-    // DB notification to admin
-    await notifyAdmin(
-      '🏖️ New Leave Request',
-      `${employee.name} has requested ${leaveRequest.numberOfDays} day(s) of ${leaveRequest.leaveType} leave from ${new Date(leaveRequest.fromDate).toLocaleDateString()}.`,
-      'leave_request',
-      '/admin/leave-requests',
+    console.log('');
+    console.log('='.repeat(60));
+    console.log('📢 NOTIFYING ADMIN ABOUT LEAVE REQUEST');
+    console.log('='.repeat(60));
+
+    const title = `🏖️ New Leave Request`;
+    const message = `${employee.name} has requested ${leaveRequest.numberOfDays} day(s) of ${leaveRequest.leaveType} leave from ${new Date(leaveRequest.fromDate).toLocaleDateString()}.`;
+    const link = `/admin/leave-requests`;
+
+    await notifyAdmin(title, message, 'leave_request', link, {
+      leaveRequestId: leaveRequest._id,
+      employeeName: employee.name,
+      employeeEmail: employee.email,
+      leaveType: leaveRequest.leaveType,
+      numberOfDays: leaveRequest.numberOfDays
+    });
+
+    console.log('✅ Leave request notification + email sent to admin!');
+    console.log('='.repeat(60));
+    console.log('');
+  } catch (error) {
+    console.error('❌ Notify leave request error:', error);
+    console.error('   Stack:', error.stack);
+  }
+};
+
+// ===== LEAVE APPROVED: Notify Employee =====
+const notifyLeaveApproval = async (leaveRequest, employee, approver) => {
+  try {
+    console.log('📢 Notifying employee about leave approval');
+
+    const Employee = require('../models/Employee');
+    const employeeDoc = await Employee.findById(leaveRequest.employee).populate('userId');
+
+    if (!employeeDoc || !employeeDoc.userId) {
+      console.error('❌ Employee userId not found');
+      return;
+    }
+
+    const title = `✅ Leave Request Approved`;
+    const message = `Your ${leaveRequest.leaveType} leave request for ${leaveRequest.numberOfDays} day(s) has been approved by ${approver.name}.`;
+    const link = `/employee/my-requests`;
+
+    // createNotification ke andar ab automatic email bhi jaayega
+    await createNotification(
+      employeeDoc.userId._id,
+      title,
+      message,
+      'leave_approved',
+      link,
       {
         leaveRequestId: leaveRequest._id,
-        employeeName:   employee.name,
-        employeeEmail:  employee.email,
-        leaveType:      leaveRequest.leaveType,
-        numberOfDays:   leaveRequest.numberOfDays,
-        fromDate:       leaveRequest.fromDate,
-        toDate:         leaveRequest.toDate,
-        reason:         leaveRequest.reason
+        approverName: approver.name
       }
     );
 
-    // ✅ Also email admin separately with full leave-request template
-    const admins = await User.find({ role: 'admin', isActive: true }).select('email');
-    await Promise.all(admins.map(admin =>
-      sendEmailSilently(
-        admin.email,
-        `🏖️ New Leave Request from ${employee.name} – Attendance System`,
-        emailService.getLeaveRequestEmailTemplate({
-          employeeName: employee.name,
-          leaveType:    leaveRequest.leaveType,
-          fromDate:     leaveRequest.fromDate,
-          toDate:       leaveRequest.toDate,
-          numberOfDays: leaveRequest.numberOfDays,
-          reason:       leaveRequest.reason,
-          requestId:    leaveRequest._id
-        })
-      )
-    ));
-
+    console.log('✅ Leave approval notification + email sent to employee');
   } catch (error) {
-    console.error('❌ notifyLeaveRequest error:', error);
+    console.error('❌ Notify leave approval error:', error);
   }
 };
 
-// ===================================================================
-// notifyLeaveApproval — kept for backward compat
-// ===================================================================
-const notifyLeaveApproval = async (leaveRequest, employee, approver) => {
-  console.log('⚠️ notifyLeaveApproval called – handled in controller now');
-};
-
-// ===================================================================
-// notifyLeaveRejection — kept for backward compat
-// ===================================================================
+// ===== LEAVE REJECTED: Notify Employee =====
 const notifyLeaveRejection = async (leaveRequest, employee, approver, reason) => {
-  console.log('⚠️ notifyLeaveRejection called – handled in controller now');
+  try {
+    console.log('📢 Notifying employee about leave rejection');
+
+    const Employee = require('../models/Employee');
+    const employeeDoc = await Employee.findById(leaveRequest.employee).populate('userId');
+
+    if (!employeeDoc || !employeeDoc.userId) {
+      console.error('❌ Employee userId not found');
+      return;
+    }
+
+    const title = `❌ Leave Request Rejected`;
+    const message = `Your ${leaveRequest.leaveType} leave request has been rejected by ${approver.name}. Reason: ${reason}`;
+    const link = `/employee/my-requests`;
+
+    await createNotification(
+      employeeDoc.userId._id,
+      title,
+      message,
+      'leave_rejected',
+      link,
+      {
+        leaveRequestId: leaveRequest._id,
+        approverName: approver.name,
+        rejectionReason: reason
+      }
+    );
+
+    console.log('✅ Leave rejection notification + email sent to employee');
+  } catch (error) {
+    console.error('❌ Notify leave rejection error:', error);
+  }
 };
 
-// ===================================================================
-// notifyCorrectionRequest — employee reports issue → admin notif + email
-// ===================================================================
+// ===== CORRECTION REQUEST: Notify Admin =====
 const notifyCorrectionRequest = async (correctionRequest, employee) => {
   try {
-    await notifyAdmin(
-      '⚠️ New Attendance Correction Request',
-      `${employee.name} has requested a correction for ${new Date(correctionRequest.attendanceDate).toLocaleDateString()}. Issue: ${correctionRequest.issueType.replace('_', ' ')}`,
-      'correction_request',
-      '/admin/correction-requests',
-      {
-        correctionRequestId: correctionRequest._id,
-        employeeName:        employee.name,
-        issueType:           correctionRequest.issueType
-      }
-    );
+    console.log('📢 Notifying admin about correction request');
 
-    // ✅ Also email admin with correction template
-    const admins = await User.find({ role: 'admin', isActive: true }).select('email');
-    await Promise.all(admins.map(admin =>
-      sendEmailSilently(
-        admin.email,
-        `⚠️ Correction Request from ${employee.name} – Attendance System`,
-        emailService.getCorrectionRequestEmailTemplate({
-          employeeName:    employee.name,
-          attendanceDate:  correctionRequest.attendanceDate,
-          currentStatus:   correctionRequest.currentStatus  || 'Unknown',
-          requestedStatus: correctionRequest.requestedStatus || 'Unknown',
-          reason:          correctionRequest.reason || correctionRequest.description || '',
-          issueType:       correctionRequest.issueType || ''
-        })
-      )
-    ));
+    const title = `⚠️ New Attendance Correction Request`;
+    const message = `${employee.name} has requested a correction for ${new Date(correctionRequest.attendanceDate).toLocaleDateString()}. Issue: ${correctionRequest.issueType.replace('_', ' ')}`;
+    const link = `/admin/correction-requests`;
 
+    await notifyAdmin(title, message, 'correction_request', link, {
+      correctionRequestId: correctionRequest._id,
+      employeeName: employee.name,
+      issueType: correctionRequest.issueType
+    });
+
+    console.log('✅ Correction request notification + email sent to admin');
   } catch (error) {
-    console.error('❌ notifyCorrectionRequest error:', error);
+    console.error('❌ Notify correction request error:', error);
   }
 };
 
-// ===================================================================
-// notifyCorrectionResolution — kept for backward compat
-// ===================================================================
-const notifyCorrectionResolution = async (correctionRequest, employee, resolver, approved) => {
-  console.log('⚠️ notifyCorrectionResolution called – handled in controller now');
-};
-
-// ===================================================================
-// sendAnnouncement — broadcast to all users → notif + email
-// ===================================================================
-const sendAnnouncement = async (title, message, recipientRole = 'all') => {
+// ===== CORRECTION RESOLVED: Notify Employee =====
+const notifyCorrectionResolution = async (correctionRequest, employee, resolver, status) => {
   try {
-    console.log('📢 Sending announcement to:', recipientRole);
+    console.log('📢 Notifying employee about correction resolution');
 
-    const query = recipientRole === 'all'
-      ? { isActive: true }
-      : { role: recipientRole, isActive: true };
+    const Employee = require('../models/Employee');
+    const employeeDoc = await Employee.findById(correctionRequest.employee).populate('userId');
 
-    const users = await User.find(query);
-    console.log(`✅ Found ${users.length} users`);
-    if (!users.length) return 0;
+    if (!employeeDoc || !employeeDoc.userId) {
+      console.error('❌ Employee userId not found');
+      return;
+    }
 
-    // DB notification + email for each user (via createNotification)
-    await Promise.all(
-      users.map(user =>
-        createNotification(
-          user._id,
-          title,
-          message,
-          'announcement',
-          null,
-          { broadcastRole: recipientRole }
-        )
-      )
+    const title = status === 'approved'
+      ? `✅ Correction Request Approved`
+      : `❌ Correction Request Rejected`;
+    const message = `Your attendance correction request for ${new Date(correctionRequest.attendanceDate).toLocaleDateString()} has been ${status} by ${resolver.name}.`;
+    const link = `/employee/my-requests`;
+
+    await createNotification(
+      employeeDoc.userId._id,
+      title,
+      message,
+      'correction_resolved',
+      link,
+      {
+        correctionRequestId: correctionRequest._id,
+        resolverName: resolver.name,
+        status
+      }
     );
 
-    console.log(`✅ Announcement sent to ${users.length} users`);
+    console.log('✅ Correction resolution notification + email sent to employee');
+  } catch (error) {
+    console.error('❌ Notify correction resolution error:', error);
+  }
+};
+
+// ===== System Announcement — Sab users ko notification + email =====
+const sendAnnouncement = async (title, message, recipientRole = 'all') => {
+  try {
+    console.log(`📢 Sending announcement to: ${recipientRole}`);
+
+    let users = [];
+    if (recipientRole === 'all') {
+      users = await User.find({ isActive: true });
+    } else {
+      users = await User.find({ role: recipientRole, isActive: true });
+    }
+
+    console.log(`✅ Found ${users.length} users`);
+
+    if (users.length === 0) {
+      console.warn('⚠️  No users found for announcement');
+      return 0;
+    }
+
+    // createNotification ke andar email bhi jaayega automatically
+    const promises = users.map(user =>
+      createNotification(user._id, title, message, 'announcement', null, {
+        broadcastRole: recipientRole
+      })
+    );
+
+    await Promise.all(promises);
+    console.log(`✅ Announcement notification + email sent to ${users.length} users`);
+
     return users.length;
   } catch (error) {
-    console.error('❌ sendAnnouncement error:', error);
+    console.error('❌ Send announcement error:', error);
     throw error;
   }
 };
 
-// ===================================================================
-// GENERIC EMAIL TEMPLATE — fallback for other notification types
-// ===================================================================
-const getGenericEmailTemplate = ({ title, message, type }) => {
-  const colorMap = {
-    leave_approved:    '#10b981',
-    leave_rejected:    '#ef4444',
-    leave_request:     '#3b82f6',
-    correction_request:'#f59e0b',
-    announcement:      '#8b5cf6',
-    attendance_marked: '#667eea',
-  };
-  const color = colorMap[type] || '#667eea';
-
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: ${color}; color: white; padding: 24px 30px; text-align: center; border-radius: 10px 10px 0 0; }
-        .header h2 { margin: 0; font-size: 22px; }
-        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; }
-        .msg-box { background: white; padding: 20px; border-left: 4px solid ${color}; border-radius: 4px; margin: 16px 0; }
-        .footer { text-align: center; margin-top: 20px; color: #9ca3af; font-size: 12px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header"><h2>${title}</h2></div>
-        <div class="content">
-          <div class="msg-box"><p style="margin:0">${message}</p></div>
-          <p style="color:#6b7280; font-size:13px;">
-            This is an automated notification from the Devstrings Attendance System.
-          </p>
-        </div>
-        <div class="footer">
-          <p>© Devstrings Attendance System &nbsp;|&nbsp; ${new Date().toLocaleDateString()}</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-};
-
+// ===== EXPORTS =====
 module.exports = {
   createNotification,
-  notifyAdmin,
   notifyLeaveRequest,
   notifyLeaveApproval,
   notifyLeaveRejection,

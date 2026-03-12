@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import AdminNavbar from "./AdminNavbar";
 import AdminSidebar from "./AdminSidebar";
 import adminService from "../../services/adminService";
+import { formatDate } from '../../utils/dateUtils';
 
 const ViewUser = () => {
   const navigate = useNavigate();
@@ -114,7 +115,7 @@ const ViewUser = () => {
                   {label:"Department",value:user.department},
                   {label:"Email",value:user.email},
                   {label:"Phone",value:user.phoneNumber},
-                  {label:"Joining Date",value:user.joiningDate?new Date(user.joiningDate).toLocaleDateString("en-GB"):"—"},
+                  {label:"Joining Date",value:formatDate(user.joiningDate)||"—"},
                   {label:"Employment Type",value:user.employmentType||"—"},
                 ].map((item,i)=>(
                   <div key={i} style={{marginBottom:10}}>
@@ -133,7 +134,7 @@ const ViewUser = () => {
                   {[
                     {label:"Full Name",value:user.firstName+" "+user.lastName},
                     {label:"CNIC",value:user.cnic||"—"},
-                    {label:"Date of Birth",value:user.dateOfBirth?new Date(user.dateOfBirth).toLocaleDateString("en-GB"):"—"},
+                    {label:"Date of Birth",value:formatDate(user.dateOfBirth)||"—"},
                     {label:"Address",value:user.address||"—"},
                   ].map((item,i)=>(
                     <div key={i}>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import EmployeeNavbar from './EmployeeNavbar';
 import '../../styles/Employee.css';
+import { formatDate } from '../../utils/dateUtils';
 
 const API = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
 
@@ -25,13 +26,11 @@ const MyProfile = () => {
       const token = getToken();
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      // Fetch employee profile
       const res = await fetch(`${API}/employees/my-profile`, { headers });
       if (res.ok) {
         const data = await res.json();
         const emp = data.data?.employee || data.data || data.employee || data;
 
-        // Fetch attendance stats
         let stats = { totalPresent: 0, totalAbsent: 0, totalLeave: 0, attendanceRate: 0 };
         try {
           const statsRes = await fetch(`${API}/attendance/my-stats`, { headers });
@@ -61,7 +60,6 @@ const MyProfile = () => {
           totalLeave: stats.totalLeave || stats.leave || 0,
         });
       } else {
-        // Fallback: try /auth/me or /users/me
         const meRes = await fetch(`${API}/auth/me`, { headers });
         if (meRes.ok) {
           const md = await meRes.json();
@@ -81,7 +79,6 @@ const MyProfile = () => {
             attendanceRate: 0, totalPresent: 0, totalAbsent: 0, totalLeave: 0,
           });
         } else {
-          // Last fallback: localStorage
           const stored = localStorage.getItem('user');
           const u = stored ? JSON.parse(stored) : {};
           setEmployeeData({
@@ -102,7 +99,6 @@ const MyProfile = () => {
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
-      // localStorage fallback
       const stored = localStorage.getItem('user');
       const u = stored ? JSON.parse(stored) : {};
       setEmployeeData({
@@ -140,8 +136,11 @@ const MyProfile = () => {
       const res = await fetch(`${API}/auth/change-password`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword })
-      });
+body: JSON.stringify({ 
+  oldPassword: passwordForm.currentPassword, 
+  password: passwordForm.newPassword,
+  confirmPassword: passwordForm.confirmPassword
+})      });
       const data = await res.json();
       if (res.ok && data.success) {
         alert('✅ Password changed successfully!');
@@ -195,7 +194,6 @@ const MyProfile = () => {
         </div>
 
         <div style={S.card}>
-          {/* Avatar + Name */}
           <div style={S.profileTop}>
             <div style={S.avatarXl}>{(employeeData.name || 'E').charAt(0).toUpperCase()}</div>
             <div>
@@ -207,7 +205,6 @@ const MyProfile = () => {
 
           <div style={S.divider}></div>
 
-          {/* Personal Information */}
           <div style={S.section}>
             <h3 style={S.sectionTitle}>👤 Personal Information</h3>
             <div style={S.infoGrid}>
@@ -236,7 +233,6 @@ const MyProfile = () => {
 
           <div style={S.divider}></div>
 
-          {/* Employment Details */}
           <div style={S.section}>
             <h3 style={S.sectionTitle}>🏢 Employment Details</h3>
             <div style={S.infoGrid}>
@@ -254,9 +250,8 @@ const MyProfile = () => {
               </div>
               <div style={S.infoItem}>
                 <div style={S.infoLabel}>Joining Date</div>
-                <div style={S.infoValue}>
-                  {employeeData.joiningDate ? new Date(employeeData.joiningDate).toLocaleDateString('en-GB') : '—'}
-                </div>
+                {/* ✅ FIXED: formatDate use karo — timezone safe */}
+                <div style={S.infoValue}>{formatDate(employeeData.joiningDate) || '—'}</div>
               </div>
               <div style={S.infoItem}>
                 <div style={S.infoLabel}>Base Salary</div>
@@ -273,7 +268,6 @@ const MyProfile = () => {
 
           <div style={S.divider}></div>
 
-          {/* Attendance Summary */}
           <div style={S.section}>
             <h3 style={S.sectionTitle}>📊 Attendance Summary (This Month)</h3>
             <div style={S.statsGrid}>
@@ -300,7 +294,6 @@ const MyProfile = () => {
 
           <div style={S.divider}></div>
 
-          {/* Change Password */}
           <div style={S.section}>
             <h3 style={S.sectionTitle}>🔒 Change Password</h3>
             <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 20 }}>

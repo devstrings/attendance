@@ -9,7 +9,7 @@ const adminAttendanceService = {
    */
   getAllEmployees: async () => {
     try {
-      const response = await api.get('/admin/employees');
+      const response = await api.get('/admin/employees?limit=1000');
       
       // ✅ Fetch today's attendance for all employees
       if (response.data.success && response.data.data.employees) {

@@ -101,7 +101,9 @@ const VerifyOTP = () => {
     }
 
     sessionStorage.setItem('otp_verified', 'true');
-    navigate('/reset-password');
+    sessionStorage.setItem('reset_otp', otpCode); // ← ye add karo
+    const role = sessionStorage.getItem('reset_role') || 'employee';
+navigate(`/${role}/reset-password`);
     setLoading(false);
   } catch (error) {
     console.error('OTP verification error:', error);

@@ -49,6 +49,18 @@ const LoginRoute = ({ children }) => {
   return children;
 };
 
+// ✅ Smart redirect — logged in hai to dashboard, nahi to login
+const AdminRootRedirect = () => {
+  const token = localStorage.getItem('admin_token');
+  const userStr = localStorage.getItem('admin_user');
+  let userRole = null;
+  try { userRole = JSON.parse(userStr)?.role; } catch (e) {}
+  if (token && userRole === 'admin') {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+  return <Navigate to="/admin/login" replace />;
+};
+
 function App() {
   const { loading } = useAuth();
 
@@ -62,22 +74,25 @@ function App() {
         <div className="App">
           <Routes>
 
-            {/* ===== HOME — admin logged in hai to dashboard ===== */}
+            {/* ===== HOME ===== */}
             <Route path="/" element={<LoginRoute><LandingPage /></LoginRoute>} />
 
-            {/* ===== LOGIN — already logged in hai to dashboard ===== */}
+            {/* ===== /admin — smart redirect ===== */}
+            <Route path="/admin" element={<AdminRootRedirect />} />
+
+            {/* ===== LOGIN ===== */}
             <Route path="/admin/login" element={
               <LoginRoute>
                 <Login userType="admin" />
               </LoginRoute>
             } />
 
-            {/* ===== PASSWORD ===== */}
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/verify-otp" element={<VerifyOTP />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/change-password" element={<ChangePassword />} />
-            <Route path="/unauthorized" element={<Unauthorized />} />
+           <Route path="/forgot-password" element={<ForgotPassword />} />
+<Route path="/admin/forgot-password" element={<ForgotPassword />} />
+<Route path="/verify-otp" element={<VerifyOTP />} />
+<Route path="/admin/verify-otp" element={<VerifyOTP />} />
+<Route path="/reset-password" element={<ResetPassword />} />
+<Route path="/admin/reset-password" element={<ResetPassword />} />
 
             {/* ===== ADMIN ROUTES ===== */}
             <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
@@ -97,6 +112,7 @@ function App() {
             <Route path="/admin/leave-requests" element={<ProtectedRoute allowedRoles={['admin']}><LeaveRequestManagement /></ProtectedRoute>} />
             <Route path="/admin/correction-requests" element={<ProtectedRoute allowedRoles={['admin']}><CorrectionRequestManagement /></ProtectedRoute>} />
             <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={['admin']}><NotificationHistory /></ProtectedRoute>} />
+            <Route path="/admin/employee-attendance/:employeeId" element={<ProtectedRoute allowedRoles={['admin']}><AttendanceDetails /></ProtectedRoute>} />
 
             {/* ===== 404 ===== */}
             <Route path="*" element={<NotFound />} />

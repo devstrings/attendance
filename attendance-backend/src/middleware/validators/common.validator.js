@@ -12,15 +12,12 @@ const commonValidations = {
     .normalizeEmail(),
 
   // Password validation
-  password: body('password')
-    .trim()
-    .notEmpty()
-    .withMessage('Password is required')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('Password must contain uppercase, lowercase, and number'),
-
+password: body('password')
+  .trim()
+  .notEmpty()
+  .withMessage('Password is required')
+  .isLength({ min: 6 })
+  .withMessage('Password must be at least 6 characters'),
   // MongoDB ID validation
   mongoId: (field) => param(field)
     .isMongoId()

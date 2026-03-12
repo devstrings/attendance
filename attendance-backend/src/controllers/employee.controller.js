@@ -195,36 +195,107 @@ const getMyAttendance = async (req, res) => {
   }
 };
 
+// =====================================================
+// REPLACE getAttendanceHistory in employeeController.js
+// =====================================================
+
 const getAttendanceHistory = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { month, year } = req.query;
+
     const employee = await Employee.findOne({ userId });
-    if (!employee) return res.status(404).json({ success: false, message: 'Employee profile not found.' });
+    if (!employee)
+      return res.status(404).json({ success: false, message: 'Employee profile not found.' });
+
+    // ── Date range for selected month ─────────────────────────────────────────
     let startDate, endDate;
     if (month && year) {
       startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-      endDate = new Date(parseInt(year), parseInt(month), 0);
+      endDate   = new Date(parseInt(year), parseInt(month), 0);
     } else {
       const now = new Date();
       startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      endDate   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     }
-    const attendanceRecords = await Attendance.find({ employeeId: employee._id, date: { $gte: startDate, $lte: endDate } }).populate('managerId', 'firstName lastName').sort({ date: 1 });
+
+    // ── Attendance records for this month ─────────────────────────────────────
+    const attendanceRecords = await Attendance.find({
+      employeeId: employee._id,
+      date: { $gte: startDate, $lte: endDate }
+    })
+      .populate('managerId', 'firstName lastName')
+      .sort({ date: 1 });
+
+    // ── Working days calculation ───────────────────────────────────────────────
+    // System config fetch (working day names + holidays)
+    const SystemConfig = require('../models/SystemConfig');
+    const Holiday      = require('../models/Holiday');
+
+    const systemConfig      = await SystemConfig.findOne({ isActive: true });
+    const configWorkingDays = systemConfig?.workingDays ||
+      ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+    // Holidays in this month range
+    const holidays     = await Holiday.find({ date: { $gte: startDate, $lte: endDate } });
+    const holidayDates = new Set(holidays.map(h => new Date(h.date).toDateString()));
+
+    // Effective start = max(joiningDate, monthStart)
+    // Effective end   = min(today, monthEnd)  — future days count nahi hone chahiye
+    const joiningDate = employee.joiningDate
+      ? new Date(employee.joiningDate)
+      : startDate;
+    joiningDate.setHours(0, 0, 0, 0);
+
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    const effectiveStart = joiningDate > startDate ? joiningDate : startDate;
+    const effectiveEnd   = endDate > today ? today : endDate;
+
+    // Count working days
+    let totalWorkingDays = 0;
+    const cursor = new Date(effectiveStart);
+    cursor.setHours(0, 0, 0, 0);
+
+    while (cursor <= effectiveEnd) {
+      const dayName    = cursor.toLocaleDateString('en-US', { weekday: 'long' });
+      const isWorking  = configWorkingDays.includes(dayName);
+      const isHoliday  = holidayDates.has(cursor.toDateString());
+      if (isWorking && !isHoliday) totalWorkingDays++;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    // ── Statistics ────────────────────────────────────────────────────────────
     const statistics = {
-      totalDays: attendanceRecords.length,
-      present: attendanceRecords.filter(a => ['present', 'late', 'half-day'].includes(a.status)).length,
-      absent: attendanceRecords.filter(a => a.status === 'absent').length,
-      late: attendanceRecords.filter(a => a.isLate).length,
-      halfDay: attendanceRecords.filter(a => a.status === 'half-day').length,
-      // ✅ Both leave statuses
-      onLeave: attendanceRecords.filter(a => ['leave', 'on-leave'].includes(a.status)).length,
-      totalWorkHours: attendanceRecords.reduce((sum, a) => sum + (a.workHours || 0), 0),
-      totalOvertimeHours: attendanceRecords.reduce((sum, a) => sum + (a.overtimeHours || 0), 0)
+      totalDays: totalWorkingDays,   // ✅ Working days (join date + holidays considered)
+      present:   attendanceRecords.filter(a => ['present', 'late', 'half-day'].includes(a.status)).length,
+      absent:    attendanceRecords.filter(a => a.status === 'absent').length,
+      late:      attendanceRecords.filter(a => a.isLate).length,
+      halfDay:   attendanceRecords.filter(a => a.status === 'half-day').length,
+      onLeave:   attendanceRecords.filter(a => ['leave', 'on-leave'].includes(a.status)).length,
+      totalWorkHours:     attendanceRecords.reduce((sum, a) => sum + (a.workHours    || 0), 0),
+      totalOvertimeHours: attendanceRecords.reduce((sum, a) => sum + (a.overtimeHours || 0), 0),
     };
-    res.status(200).json({ success: true, data: { attendance: attendanceRecords, statistics, period: { month: startDate.getMonth() + 1, year: startDate.getFullYear() } } });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        attendance: attendanceRecords,
+        statistics,
+        period: {
+          month: startDate.getMonth() + 1,
+          year:  startDate.getFullYear()
+        }
+      }
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch attendance history.', error: error.message });
+    console.error('❌ getAttendanceHistory error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch attendance history.',
+      error: error.message
+    });
   }
 };
 

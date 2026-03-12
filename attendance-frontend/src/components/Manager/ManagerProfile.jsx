@@ -131,8 +131,11 @@ const ManagerProfile = () => {
       const res = await fetch(`${API}/auth/change-password`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword })
-      });
+body: JSON.stringify({ 
+  oldPassword: passwordForm.currentPassword, 
+  password: passwordForm.newPassword,
+  confirmPassword: passwordForm.confirmPassword
+})      });
       const data = await res.json();
       if (res.ok && data.success) {
         alert('✅ Password changed successfully!');

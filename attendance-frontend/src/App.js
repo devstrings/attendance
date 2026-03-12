@@ -89,9 +89,11 @@ function App() {
 
           {/* ===== PASSWORD ===== */}
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/verify-otp" element={<VerifyOTP />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/change-password" element={<ChangePassword />} />
+<Route path="/employee/forgot-password" element={<ForgotPassword />} />
+<Route path="/verify-otp" element={<VerifyOTP />} />
+<Route path="/employee/verify-otp" element={<VerifyOTP />} />
+<Route path="/reset-password" element={<ResetPassword />} />
+<Route path="/employee/reset-password" element={<ResetPassword />} />
 
           {/* ===== ERRORS ===== */}
           <Route path="/unauthorized" element={<Unauthorized />} />

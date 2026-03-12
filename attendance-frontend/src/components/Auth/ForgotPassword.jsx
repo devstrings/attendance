@@ -45,7 +45,8 @@ const handleSubmit = async (e) => {
     }
 
     setEmailSent(true);
-    sessionStorage.setItem('reset_email', email);
+sessionStorage.setItem('reset_email', email);      // ← ye add karo
+sessionStorage.setItem('reset_role', 'employee');
     setLoading(false);
   } catch (error) {
     console.error('Forgot password error:', error);
@@ -78,7 +79,7 @@ const handleSubmit = async (e) => {
           <div className="auth-actions">
             <button
               className="btn-submit"
-              onClick={() => navigate('/verify-otp')}
+              onClick={() => navigate('/employee/verify-otp')}
             >
               Enter OTP Code
             </button>
@@ -93,7 +94,7 @@ const handleSubmit = async (e) => {
           <div className="auth-footer">
             <button
               className="link-button"
-              onClick={() => navigate('/login')}
+              onClick={() => navigate('/employee/login')}
             >
               ← Back to Login
             </button>

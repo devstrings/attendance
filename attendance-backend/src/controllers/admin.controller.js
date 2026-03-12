@@ -631,11 +631,75 @@ const createSystemConfig = async (req, res) => {
 
 const updateSystemConfig = async (req, res) => {
   try {
-    const config = await SystemConfig.findByIdAndUpdate(req.params.configId, { $set: { ...req.body, updatedBy: req.user.userId } }, { new: true }).populate('createdBy', 'email').populate('updatedBy', 'email');
+    // ✅ Pehle purana config fetch karo comparison ke liye
+    const oldConfig = await SystemConfig.findById(req.params.configId);
+
+    const config = await SystemConfig.findByIdAndUpdate(
+      req.params.configId,
+      { $set: { ...req.body, updatedBy: req.user.userId } },
+      { new: true }
+    ).populate('createdBy', 'email').populate('updatedBy', 'email');
+
     if (!config) return res.status(404).json({ success: false, message: 'Config not found.' });
-    try { await notificationService.sendAnnouncement('⚙️ System Settings Updated', 'System settings have been updated by admin.', 'all'); } catch (e) {}
+
+    // ✅ Changes detect karo
+    const changes = [];
+
+    if (oldConfig && req.body.workingDays) {
+      const oldDays = (oldConfig.workingDays || []).sort().join(', ');
+      const newDays = (req.body.workingDays || []).sort().join(', ');
+      if (oldDays !== newDays) {
+        changes.push(`📅 Working Days: ${oldDays} → ${newDays}`);
+      }
+    }
+
+    if (oldConfig && req.body.workingHours) {
+      const oldStart = oldConfig.workingHours?.startTime;
+      const oldEnd = oldConfig.workingHours?.endTime;
+      const oldLate = oldConfig.workingHours?.lateEntryTime;
+      const newStart = req.body.workingHours?.startTime;
+      const newEnd = req.body.workingHours?.endTime;
+      const newLate = req.body.workingHours?.lateEntryTime;
+      if (oldStart !== newStart || oldEnd !== newEnd) {
+        changes.push(`⏰ Working Hours: ${oldStart}-${oldEnd} → ${newStart}-${newEnd}`);
+      }
+      if (oldLate !== newLate) {
+        changes.push(`🕐 Late Entry Time: ${oldLate} → ${newLate}`);
+      }
+    }
+
+    if (oldConfig && req.body.breakTime !== undefined) {
+      if (oldConfig.breakTime !== req.body.breakTime) {
+        changes.push(`☕ Break Time: ${oldConfig.breakTime} min → ${req.body.breakTime} min`);
+      }
+    }
+
+    if (oldConfig && req.body.leavePolicy) {
+      const oldAllowed = oldConfig.leavePolicy?.allowedLeaves;
+      const newAllowed = req.body.leavePolicy?.allowedLeaves;
+      const oldAuto = oldConfig.leavePolicy?.autoAbsentOnExceed;
+      const newAuto = req.body.leavePolicy?.autoAbsentOnExceed;
+      if (oldAllowed !== newAllowed) {
+        changes.push(`📋 Allowed Leaves: ${oldAllowed}/month → ${newAllowed}/month`);
+      }
+      if (oldAuto !== newAuto) {
+        changes.push(`🚫 Auto Absent: ${oldAuto ? 'Yes' : 'No'} → ${newAuto ? 'Yes' : 'No'}`);
+      }
+    }
+
+    // ✅ Detailed notification bhejo
+    try {
+      const notifTitle = '⚙️ System Settings Updated';
+      const notifMessage = changes.length > 0
+        ? `Admin ne system settings update ki hain:\n${changes.join('\n')}`
+        : 'System settings have been updated by admin.';
+      await notificationService.sendAnnouncement(notifTitle, notifMessage, 'all');
+    } catch (e) { console.warn('⚠️ Notification failed:', e.message); }
+
     res.status(200).json({ success: true, message: 'Config updated.', data: { config } });
-  } catch (error) { res.status(500).json({ success: false, message: 'Failed to update config.', error: error.message }); }
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to update config.', error: error.message });
+  }
 };
 
 const fixEmployeeManagerLinks = async (req, res) => {

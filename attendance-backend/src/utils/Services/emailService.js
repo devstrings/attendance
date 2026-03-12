@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const SmtpSettings = require('../models/SmtpSettings');
+const SmtpSettings = require('../../models/SmtpSettings');
 
 class EmailService {
   constructor() {

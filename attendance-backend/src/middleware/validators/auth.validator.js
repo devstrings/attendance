@@ -25,18 +25,13 @@ const authValidators = {
   ],
 
   // Reset password
-  resetPassword: [
-    commonValidations.email,
-    body('otp').trim().notEmpty().withMessage('OTP is required'),
-    commonValidations.password,
-    body('confirmPassword')
-      .trim()
-      .notEmpty()
-      .withMessage('Confirm password is required')
-      .custom((value, { req }) => value === req.body.password)
-      .withMessage('Passwords do not match'),
-    validate,
-  ],
+ resetPassword: [
+  commonValidations.email,
+  body('newPassword').trim().notEmpty().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('confirmPassword').trim().notEmpty().withMessage('Confirm password is required')
+    .custom((value, { req }) => value === req.body.newPassword).withMessage('Passwords do not match'),
+  validate,
+],
 
   // Change password
   changePassword: [

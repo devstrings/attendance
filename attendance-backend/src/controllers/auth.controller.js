@@ -337,11 +337,13 @@ const resetPassword = async (req, res) => {
  */
 const changePassword = async (req, res) => {
   try {
-    const { currentPassword, newPassword, confirmPassword } = req.body;
+    const { currentPassword, oldPassword, newPassword, password, confirmPassword } = req.body;
+const currentPass = currentPassword || oldPassword;
+const newPass = newPassword || password;
     const userId = req.user.userId;
 
     // Validate input
-    if (!currentPassword || !newPassword || !confirmPassword) {
+    if (!currentPass || !newPass || !confirmPassword) {
       return res.status(400).json({
         success: false,
         message: 'All fields are required.'
@@ -349,7 +351,7 @@ const changePassword = async (req, res) => {
     }
 
     // Check if passwords match
-    if (newPassword !== confirmPassword) {
+    if (newPass !== confirmPassword) {
       return res.status(400).json({
         success: false,
         message: 'New passwords do not match.'
@@ -357,7 +359,7 @@ const changePassword = async (req, res) => {
     }
 
     // Validate password strength
-    const passwordValidation = validatePassword(newPassword);
+    const passwordValidation = validatePassword(newPass);
     if (!passwordValidation.isValid) {
       return res.status(400).json({
         success: false,
@@ -376,7 +378,7 @@ const changePassword = async (req, res) => {
     }
 
     // Verify current password
-    const isPasswordValid = await user.comparePassword(currentPassword);
+   const isPasswordValid = await user.comparePassword(currentPass);
 
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -386,7 +388,7 @@ const changePassword = async (req, res) => {
     }
 
     // Check if new password is same as old
-    const isSamePassword = await user.comparePassword(newPassword);
+    const isSamePassword = await user.comparePassword(newPass);
     if (isSamePassword) {
       return res.status(400).json({
         success: false,
@@ -395,7 +397,7 @@ const changePassword = async (req, res) => {
     }
 
     // Update password
-    user.password = newPassword;
+    user.password = newPass;
     await user.save();
 
     res.status(200).json({

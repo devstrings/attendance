@@ -45,19 +45,13 @@ const AdminNavbar = () => {
   };
 
   const handleLogout = () => {
-  // ✅ Clear all auth data
-  localStorage.removeItem('manager_token');
-  localStorage.removeItem('manager_user');
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  
-  // ✅ Clear session storage
+  // ✅ Admin ka data clear karo
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('admin_user');
   sessionStorage.clear();
-  
-  console.log('🚪 Manager logged out');
-  
-  // ✅ Redirect to home
-  navigate('/');
+  console.log('🚪 Admin logged out');
+  // ✅ Admin login page pe bhejo
+  navigate('/admin/login');
 };
 
   const toggleDropdown = () => {

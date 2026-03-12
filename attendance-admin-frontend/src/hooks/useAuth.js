@@ -14,7 +14,6 @@ const useAuth = () => {
 
   const checkAuth = () => {
     try {
-      // ✅ Check which role is logged in by checking current URL
       const path = window.location.pathname;
       let currentRole = null;
 
@@ -29,7 +28,7 @@ const useAuth = () => {
       if (currentRole) {
         const tokenKey = `${currentRole}_token`;
         const userKey = `${currentRole}_user`;
-        
+
         const token = localStorage.getItem(tokenKey);
         const userStr = localStorage.getItem(userKey);
 
@@ -49,21 +48,29 @@ const useAuth = () => {
   };
 
   const logout = (role) => {
-    if (role) {
-      // ✅ Logout specific role
-      const tokenKey = `${role}_token`;
-      const userKey = `${role}_user`;
-      localStorage.removeItem(tokenKey);
-      localStorage.removeItem(userKey);
-      console.log(`🚪 Logged out: ${role}`);
+    // ✅ FIX: role determine karo agar pass nahi hua
+    const currentRole = role || (() => {
+      const path = window.location.pathname;
+      if (path.startsWith('/admin')) return 'admin';
+      if (path.startsWith('/manager')) return 'manager';
+      if (path.startsWith('/employee')) return 'employee';
+      return null;
+    })();
+
+    if (currentRole) {
+      // ✅ Sirf is role ka data hataao
+      localStorage.removeItem(`${currentRole}_token`);
+      localStorage.removeItem(`${currentRole}_user`);
+      console.log(`🚪 Logged out: ${currentRole}`);
+      setUser(null);
+      // ✅ FIX: Login page pe bhejo, home pe nahi
+      window.location.href = `/${currentRole}/login`;
     } else {
-      // ✅ Logout all roles
+      // Fallback: sab clear karo
       localStorage.clear();
-      console.log('🚪 Logged out: all roles');
+      setUser(null);
+      window.location.href = '/';
     }
-    
-    setUser(null);
-    window.location.href = '/';
   };
 
   return {

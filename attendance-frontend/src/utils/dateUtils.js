@@ -1,14 +1,23 @@
 // Format date to display format (DD/MM/YYYY)
 export const formatDate = (date) => {
   if (!date) return '';
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return '';
-  
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  
-  return `${day}/${month}/${year}`;
+
+  let day, month, year;
+
+  // If ISO string like "2026-03-09T00:00:00.000Z" or "2026-03-09"
+  // Seedha string se parse karo — timezone shift nahi hoga
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)) {
+    [year, month, day] = date.substring(0, 10).split('-').map(Number);
+  } else {
+    // Date object → UTC values use karo
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    day   = d.getUTCDate();
+    month = d.getUTCMonth() + 1;
+    year  = d.getUTCFullYear();
+  }
+
+  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
 };
 
 // Format date to API format (YYYY-MM-DD)

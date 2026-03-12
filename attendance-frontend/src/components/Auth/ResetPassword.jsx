@@ -14,57 +14,50 @@ const ResetPassword = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
-    // Check if OTP was verified
     const otpVerified = sessionStorage.getItem('otp_verified');
     if (!otpVerified) {
       navigate('/forgot-password');
     }
   }, [navigate]);
 
+  // ✅ Role ke hisaab se login page
+  const getLoginPath = () => {
+    const role = sessionStorage.getItem('reset_role') || 'employee';
+    if (role === 'admin') return '/admin/login';
+    if (role === 'manager') return '/manager/login';
+    return '/employee/login';
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
   const validateForm = () => {
     const newErrors = {};
-
     if (!formData.newPassword) {
       newErrors.newPassword = 'Password is required';
     } else if (formData.newPassword.length < 6) {
       newErrors.newPassword = 'Password must be at least 6 characters';
     }
-
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Please confirm your password';
     } else if (formData.newPassword !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const getPasswordStrength = (password) => {
     if (!password) return { strength: 'none', percentage: 0 };
-    
     let strength = 0;
-    
     if (password.length >= 6) strength += 25;
     if (password.length >= 8) strength += 25;
     if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength += 25;
     if (/\d/.test(password)) strength += 12.5;
     if (/[^a-zA-Z0-9]/.test(password)) strength += 12.5;
-
     if (strength < 40) return { strength: 'weak', percentage: strength };
     if (strength < 70) return { strength: 'medium', percentage: strength };
     return { strength: 'strong', percentage: strength };
@@ -73,46 +66,42 @@ const ResetPassword = () => {
   const passwordStrength = getPasswordStrength(formData.newPassword);
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
+    if (!validateForm()) return;
+    setLoading(true);
 
-  if (!validateForm()) return;
+    try {
+      const email = sessionStorage.getItem('reset_email');
 
-  setLoading(true);
+      const response = await fetch('http://localhost:5000/api/v1/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          newPassword: formData.newPassword,
+          confirmPassword: formData.confirmPassword
+        })
+      });
 
-  try {
-    const email = sessionStorage.getItem('reset_email');
-    
-    const response = await fetch('http://localhost:5000/api/v1/auth/reset-password', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email,
-        newPassword: formData.newPassword,
-        confirmPassword: formData.confirmPassword
-      })
-    });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to reset password');
 
-    const data = await response.json();
+      // ✅ Clear session storage
+      sessionStorage.removeItem('reset_email');
+      sessionStorage.removeItem('otp_verified');
+      sessionStorage.removeItem('reset_otp');
+      sessionStorage.removeItem('reset_role');
 
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to reset password');
+      alert('Password reset successfully! Please login with your new password.');
+      navigate(getLoginPath()); // ✅ Sahi login page pe jao
+    } catch (error) {
+      console.error('Reset password error:', error);
+      setErrors({ submit: error.message || 'Failed to reset password. Please try again.' });
+    } finally {
+      setLoading(false);
     }
+  };
 
-    // Clear session storage
-    sessionStorage.removeItem('reset_email');
-    sessionStorage.removeItem('otp_verified');
-    
-    alert('Password reset successfully!');
-    navigate('/login');
-    setLoading(false);
-  } catch (error) {
-    console.error('Reset password error:', error);
-    setErrors({ submit: error.message || 'Failed to reset password. Please try again.' });
-    setLoading(false);
-  }
-};
   return (
     <div className="auth-container">
       <div className="auth-box">
@@ -138,23 +127,16 @@ const ResetPassword = () => {
                 className={errors.newPassword ? 'error' : ''}
                 autoFocus
               />
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() => setShowNewPassword(!showNewPassword)}
-              >
+              <button type="button" className="password-toggle" onClick={() => setShowNewPassword(!showNewPassword)}>
                 {showNewPassword ? '👁️' : '👁️‍🗨️'}
               </button>
             </div>
             {errors.newPassword && <span className="error-text">{errors.newPassword}</span>}
-            
+
             {formData.newPassword && (
               <div className="password-strength">
                 <div className="strength-bar">
-                  <div 
-                    className={`strength-fill ${passwordStrength.strength}`}
-                    style={{ width: `${passwordStrength.percentage}%` }}
-                  />
+                  <div className={`strength-fill ${passwordStrength.strength}`} style={{ width: `${passwordStrength.percentage}%` }} />
                 </div>
                 <span className={`strength-label ${passwordStrength.strength}`}>
                   {passwordStrength.strength === 'weak' && 'Weak'}
@@ -177,11 +159,7 @@ const ResetPassword = () => {
                 placeholder="Confirm new password"
                 className={errors.confirmPassword ? 'error' : ''}
               />
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              >
+              <button type="button" className="password-toggle" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
                 {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
               </button>
             </div>
@@ -193,35 +171,20 @@ const ResetPassword = () => {
           <div className="password-requirements">
             <h4>Password Requirements:</h4>
             <ul>
-              <li className={formData.newPassword.length >= 6 ? 'valid' : ''}>
-                At least 6 characters
-              </li>
-              <li className={/[a-z]/.test(formData.newPassword) && /[A-Z]/.test(formData.newPassword) ? 'valid' : ''}>
-                Mix of uppercase and lowercase letters (recommended)
-              </li>
-              <li className={/\d/.test(formData.newPassword) ? 'valid' : ''}>
-                At least one number (recommended)
-              </li>
-              <li className={/[^a-zA-Z0-9]/.test(formData.newPassword) ? 'valid' : ''}>
-                At least one special character (recommended)
-              </li>
+              <li className={formData.newPassword.length >= 6 ? 'valid' : ''}>At least 6 characters</li>
+              <li className={/[a-z]/.test(formData.newPassword) && /[A-Z]/.test(formData.newPassword) ? 'valid' : ''}>Mix of uppercase and lowercase letters (recommended)</li>
+              <li className={/\d/.test(formData.newPassword) ? 'valid' : ''}>At least one number (recommended)</li>
+              <li className={/[^a-zA-Z0-9]/.test(formData.newPassword) ? 'valid' : ''}>At least one special character (recommended)</li>
             </ul>
           </div>
 
-          <button
-            type="submit"
-            className="btn-submit"
-            disabled={loading}
-          >
+          <button type="submit" className="btn-submit" disabled={loading}>
             {loading ? 'Resetting Password...' : 'Reset Password'}
           </button>
         </form>
 
         <div className="auth-footer">
-          <button
-            className="link-button"
-            onClick={() => navigate('/login')}
-          >
+          <button className="link-button" onClick={() => navigate(getLoginPath())}>
             ← Back to Login
           </button>
         </div>
