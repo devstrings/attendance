@@ -35,10 +35,10 @@ const AdminDashboard = () => {
       const response = await adminService.getDashboard();
       
       if (response.success) {
-        const totalEmp = response.data.stats?.totalEmployees || 0;
-        const present = response.data.stats?.todayAttendance || 0;
-        const leave = response.data.stats?.pendingLeaves || 0;
-        const absent = response.data.stats?.absentToday || 0;
+       const totalEmp = response.data.stats?.totalEmployees || 0;
+const present  = response.data.stats?.todayAttendance || 0;
+const absent   = response.data.stats?.absentToday     || 0;
+const leave    = response.data.stats?.leaveToday      || 0; // ✅ sahi field
 
         setDashboardData({
           stats: {

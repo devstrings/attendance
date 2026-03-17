@@ -263,12 +263,19 @@ const createEmployee = async (req, res) => {
     if (cnic && cnic.trim() !== '') { const existingCNIC = await Employee.findOne({ cnic: cnic.trim(), isActive: true }); if (existingCNIC) return res.status(400).json({ success: false, message: `Employee with CNIC ${cnic} already exists.` }); }
 
     let employeeCode, isUnique = false, attempts = 0;
-    while (!isUnique && attempts < 10) {
-      const count = await Employee.countDocuments();
-      employeeCode = `EMP${String(count + attempts + 1).padStart(4, '0')}`;
-      const existing = await Employee.findOne({ employeeCode });
-      if (!existing) isUnique = true; else attempts++;
-    }
+    // BAAD (fixed)
+while (!isUnique && attempts < 20) {
+  const count = await Employee.countDocuments();
+  const num = count + attempts + 1;
+  employeeCode = `EMP${String(num).padStart(4, '0')}`;
+  const existing = await Employee.findOne({ employeeCode });
+  if (!existing) isUnique = true;
+  else attempts++;
+}
+if (!isUnique) {
+  // Last resort: timestamp based
+  employeeCode = `EMP${Date.now().toString().slice(-6)}`;
+}
 
     const user = new User({ email: email.toLowerCase(), password, role: 'employee', isActive: true, createdBy: req.user.userId });
     await user.save();
@@ -276,7 +283,7 @@ const createEmployee = async (req, res) => {
     const employee = new Employee({
       userId: user._id, managerId: managerId || null,
       firstName: firstName.trim(), lastName: lastName.trim(), employeeCode,
-      phoneNumber: phoneNumber.trim(), cnic: cnic ? cnic.trim() : null,
+      phoneNumber: phoneNumber.trim(), cnic: cnic && cnic.trim() !== '' ? cnic.trim() : undefined,
       dateOfBirth: dateOfBirth || null, address: address ? address.trim() : null,
       department: department || 'General', designation: designation || 'Employee',
       employmentType: employmentType || 'full-time', salary: salary || 0,

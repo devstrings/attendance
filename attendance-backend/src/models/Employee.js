@@ -34,13 +34,7 @@ const employeeSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  cnic: {
-    type: String,
-    unique: true,
-    sparse: true, // Allows multiple null/empty values
-    trim: true,
-    default: null // Use null instead of empty string
-  },
+ cnic: { type: String, unique: true, sparse: true },
   dateOfBirth: {
     type: Date
   },

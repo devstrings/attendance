@@ -37,22 +37,50 @@ const AttendanceView = () => {
       const attendanceResponse = await adminService.getAllAttendance({ date: selectedDate });
       const employeesResponse = await adminAttendanceService.getAllEmployees();
       
-      if (attendanceResponse.success) {
-        const formatted = attendanceResponse.data.attendance.map(record => ({
-          id: record._id,
-          employeeId: record.employeeId?.employeeCode || 'N/A',
-          employeeName: `${record.employeeId?.firstName || ''} ${record.employeeId?.lastName || ''}`,
-          department: record.employeeId?.department || 'N/A',
-          status: record.status,
-          clockIn: record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : null,
-          clockOut: record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : null,
-          hoursWorked: record.workHours || 0,
-          notes: record.remarks || ''
-        }));
-        setAttendanceRecords(formatted);
-      } else {
-        setAttendanceRecords([]);
-      }
+    if (attendanceResponse.success && employeesResponse.success) {
+  const allEmployees = employeesResponse.data.employees || [];
+
+  const formatted = attendanceResponse.data.attendance.map(record => ({
+    id: record._id,
+    employeeId: record.employeeId?.employeeCode || 'N/A',
+    employeeName: `${record.employeeId?.firstName || ''} ${record.employeeId?.lastName || ''}`,
+    department: record.employeeId?.department || 'N/A',
+    status: record.status,
+    clockIn: record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : null,
+    clockOut: record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : null,
+    hoursWorked: record.workHours || 0,
+    notes: record.remarks || '',
+    hasRecord: true
+  }));
+
+  // ✅ Jo employees ka record nahi unhe Absent add karo
+  const presentIds = attendanceResponse.data.attendance
+    .map(r => r.employeeId?._id?.toString())
+    .filter(Boolean);
+
+  const absentRows = allEmployees
+    .filter(emp =>
+      emp.firstName && emp.lastName && emp.employeeCode &&
+      !emp.employeeCode.includes('TEST') &&
+      !presentIds.includes(emp._id?.toString())
+    )
+    .map(emp => ({
+      id: emp._id,
+      employeeId: emp.employeeCode || 'N/A',
+      employeeName: `${emp.firstName || ''} ${emp.lastName || ''}`,
+      department: emp.department || 'N/A',
+      status: 'absent',
+      clockIn: null,
+      clockOut: null,
+      hoursWorked: 0,
+      notes: '',
+      hasRecord: false
+    }));
+
+  setAttendanceRecords([...formatted, ...absentRows]);
+} else {
+  setAttendanceRecords([]);
+}
 
       if (employeesResponse.success && employeesResponse.data.employees) {
         const realEmployees = employeesResponse.data.employees.filter(emp => 
