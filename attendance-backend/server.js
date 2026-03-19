@@ -21,6 +21,13 @@ const server = app.listen(PORT, () => {
   console.log(`🌍 Environment: ${config.server.env}`);
   console.log(`📡 API URL: http://localhost:${PORT}${config.server.apiPrefix}`);
   console.log('🚀 ================================\n');
+
+  // ===== Auto Checkout Cron Job =====
+  // DB connect hone ke baad start karo
+  const { autoCheckoutJob } = require('./src/utils/autoCheckout');
+  console.log('🕐 Starting auto checkout cron job...');
+  autoCheckoutJob.start();
+  console.log('✅ Auto checkout cron job running — triggers at office end time + 15 min grace');
 });
 
 // Handle unhandled promise rejections
