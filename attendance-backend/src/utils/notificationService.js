@@ -55,7 +55,7 @@ const getNotificationEmailTemplate = ({ title, message, type, link }) => {
     correction_request: { color: '#f59e0b', icon: '⚠️', label: 'Correction Request' },
     correction_resolved:{ color: '#8b5cf6', icon: '🔧', label: 'Correction Resolved' },
     announcement:       { color: '#6366f1', icon: '📢', label: 'Announcement' },
-    system:             { color: '#0ea5e9', icon: '⚙️', label: 'System Notification' },
+    system_update:      { color: '#0ea5e9', icon: '⚙️', label: 'System Notification' },
   };
 
   const cfg = typeConfig[type] || { color: '#6b7280', icon: '🔔', label: 'Notification' };

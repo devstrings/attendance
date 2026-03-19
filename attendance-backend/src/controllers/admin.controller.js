@@ -326,7 +326,7 @@ if (!isUnique) {
             userId: assignedManager.userId._id,
             title: '👤 New Employee Assigned',
             message: `${firstName} ${lastName} (${employeeCode}) has been assigned to you as a new employee in the ${department || 'General'} department.`,
-            type: 'system',
+           type: 'system_update',
             isRead: false
           });
 
