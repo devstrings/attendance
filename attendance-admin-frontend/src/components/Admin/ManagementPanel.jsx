@@ -311,6 +311,7 @@ const ManagementPanel = () => {
                           name="holidayDate"
                           value={holidayForm.holidayDate}
                           onChange={handleHolidayChange}
+                          onClick={(e) => e.target.showPicker?.()}
                           className={holidayErrors.holidayDate ? 'error' : ''}
                         />
                         {holidayErrors.holidayDate && (
@@ -451,6 +452,7 @@ const ManagementPanel = () => {
                           name="startTime"
                           value={configForm.startTime}
                           onChange={handleConfigChange}
+                          onClick={(e) => e.target.showPicker?.()}
                         />
                         <small>When office hours begin</small>
                       </div>
@@ -461,6 +463,7 @@ const ManagementPanel = () => {
                           type="time"
                           name="lateEntryTime"
                           value={configForm.lateEntryTime}
+                          onClick={(e) => e.target.showPicker?.()}
                           onChange={handleConfigChange}
                         />
                         <small>Mark as late after this time</small>
@@ -473,6 +476,7 @@ const ManagementPanel = () => {
                           name="endTime"
                           value={configForm.endTime}
                           onChange={handleConfigChange}
+                          onClick={(e) => e.target.showPicker?.()}
                         />
                         <small>When office hours end</small>
                       </div>

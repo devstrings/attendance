@@ -701,3 +701,15 @@ body {
   .stats-grid, .stats-grid-small { grid-template-columns: 1fr; }
   .admin-badge, .manager-badge { display: none; }
 }
+.clock-time {
+  color: #ffffff !important;
+  font-size: 48px;
+  font-weight: 700;
+}
+.clock-date {
+  color: #e2e8f0 !important;
+  font-size: 16px;
+}
+.page-header h1 {
+  color: #111827 !important;
+}

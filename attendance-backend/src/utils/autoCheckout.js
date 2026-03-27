@@ -27,12 +27,15 @@ const performAutoCheckout = async (forcedEndTime = null) => {
   const [endHour, endMinute] = endTime.split(':').map(Number);
 
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+today.setHours(0, 0, 0, 0);
 
-  const openAttendance = await Attendance.find({
-    date: { $gte: today },
-    clockOut: null,
-    status: { $in: ['present', 'late'] }
+// UTC offset fix — date field UTC mein store hoti hai
+const todayUTC = new Date(today.getTime() - (5 * 60 * 60 * 1000));
+
+const openAttendance = await Attendance.find({
+  date: { $gte: todayUTC },
+  clockOut: null,
+  status: { $in: ['present', 'late'] }
   }).populate('employeeId', 'firstName lastName employeeCode');
 
   if (openAttendance.length === 0) {
@@ -107,7 +110,8 @@ const autoCheckoutJob = cron.schedule('* * * * *', async () => {
     // Only trigger in the window: graceEnd <= now < graceEnd+2 minutes
     // This prevents firing every minute all night
     const triggerStart = graceEndTotal;
-    const triggerEnd   = graceEndTotal + 2;
+    const triggerEnd = graceEndTotal + 5;
+
 
     if (nowTotal < triggerStart || nowTotal >= triggerEnd) {
       return; // Outside trigger window — do nothing

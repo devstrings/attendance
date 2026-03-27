@@ -1,25 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import AdminNavbar from './AdminNavbar';
-import AdminSidebar from './AdminSidebar';
-import adminService from '../../services/adminService';
-import adminAttendanceService from '../../services/adminAttendanceService';
-import MarkAttendanceModal from './MarkAttendanceModal';
-import '../../styles/Admin.css';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import AdminNavbar from "./AdminNavbar";
+import AdminSidebar from "./AdminSidebar";
+import adminService from "../../services/adminService";
+import adminAttendanceService from "../../services/adminAttendanceService";
+import MarkAttendanceModal from "./MarkAttendanceModal";
+import "../../styles/Admin.css";
 
 const AttendanceView = () => {
   const navigate = useNavigate();
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterDepartment, setFilterDepartment] = useState('');
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterDepartment, setFilterDepartment] = useState("");
   const [showMarkAttendanceModal, setShowMarkAttendanceModal] = useState(false);
   const [totalEmployees, setTotalEmployees] = useState(0);
-
-  const statuses = ['present', 'absent', 'leave', 'on-leave', 'holiday'];
 
   useEffect(() => {
     fetchData();
@@ -34,57 +34,69 @@ const AttendanceView = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const attendanceResponse = await adminService.getAllAttendance({ date: selectedDate });
+      const attendanceResponse = await adminService.getAllAttendance({
+        date: selectedDate,
+      });
       const employeesResponse = await adminAttendanceService.getAllEmployees();
-      
-    if (attendanceResponse.success && employeesResponse.success) {
-  const allEmployees = employeesResponse.data.employees || [];
 
-  const formatted = attendanceResponse.data.attendance.map(record => ({
-    id: record._id,
-    employeeId: record.employeeId?.employeeCode || 'N/A',
-    employeeName: `${record.employeeId?.firstName || ''} ${record.employeeId?.lastName || ''}`,
-    department: record.employeeId?.department || 'N/A',
-    status: record.status,
-    clockIn: record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : null,
-    clockOut: record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : null,
-    hoursWorked: record.workHours || 0,
-    notes: record.remarks || '',
-    hasRecord: true
-  }));
+      if (attendanceResponse.success && employeesResponse.success) {
+        const allEmployees = employeesResponse.data.employees || [];
 
-  // ✅ Jo employees ka record nahi unhe Absent add karo
-  const presentIds = attendanceResponse.data.attendance
-    .map(r => r.employeeId?._id?.toString())
-    .filter(Boolean);
+        const formatted = attendanceResponse.data.attendance.map((record) => ({
+          id: record._id,
+          employeeId: record.employeeId?.employeeCode || "N/A",
+          employeeName: `${record.employeeId?.firstName || ""} ${record.employeeId?.lastName || ""}`,
+          department: record.employeeId?.department || "N/A",
+          status: record.status,
+          clockIn: record.clockIn
+            ? new Date(record.clockIn).toLocaleTimeString()
+            : null,
+          clockOut: record.clockOut
+            ? new Date(record.clockOut).toLocaleTimeString()
+            : null,
+          hoursWorked: record.workHours || 0,
+          notes: record.remarks || "",
+          hasRecord: true,
+        }));
 
-  const absentRows = allEmployees
-    .filter(emp =>
-      emp.firstName && emp.lastName && emp.employeeCode &&
-      !emp.employeeCode.includes('TEST') &&
-      !presentIds.includes(emp._id?.toString())
-    )
-    .map(emp => ({
-      id: emp._id,
-      employeeId: emp.employeeCode || 'N/A',
-      employeeName: `${emp.firstName || ''} ${emp.lastName || ''}`,
-      department: emp.department || 'N/A',
-      status: 'absent',
-      clockIn: null,
-      clockOut: null,
-      hoursWorked: 0,
-      notes: '',
-      hasRecord: false
-    }));
+        const presentIds = attendanceResponse.data.attendance
+          .map((r) => r.employeeId?._id?.toString())
+          .filter(Boolean);
 
-  setAttendanceRecords([...formatted, ...absentRows]);
-} else {
-  setAttendanceRecords([]);
-}
+        const absentRows = allEmployees
+          .filter(
+            (emp) =>
+              emp.firstName &&
+              emp.lastName &&
+              emp.employeeCode &&
+              !emp.employeeCode.includes("TEST") &&
+              !presentIds.includes(emp._id?.toString()),
+          )
+          .map((emp) => ({
+            id: emp._id,
+            employeeId: emp.employeeCode || "N/A",
+            employeeName: `${emp.firstName || ""} ${emp.lastName || ""}`,
+            department: emp.department || "N/A",
+            status: "absent",
+            clockIn: null,
+            clockOut: null,
+            hoursWorked: 0,
+            notes: "",
+            hasRecord: false,
+          }));
+
+        setAttendanceRecords([...formatted, ...absentRows]);
+      } else {
+        setAttendanceRecords([]);
+      }
 
       if (employeesResponse.success && employeesResponse.data.employees) {
-        const realEmployees = employeesResponse.data.employees.filter(emp => 
-          emp.firstName && emp.lastName && emp.employeeCode && !emp.employeeCode.includes('TEST')
+        const realEmployees = employeesResponse.data.employees.filter(
+          (emp) =>
+            emp.firstName &&
+            emp.lastName &&
+            emp.employeeCode &&
+            !emp.employeeCode.includes("TEST"),
         );
         setTotalEmployees(realEmployees.length);
       } else {
@@ -105,48 +117,57 @@ const AttendanceView = () => {
 
   const filterRecords = () => {
     let filtered = [...attendanceRecords];
-
     if (searchTerm) {
-      filtered = filtered.filter(record =>
-        record.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        record.employeeId.includes(searchTerm)
+      filtered = filtered.filter(
+        (record) =>
+          record.employeeName
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          record.employeeId.includes(searchTerm),
       );
     }
-
     if (filterStatus) {
-      // ✅ Filter: 'leave' aur 'on-leave' dono ko 'leave' filter se match karo
-      if (filterStatus === 'leave' || filterStatus === 'on-leave') {
-        filtered = filtered.filter(record => record.status === 'leave' || record.status === 'on-leave');
+      if (filterStatus === "leave" || filterStatus === "on-leave") {
+        filtered = filtered.filter(
+          (record) => record.status === "leave" || record.status === "on-leave",
+        );
       } else {
-        filtered = filtered.filter(record => record.status === filterStatus);
+        filtered = filtered.filter((record) => record.status === filterStatus);
       }
     }
-
     if (filterDepartment) {
-      filtered = filtered.filter(record => record.department === filterDepartment);
+      filtered = filtered.filter(
+        (record) => record.department === filterDepartment,
+      );
     }
-
     setFilteredRecords(filtered);
   };
 
-  // ✅ FIXED: 'leave' AND 'on-leave' dono count karo
-  const presentCount = filteredRecords.filter(r => r.status === 'present').length;
-  const leaveCount = filteredRecords.filter(r => r.status === 'leave' || r.status === 'on-leave').length;
-  const holidayCount = filteredRecords.filter(r => r.status === 'holiday').length;
-  const absentCount = Math.max(0, totalEmployees - presentCount - leaveCount - holidayCount);
+  const presentCount = filteredRecords.filter(
+    (r) => r.status === "present",
+  ).length;
+  const leaveCount = filteredRecords.filter(
+    (r) => r.status === "leave" || r.status === "on-leave",
+  ).length;
+  const holidayCount = filteredRecords.filter(
+    (r) => r.status === "holiday",
+  ).length;
+  const absentCount = Math.max(
+    0,
+    totalEmployees - presentCount - leaveCount - holidayCount,
+  );
 
   const stats = {
     total: totalEmployees,
     present: presentCount,
     absent: absentCount,
     leave: leaveCount,
-    holiday: holidayCount
+    holiday: holidayCount,
   };
 
   const handleViewDetails = (id) => {
     navigate(`/admin/attendance-details/${id}`);
   };
-
   const handleAttendanceMarked = () => {
     setShowMarkAttendanceModal(false);
     fetchAttendance();
@@ -173,17 +194,49 @@ const AttendanceView = () => {
         <AdminSidebar />
 
         <div className="admin-content">
-          {/* Header */}
+          {/* ✅ Header — Date + Mark Attendance button saath */}
           <div className="page-header-modern">
             <h1>Attendance View</h1>
-            <div className="date-selector-modern">
-              <label>Select Date</label>
-              <input
-                type="date"
-                value={selectedDate}
-                max={new Date().toISOString().split('T')[0]}
-                onChange={(e) => setSelectedDate(e.target.value)}
-              />
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "16px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div className="date-selector-modern">
+                <label>Select Date</label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  max={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onClick={(e) => e.target.showPicker?.()}
+                />
+              </div>
+              <button
+                onClick={() => setShowMarkAttendanceModal(true)}
+                style={{
+                  background:
+                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  color: "white",
+                  padding: "12px 24px",
+                  borderRadius: "10px",
+                  border: "none",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  boxShadow: "0 4px 12px rgba(102, 126, 234, 0.3)",
+                  transition: "all 0.3s",
+                }}
+              >
+                <span style={{ fontSize: "18px" }}>✓</span>
+                Mark Attendance
+              </button>
             </div>
           </div>
 
@@ -207,24 +260,6 @@ const AttendanceView = () => {
             </div>
           </div>
 
-          {/* Mark Attendance Button */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-            <button
-              className="btn-primary"
-              onClick={() => setShowMarkAttendanceModal(true)}
-              style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white', padding: '12px 24px', borderRadius: '10px',
-                border: 'none', fontSize: '15px', fontWeight: '600', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '8px',
-                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)', transition: 'all 0.3s'
-              }}
-            >
-              <span style={{ fontSize: '18px' }}>✓</span>
-              Mark Attendance
-            </button>
-          </div>
-
           {/* Filters */}
           <div className="filters-modern">
             <input
@@ -233,7 +268,10 @@ const AttendanceView = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
               <option value="">All Status</option>
               <option value="present">Present</option>
               <option value="absent">Absent</option>
@@ -242,7 +280,11 @@ const AttendanceView = () => {
             </select>
             <button
               className="btn-secondary"
-              onClick={() => { setSearchTerm(''); setFilterDepartment(''); setFilterStatus(''); }}
+              onClick={() => {
+                setSearchTerm("");
+                setFilterDepartment("");
+                setFilterStatus("");
+              }}
             >
               Clear Filters
             </button>
@@ -266,23 +308,30 @@ const AttendanceView = () => {
               </thead>
               <tbody>
                 {filteredRecords.length ? (
-                  filteredRecords.map(record => (
+                  filteredRecords.map((record) => (
                     <tr key={record.id}>
                       <td>{record.employeeId}</td>
                       <td>{record.employeeName}</td>
                       <td>{record.department}</td>
                       <td>
-                        {/* ✅ Both 'leave' and 'on-leave' show as 'Leave' badge */}
-                        <span className={`status-badge ${(record.status === 'leave' || record.status === 'on-leave') ? 'leave' : record.status}`}>
-                          {(record.status === 'leave' || record.status === 'on-leave') ? 'Leave' : record.status}
+                        <span
+                          className={`status-badge ${record.status === "leave" || record.status === "on-leave" ? "leave" : record.status}`}
+                        >
+                          {record.status === "leave" ||
+                          record.status === "on-leave"
+                            ? "Leave"
+                            : record.status}
                         </span>
                       </td>
-                      <td>{record.clockIn || '-'}</td>
-                      <td>{record.clockOut || '-'}</td>
+                      <td>{record.clockIn || "-"}</td>
+                      <td>{record.clockOut || "-"}</td>
                       <td>{record.hoursWorked} hrs</td>
-                      <td>{record.notes || '-'}</td>
+                      <td>{record.notes || "-"}</td>
                       <td>
-                        <button className="btn-icon view" onClick={() => handleViewDetails(record.id)}>
+                        <button
+                          className="btn-icon view"
+                          onClick={() => handleViewDetails(record.id)}
+                        >
                           👁
                         </button>
                       </td>
@@ -291,7 +340,8 @@ const AttendanceView = () => {
                 ) : (
                   <tr>
                     <td colSpan="9" className="no-data">
-                      No attendance found for {new Date(selectedDate).toLocaleDateString()}
+                      No attendance found for{" "}
+                      {new Date(selectedDate).toLocaleDateString()}
                     </td>
                   </tr>
                 )}
@@ -300,7 +350,8 @@ const AttendanceView = () => {
           </div>
 
           <div className="table-footer-modern">
-            Showing {filteredRecords.length} records out of {stats.total} total employees
+            Showing {filteredRecords.length} records out of {stats.total} total
+            employees
           </div>
         </div>
       </div>

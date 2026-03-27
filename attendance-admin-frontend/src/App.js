@@ -11,6 +11,7 @@ import CorrectionRequestManagement from './components/Admin/CorrectionRequestMan
 import NotificationHistory from './components/Admin/NotificationHistory';
 import AttendanceDetails from './components/Admin/AttendanceDetails';
 import AdminProfile from './components/Admin/AdminProfile';
+import OvertimeManagement from './components/Admin/OvertimeManagement';
 
 import useAuth from './hooks/useAuth';
 import ProtectedRoute from './components/Common/ProtectedRoute';
@@ -113,7 +114,7 @@ function App() {
             <Route path="/admin/correction-requests" element={<ProtectedRoute allowedRoles={['admin']}><CorrectionRequestManagement /></ProtectedRoute>} />
             <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={['admin']}><NotificationHistory /></ProtectedRoute>} />
             <Route path="/admin/employee-attendance/:employeeId" element={<ProtectedRoute allowedRoles={['admin']}><AttendanceDetails /></ProtectedRoute>} />
-
+            <Route path="/admin/overtime" element={<ProtectedRoute allowedRoles={['admin']}><OvertimeManagement isManager={false} /></ProtectedRoute>} />
             {/* ===== 404 ===== */}
             <Route path="*" element={<NotFound />} />
 
