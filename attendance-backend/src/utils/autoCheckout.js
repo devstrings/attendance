@@ -110,8 +110,7 @@ const autoCheckoutJob = cron.schedule('* * * * *', async () => {
     // Only trigger in the window: graceEnd <= now < graceEnd+2 minutes
     // This prevents firing every minute all night
     const triggerStart = graceEndTotal;
-    const triggerEnd = graceEndTotal + 5;
-
+    const triggerEnd   = graceEndTotal + 2;
 
     if (nowTotal < triggerStart || nowTotal >= triggerEnd) {
       return; // Outside trigger window — do nothing

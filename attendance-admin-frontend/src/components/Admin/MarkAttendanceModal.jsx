@@ -124,8 +124,9 @@ const MarkAttendanceModal = ({ selectedDate, onClose, onAttendanceMarked }) => {
     }
 
     const alreadyCheckedIn =
-      selectedEmployee.todayAttendance &&
-      selectedEmployee.todayAttendance.clockIn;
+  selectedEmployee.todayAttendance &&
+  selectedEmployee.todayAttendance.clockIn &&
+  selectedEmployee.todayAttendance.status !== 'absent';
 
     if (alreadyCheckedIn) {
       if (!attendanceData.clockOut) {
@@ -156,6 +157,24 @@ const MarkAttendanceModal = ({ selectedDate, onClose, onAttendanceMarked }) => {
         alert("⚠️ Please enter clock-in time");
         return;
       }
+      if (attendanceData.status === "absent") {
+        const clockInDateTime = `${selectedDate}T00:00:00.000Z`;
+        const response = await adminAttendanceService.markAttendance({
+          employeeId: selectedEmployee._id,
+          date: selectedDate,
+          clockIn: clockInDateTime,
+          clockOut: null,
+          status: "absent",
+          remarks: attendanceData.remarks,
+        });
+        if (response.success) {
+          alert("✅ Absent marked successfully!");
+          onAttendanceMarked();
+        } else {
+          alert(`❌ ${response.message || "Failed to mark attendance"}`);
+        }
+        return;
+      }
       try {
         setMarking(true);
         const clockInDateTime = `${selectedDate}T${attendanceData.clockIn}:00`;
@@ -164,6 +183,7 @@ const MarkAttendanceModal = ({ selectedDate, onClose, onAttendanceMarked }) => {
           : null;
         let backendStatus = attendanceData.status;
         if (attendanceData.status === "leave") backendStatus = "on-leave";
+        if (attendanceData.status === "absent") backendStatus = "absent";
         const response = await adminAttendanceService.markAttendance({
           employeeId: selectedEmployee._id,
           date: selectedDate,
@@ -441,20 +461,36 @@ const MarkAttendanceModal = ({ selectedDate, onClose, onAttendanceMarked }) => {
                               ` • ${employee.designation}`}
                           </div>
                         </div>
-                        {employee.todayAttendance && (
-                          <div
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: "6px",
-                              fontSize: "11px",
-                              fontWeight: "600",
-                              background: "#10b98122",
-                              color: "#10b981",
-                            }}
-                          >
-                            Checked In
-                          </div>
-                        )}
+                        {employee.todayAttendance &&
+                          employee.todayAttendance.status !== "absent" && (
+                            <div
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: "6px",
+                                fontSize: "11px",
+                                fontWeight: "600",
+                                background: "#10b98122",
+                                color: "#10b981",
+                              }}
+                            >
+                              Checked In
+                            </div>
+                          )}
+                        {employee.todayAttendance &&
+                          employee.todayAttendance.status === "absent" && (
+                            <div
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: "6px",
+                                fontSize: "11px",
+                                fontWeight: "600",
+                                background: "#ef444422",
+                                color: "#ef4444",
+                              }}
+                            >
+                              Absent
+                            </div>
+                          )}
                       </div>
                     </div>
                   ))
@@ -537,33 +573,55 @@ const MarkAttendanceModal = ({ selectedDate, onClose, onAttendanceMarked }) => {
                       </div>
                     </div>
                   </div>
-                  {selectedEmployee.todayAttendance && (
-                    <div
-                      style={{
-                        padding: "12px",
-                        background: "#10b98111",
-                        borderRadius: "8px",
-                        border: "1px solid #10b98133",
-                      }}
-                    >
+                  {selectedEmployee.todayAttendance &&
+                    selectedEmployee.todayAttendance.status !== "absent" && (
                       <div
                         style={{
-                          fontSize: "12px",
-                          fontWeight: "600",
-                          color: "#10b981",
-                          marginBottom: "4px",
+                          padding: "12px",
+                          background: "#10b98111",
+                          borderRadius: "8px",
+                          border: "1px solid #10b98133",
                         }}
                       >
-                        ✓ Already Checked In
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            color: "#10b981",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          ✓ Already Checked In
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                          Clock In:{" "}
+                          {new Date(
+                            selectedEmployee.todayAttendance.clockIn,
+                          ).toLocaleTimeString()}
+                        </div>
                       </div>
-                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                        Clock In:{" "}
-                        {new Date(
-                          selectedEmployee.todayAttendance.clockIn,
-                        ).toLocaleTimeString()}
+                    )}
+                  {selectedEmployee.todayAttendance &&
+                    selectedEmployee.todayAttendance.status === "absent" && (
+                      <div
+                        style={{
+                          padding: "12px",
+                          background: "#ef444411",
+                          borderRadius: "8px",
+                          border: "1px solid #ef444433",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            color: "#ef4444",
+                          }}
+                        >
+                          ❌ Marked Absent
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
 
                 {/* Status */}
@@ -605,8 +663,7 @@ const MarkAttendanceModal = ({ selectedDate, onClose, onAttendanceMarked }) => {
 
                 {/* Time Fields */}
                 {(attendanceData.status === "present" ||
-                  attendanceData.status === "absent" ||
-                  selectedEmployee.todayAttendance) && (
+  (selectedEmployee.todayAttendance && selectedEmployee.todayAttendance.status !== 'absent')) && (
                   <div
                     style={{
                       background: "white",

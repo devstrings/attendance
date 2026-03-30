@@ -42,13 +42,18 @@ const AdminSidebar = () => {
         { title: 'Create Manager', icon: '➕', path: '/admin/create-manager' }
       ]
     },
-    // ✅ UPDATED - Removed submenu, only "Attendance" goes to view page
     {
       title: 'Attendance',
       icon: '📅',
       path: '/admin/attendance-view',
       color: 'teal'
-      // ✅ NO SUBMENU - Mark Attendance hataya, sirf View Attendance rahega
+    },
+    // ✅ NEW — Overtime Management
+    {
+      title: 'Overtime',
+      icon: '⏱️',
+      path: '/admin/overtime',
+      color: 'yellow'
     },
     {
       title: 'Management Panel',
@@ -58,26 +63,19 @@ const AdminSidebar = () => {
     }
   ];
 
-  // Handle responsive behavior
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth > 768) {
-        setMobileOpen(false);
-      }
+      if (window.innerWidth > 768) setMobileOpen(false);
     };
-
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Close mobile menu on route change
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  const isActive = (path) => {
-    return location.pathname === path;
-  };
+  const isActive = (path) => location.pathname === path;
 
   const toggleSubmenu = (index) => {
     setOpenSubmenu(openSubmenu === index ? null : index);
@@ -85,9 +83,7 @@ const AdminSidebar = () => {
 
   const handleNavigation = (path) => {
     navigate(path);
-    if (window.innerWidth <= 768) {
-      setMobileOpen(false);
-    }
+    if (window.innerWidth <= 768) setMobileOpen(false);
   };
 
   const toggleSidebar = () => {
@@ -100,20 +96,12 @@ const AdminSidebar = () => {
 
   return (
     <>
-      {/* Mobile Overlay */}
-      <div 
+      <div
         className={`sidebar-overlay ${mobileOpen ? 'active' : ''}`}
         onClick={() => setMobileOpen(false)}
       />
-
-      {/* Sidebar */}
       <aside className={`admin-sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
-        {/* Toggle Button */}
-        <button 
-          className="sidebar-toggle-btn" 
-          onClick={toggleSidebar}
-          aria-label="Toggle Sidebar"
-        >
+        <button className="sidebar-toggle-btn" onClick={toggleSidebar} aria-label="Toggle Sidebar">
           <span className="toggle-icon">
             {collapsed ? (
               <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
@@ -127,11 +115,9 @@ const AdminSidebar = () => {
           </span>
         </button>
 
-        {/* Menu Items */}
         <div className="sidebar-menu">
           {menuItems.map((item, index) => (
             <div key={index} className="menu-item-wrapper">
-              {/* Main Menu Item */}
               <div
                 className={`menu-item ${isActive(item.path) ? 'active' : ''}`}
                 onClick={() => {
@@ -153,7 +139,6 @@ const AdminSidebar = () => {
                 )}
               </div>
 
-              {/* Submenu */}
               {item.submenu && openSubmenu === index && !collapsed && (
                 <div className="submenu">
                   {item.submenu.map((subItem, subIndex) => (

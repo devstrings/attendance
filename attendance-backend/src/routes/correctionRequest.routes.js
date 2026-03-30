@@ -1,67 +1,67 @@
 const express = require('express');
 const router = express.Router();
-const leaveRequestController = require('../controllers/leaveRequest.controller');
+const correctionRequestController = require('../controllers/correctionRequest.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { authorizeRoles } = require('../middleware/role.middleware');
 
 // ==================== EMPLOYEE ROUTES ====================
 
-// Create leave request (Employee only)
-router.post('/', 
-  authenticate, 
-  authorizeRoles('employee'), 
-  leaveRequestController.createLeaveRequest
+// Create correction request (Employee only)
+router.post('/',
+  authenticate,
+  authorizeRoles('employee'),
+  correctionRequestController.createCorrectionRequest
 );
 
-// Get my leave requests (Employee only)
-router.get('/my-requests', 
-  authenticate, 
-  authorizeRoles('employee'), 
-  leaveRequestController.getMyLeaveRequests
-);
-
-// Cancel leave request (Employee only)
-router.patch('/:requestId/cancel', 
-  authenticate, 
-  authorizeRoles('employee'), 
-  leaveRequestController.cancelLeaveRequest
+// Get my correction requests (Employee only)
+router.get('/my-requests',
+  authenticate,
+  authorizeRoles('employee'),
+  correctionRequestController.getMyCorrectionRequests
 );
 
 // ==================== ADMIN/MANAGER ROUTES ====================
 
-// Get all leave requests (Admin & Manager)
-router.get('/', 
-  authenticate, 
-  authorizeRoles('admin', 'manager'), 
-  leaveRequestController.getAllLeaveRequests
+// Get overdue requests — MUST be before /:requestId
+router.get('/admin/overdue',
+  authenticate,
+  authorizeRoles('admin', 'manager'),
+  correctionRequestController.getOverdueRequests
 );
 
-// Get leave request by ID (Admin & Manager)
-router.get('/:requestId', 
-  authenticate, 
-  authorizeRoles('admin', 'manager', 'employee'), 
-  leaveRequestController.getLeaveRequestById
+// Get all correction requests (Admin & Manager)
+router.get('/',
+  authenticate,
+  authorizeRoles('admin', 'manager'),
+  correctionRequestController.getAllCorrectionRequests
 );
 
-// Approve leave request (Admin & Manager)
-router.patch('/:requestId/approve', 
-  authenticate, 
-  authorizeRoles('admin', 'manager'), 
-  leaveRequestController.approveLeaveRequest
+// Get correction request by ID
+router.get('/:requestId',
+  authenticate,
+  authorizeRoles('admin', 'manager', 'employee'),
+  correctionRequestController.getCorrectionRequestById
 );
 
-// Reject leave request (Admin & Manager)
-router.patch('/:requestId/reject', 
-  authenticate, 
-  authorizeRoles('admin', 'manager'), 
-  leaveRequestController.rejectLeaveRequest
+// Approve correction request (Admin & Manager)
+router.patch('/:requestId/approve',
+  authenticate,
+  authorizeRoles('admin', 'manager'),
+  correctionRequestController.approveCorrectionRequest
 );
 
-// Add comment to leave request (Admin, Manager, Employee)
-router.post('/:requestId/comment', 
-  authenticate, 
-  authorizeRoles('admin', 'manager', 'employee'), 
-  leaveRequestController.addComment
+// Reject correction request (Admin & Manager)
+router.patch('/:requestId/reject',
+  authenticate,
+  authorizeRoles('admin', 'manager'),
+  correctionRequestController.rejectCorrectionRequest
+);
+
+// Update priority (Admin & Manager)
+router.patch('/:requestId/priority',
+  authenticate,
+  authorizeRoles('admin', 'manager'),
+  correctionRequestController.updatePriority
 );
 
 module.exports = router;

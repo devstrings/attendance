@@ -1222,7 +1222,132 @@ const getPendingOvertimeRequests = async (req, res) => {
       });
   }
 };
-
+/**
+ * Admin: Mistakenly absent marked employee ki attendance correct karo
+ */
+const adminCorrectAttendance = async (req, res) => {
+  try {
+    const { attendanceId } = req.params;
+    const { status, clockIn, clockOut, remarks, correctionReason } = req.body;
+    const userId = req.user.userId;
+    const userRole = req.user.role;
+ 
+    // Sirf admin correct kar sakta hai
+    if (userRole !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Only admin can correct attendance records.",
+      });
+    }
+ 
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: "New status is required.",
+      });
+    }
+ 
+    if (!correctionReason || correctionReason.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Correction reason is required.",
+      });
+    }
+ 
+    const attendance = await Attendance.findById(attendanceId);
+ 
+    if (!attendance) {
+      return res.status(404).json({
+        success: false,
+        message: "Attendance record not found.",
+      });
+    }
+ 
+    const oldStatus = attendance.status;
+ 
+    // Fields update karo
+    attendance.status = status;
+    attendance.remarks = remarks || attendance.remarks;
+    attendance.correctionReason = correctionReason;
+    attendance.correctedBy = userId;
+    attendance.correctedAt = new Date();
+    attendance.originalStatus = oldStatus;
+ 
+    if (clockIn) attendance.clockIn = new Date(clockIn);
+    if (clockOut) attendance.clockOut = new Date(clockOut);
+ 
+    // Agar absent tha aur ab present/half-day ho raha hai
+    if (oldStatus === "absent" && (status === "present" || status === "half-day")) {
+      attendance.isApproved = true;
+      attendance.approvedBy = userId;
+    }
+ 
+    await attendance.save();
+ 
+    // Employee ko notification bhejo
+    try {
+      const employee = await Employee.findById(attendance.employeeId).populate("userId");
+      if (employee && employee.userId) {
+        const dateStr = new Date(attendance.date).toLocaleDateString("en-GB");
+        await notificationService.createNotification(
+          employee.userId._id,
+          "✅ Attendance Corrected by Admin",
+          `Aapki ${dateStr} ki attendance admin ne correct ki hai. Status: ${oldStatus} → ${status}. Reason: ${correctionReason}`,
+          "attendance_corrected",
+          "/employee/my-attendance",
+          {
+            attendanceId: attendance._id,
+            oldStatus,
+            newStatus: status,
+            date: attendance.date,
+          }
+        );
+      }
+ 
+      // Manager ko bhi notify karo
+      if (attendance.managerId) {
+        const managerDoc = await Manager.findById(attendance.managerId).populate("userId");
+        if (managerDoc && managerDoc.userId) {
+          const employee2 = await Employee.findById(attendance.employeeId);
+          const empName = employee2 ? `${employee2.firstName} ${employee2.lastName}` : "Employee";
+          const dateStr = new Date(attendance.date).toLocaleDateString("en-GB");
+          await notificationService.createNotification(
+            managerDoc.userId._id,
+            "📝 Attendance Corrected",
+            `Admin ne ${empName} ki ${dateStr} attendance correct ki: ${oldStatus} → ${status}`,
+            "attendance_corrected",
+            "/manager/attendance-history",
+            {
+              attendanceId: attendance._id,
+              oldStatus,
+              newStatus: status,
+            }
+          );
+        }
+      }
+    } catch (notifErr) {
+      console.error("⚠️ Correction notification error:", notifErr);
+    }
+ 
+    const updatedAttendance = await Attendance.findById(attendanceId)
+      .populate("employeeId", "firstName lastName employeeCode department")
+      .populate("managerId", "firstName lastName")
+      .populate("correctedBy", "email role");
+ 
+    res.status(200).json({
+      success: true,
+      message: `✅ Attendance corrected: ${oldStatus} → ${status}`,
+      data: { attendance: updatedAttendance },
+    });
+  } catch (error) {
+    console.error("Admin correct attendance error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to correct attendance.",
+      error: error.message,
+    });
+  }
+};
 // ─────────────────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -1240,4 +1365,9 @@ module.exports = {
   requestOvertime,
   approveOvertimeRequest,
   getPendingOvertimeRequests,
+   setOvertime,
+  requestOvertime,
+  approveOvertimeRequest,
+  adminCorrectAttendance,
+  getPendingOvertimeRequests
 };

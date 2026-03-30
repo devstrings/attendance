@@ -337,6 +337,14 @@ const adminService = {
     }
   },
 
+  correctAttendance: async (attendanceId, data) => {
+    const response = await api.put(
+      `/attendance/${attendanceId}/correct`,
+      data
+    );
+    return response.data;
+  },
+
   /**
    * ✅ NEW: Update System Configuration
    */

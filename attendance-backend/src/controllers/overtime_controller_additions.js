@@ -171,7 +171,7 @@ const requestOvertime = async (req, res) => {
       const dateStr = new Date(attendance.date).toLocaleDateString('en-GB');
 
       // Admin ko notify karo
-      const { User } = require('../models/User');
+      const User = require('../models/User');
       const admins = await User.find({ role: 'admin' });
       for (const admin of admins) {
         await notificationService.createNotification(

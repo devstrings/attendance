@@ -34,6 +34,12 @@ const attendanceSchema = new mongoose.Schema({
   overtimeApprovedBy:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   overtimeApprovedAt:          { type: Date },
   overtimeRejectionNote:       { type: String, default: '' },
+
+
+  originalStatus:   { type: String, default: null },
+      correctionReason: { type: String, default: '' },
+      correctedBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      correctedAt:      { type: Date, default: null },
   // ── Auto Checkout flag ──────────────────────────────────────────────────────
   autoCheckedOut: { type: Boolean, default: false },
 

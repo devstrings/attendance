@@ -115,8 +115,13 @@ function App() {
             <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={['admin']}><NotificationHistory /></ProtectedRoute>} />
             <Route path="/admin/employee-attendance/:employeeId" element={<ProtectedRoute allowedRoles={['admin']}><AttendanceDetails /></ProtectedRoute>} />
             <Route path="/admin/overtime" element={<ProtectedRoute allowedRoles={['admin']}><OvertimeManagement isManager={false} /></ProtectedRoute>} />
-            {/* ===== 404 ===== */}
-            <Route path="*" element={<NotFound />} />
+            <Route path="/admin/employee-attendance/:employeeId" element={<ProtectedRoute allowedRoles={['admin']}><AttendanceDetails /></ProtectedRoute>} />
+
+<Route path="/admin/overtime" element={<ProtectedRoute allowedRoles={['admin']}><OvertimeManagement isManager={false} /></ProtectedRoute>} />
+
+{/* ===== 404 ===== */}
+<Route path="*" element={<NotFound />} />
+
 
           </Routes>
         </div>

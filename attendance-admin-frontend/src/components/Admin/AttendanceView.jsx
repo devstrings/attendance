@@ -5,6 +5,7 @@ import AdminSidebar from "./AdminSidebar";
 import adminService from "../../services/adminService";
 import adminAttendanceService from "../../services/adminAttendanceService";
 import MarkAttendanceModal from "./MarkAttendanceModal";
+import AdminCorrectAttendanceModal from "./AdminCorrectAttendanceModal"; // ✅ NEW
 import "../../styles/Admin.css";
 
 const AttendanceView = () => {
@@ -20,6 +21,10 @@ const AttendanceView = () => {
   const [filterDepartment, setFilterDepartment] = useState("");
   const [showMarkAttendanceModal, setShowMarkAttendanceModal] = useState(false);
   const [totalEmployees, setTotalEmployees] = useState(0);
+
+  // ✅ NEW — Correct modal state
+  const [showCorrectModal, setShowCorrectModal] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -57,6 +62,7 @@ const AttendanceView = () => {
           hoursWorked: record.workHours || 0,
           notes: record.remarks || "",
           hasRecord: true,
+          date: selectedDate, // ✅ date pass karo modal ke liye
         }));
 
         const presentIds = attendanceResponse.data.attendance
@@ -83,6 +89,7 @@ const AttendanceView = () => {
             hoursWorked: 0,
             notes: "",
             hasRecord: false,
+            date: selectedDate,
           }));
 
         setAttendanceRecords([...formatted, ...absentRows]);
@@ -168,8 +175,22 @@ const AttendanceView = () => {
   const handleViewDetails = (id) => {
     navigate(`/admin/attendance-details/${id}`);
   };
+
   const handleAttendanceMarked = () => {
     setShowMarkAttendanceModal(false);
+    fetchAttendance();
+  };
+
+  // ✅ NEW — Correct button click handler
+  const handleCorrectClick = (record) => {
+    setSelectedRecord(record);
+    setShowCorrectModal(true);
+  };
+
+  // ✅ NEW — After correction done
+  const handleCorrected = () => {
+    setShowCorrectModal(false);
+    setSelectedRecord(null);
     fetchAttendance();
   };
 
@@ -194,7 +215,7 @@ const AttendanceView = () => {
         <AdminSidebar />
 
         <div className="admin-content">
-          {/* ✅ Header — Date + Mark Attendance button saath */}
+          {/* Header */}
           <div className="page-header-modern">
             <h1>Attendance View</h1>
             <div
@@ -328,12 +349,36 @@ const AttendanceView = () => {
                       <td>{record.hoursWorked} hrs</td>
                       <td>{record.notes || "-"}</td>
                       <td>
+                        {/* ✅ View button */}
                         <button
                           className="btn-icon view"
                           onClick={() => handleViewDetails(record.id)}
+                          title="View Details"
                         >
                           👁
                         </button>
+
+                        {/* ✅ NEW — Correct button (sirf absent records pe) */}
+                        {record.status === "absent" && record.hasRecord && (
+                          <button
+                            onClick={() => handleCorrectClick(record)}
+                            title="Correct Attendance"
+                            style={{
+                              marginLeft: "6px",
+                              background: "linear-gradient(135deg, #f97316, #ef4444)",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "6px",
+                              padding: "5px 10px",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                              fontWeight: "600",
+                              boxShadow: "0 2px 6px rgba(249,115,22,0.3)",
+                            }}
+                          >
+                            ✏️ Correct
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -356,11 +401,24 @@ const AttendanceView = () => {
         </div>
       </div>
 
+      {/* Mark Attendance Modal */}
       {showMarkAttendanceModal && (
         <MarkAttendanceModal
           selectedDate={selectedDate}
           onClose={() => setShowMarkAttendanceModal(false)}
           onAttendanceMarked={handleAttendanceMarked}
+        />
+      )}
+
+      {/* ✅ NEW — Correct Attendance Modal */}
+      {showCorrectModal && selectedRecord && (
+        <AdminCorrectAttendanceModal
+          record={selectedRecord}
+          onClose={() => {
+            setShowCorrectModal(false);
+            setSelectedRecord(null);
+          }}
+          onCorrected={handleCorrected}
         />
       )}
     </div>

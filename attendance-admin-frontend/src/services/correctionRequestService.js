@@ -3,11 +3,45 @@ import axios from 'axios';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
 
 const getAuthHeader = () => {
-  const token = localStorage.getItem('token');
+  // Works for both employee and manager tokens
+  const token =
+    localStorage.getItem('employee_token') ||
+    localStorage.getItem('manager_token') ||
+    localStorage.getItem('token');
   return { Authorization: `Bearer ${token}` };
 };
 
-// Get all correction requests (Admin/Manager)
+// ✅ Employee: Create correction request
+export const createCorrectionRequest = async (data) => {
+  try {
+    const response = await axios.post(
+      `${API_URL}/correction-requests`,
+      data,
+      { headers: getAuthHeader() }
+    );
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+// ✅ Employee: Get my correction requests
+export const getMyCorrectionRequests = async (status = null) => {
+  try {
+    const response = await axios.get(
+      `${API_URL}/correction-requests/my-requests`,
+      {
+        headers: getAuthHeader(),
+        params: { status }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+// Admin/Manager: Get all correction requests
 export const getAllCorrectionRequests = async (status = null, employeeId = null, priority = null, page = 1, limit = 20) => {
   try {
     const response = await axios.get(
@@ -23,7 +57,7 @@ export const getAllCorrectionRequests = async (status = null, employeeId = null,
   }
 };
 
-// Get overdue correction requests
+// Admin/Manager: Get overdue correction requests
 export const getOverdueRequests = async () => {
   try {
     const response = await axios.get(
@@ -92,6 +126,8 @@ export const updatePriority = async (requestId, priority) => {
 };
 
 export default {
+  createCorrectionRequest,
+  getMyCorrectionRequests,
   getAllCorrectionRequests,
   getOverdueRequests,
   getCorrectionRequestById,

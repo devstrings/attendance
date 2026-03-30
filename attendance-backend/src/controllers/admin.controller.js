@@ -698,8 +698,8 @@ const updateSystemConfig = async (req, res) => {
     try {
       const notifTitle = '⚙️ System Settings Updated';
       const notifMessage = changes.length > 0
-        ? `Admin ne system settings update ki hain:\n${changes.join('\n')}`
-        : 'System settings have been updated by admin.';
+  ? `Admin has updated the system settings:\n${changes.join('\n')}`
+  : 'System settings have been updated by admin.';
       await notificationService.sendAnnouncement(notifTitle, notifMessage, 'all');
     } catch (e) { console.warn('⚠️ Notification failed:', e.message); }
 
