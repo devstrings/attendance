@@ -132,8 +132,7 @@ const MarkAttendance = () => {
   };
 
   const handleAttendanceMarked = () => {
-    setShowModal(false);
-    fetchData(); // ✅ Refresh after marking
+  fetchData(); // ✅ sirf refresh
   };
 
   // ── Stats ──

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NotificationCenter from '../Common/NotificationCenter';
 import '../../styles/Manager.css';
+import TokenExpiryWatcher from "../Common/TokenExpiryWatcher";
 
 const ManagerNavbar = () => {
   const navigate = useNavigate();
@@ -60,6 +61,8 @@ const ManagerNavbar = () => {
   };
 
   return (
+    <>
+    <TokenExpiryWatcher role="manager" />
     <nav className="admin-navbar">
       <div className="navbar-left">
         <div className="navbar-logo" onClick={() => navigate('/manager/dashboard')}>
@@ -115,6 +118,7 @@ const ManagerNavbar = () => {
         </div>
       </div>
     </nav>
+    </>
   );
 };
 

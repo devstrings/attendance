@@ -8,6 +8,7 @@ const ManagerNotifications = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [deleting, setDeleting] = useState(null); // Track which notification is being deleted
+  const [selectedNotif, setSelectedNotif] = useState(null);
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
 
   useEffect(() => {
@@ -141,6 +142,63 @@ const ManagerNotifications = () => {
     ? notifications.filter(n => !n.isRead)
     : notifications;
 
+
+    // Modal
+if (selectedNotif) {
+  return (
+    <div className="manager-container">
+      <ManagerNavbar />
+      <div className="manager-layout">
+        <ManagerSidebar />
+      </div>
+      <div
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        onClick={() => setSelectedNotif(null)}
+      >
+        <div
+          style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+                {getNotifIcon(selectedNotif.type)}
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>Notification Detail</div>
+            </div>
+            <button
+              onClick={() => setSelectedNotif(null)}
+              style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', fontSize: 20, width: 36, height: 36, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >✕</button>
+          </div>
+          <div style={{ padding: 24 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 12 }}>{selectedNotif.title}</div>
+            {selectedNotif.message && (
+              <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, background: '#f9fafb', padding: '14px 16px', borderRadius: 10, border: '1px solid #e5e7eb', marginBottom: 16 }}>
+                {selectedNotif.message}
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 16 }}>🕐 {getTimeAgo(selectedNotif.createdAt)}</div>
+            <div style={{ marginBottom: 20 }}>
+              <span style={{ padding: '4px 12px', borderRadius: 20, background: '#f3f4f6', color: '#6b7280', fontSize: 12, fontWeight: 600 }}>✓ Read</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={async (e) => { await deleteNotification(selectedNotif._id, e); setSelectedNotif(null); }}
+                style={{ padding: '10px 20px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >🗑️ Delete</button>
+              <button
+                onClick={() => setSelectedNotif(null)}
+                style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: 'white', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
   return (
     <div className="manager-container">
       <ManagerNavbar />
@@ -213,7 +271,10 @@ const ManagerNotifications = () => {
                 {displayed.map(notif => (
                   <div
                     key={notif._id}
-                    onClick={() => { if (!notif.isRead) markAsRead(notif._id); }}
+                    onClick={async () => { 
+  if (!notif.isRead) await markAsRead(notif._id); 
+  setSelectedNotif({ ...notif, isRead: true });
+}}
                     style={{
                       ...S.notifCard,
                       background: notif.isRead ? 'white' : '#f0f4ff',

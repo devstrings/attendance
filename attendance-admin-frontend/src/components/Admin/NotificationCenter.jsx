@@ -1,126 +1,187 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNotifications } from '../../context/NotificationContext';
-import { 
-  markAsRead, 
-  markAllAsRead, 
-  deleteNotification 
-} from '../../services/notificationService';
-import { 
-  approveLeaveRequest, 
-  rejectLeaveRequest 
-} from '../../services/leaveRequestService';
-import { useNavigate } from 'react-router-dom';
-import '../../styles/NotificationStyles.css';
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { useNotifications } from "../../context/NotificationContext";
+import {
+  markAsRead,
+  markAllAsRead,
+  deleteNotification,
+} from "../../services/notificationService";
+import {
+  approveLeaveRequest,
+  rejectLeaveRequest,
+} from "../../services/leaveRequestService";
+import { useNavigate } from "react-router-dom";
+import "../../styles/NotificationStyles.css";
 
 // ── Notification Detail Modal ─────────────────────────────────────────────────
-const NotificationModal = ({ notification, onClose, onDelete, getIcon, getTimeAgo }) => {
+const NotificationModal = ({
+  notification,
+  onClose,
+  onDelete,
+  getIcon,
+  getTimeAgo,
+}) => {
   if (!notification) return null;
 
   return (
     <div
       style={{
-        position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.5)',
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
         zIndex: 99999,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         padding: 20,
       }}
       onClick={onClose}
     >
       <div
         style={{
-          background: 'white', borderRadius: 20,
-          width: '100%', maxWidth: 480,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-          overflow: 'hidden',
+          background: "white",
+          borderRadius: 20,
+          width: "100%",
+          maxWidth: 480,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          overflow: "hidden",
         }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div style={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          padding: '20px 24px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: '50%',
-              background: 'rgba(255,255,255,0.2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 22,
-            }}>
+        <div
+          style={{
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            padding: "20px 24px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: "50%",
+                background: "rgba(255,255,255,0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 22,
+              }}
+            >
               {getIcon(notification.type)}
             </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "white" }}>
               Notification Detail
             </div>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: 'rgba(255,255,255,0.2)', border: 'none',
-              color: 'white', fontSize: 20,
-              width: 36, height: 36, borderRadius: '50%',
-              cursor: 'pointer', display: 'flex',
-              alignItems: 'center', justifyContent: 'center',
+              background: "rgba(255,255,255,0.2)",
+              border: "none",
+              color: "white",
+              fontSize: 20,
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
-          >✕</button>
+          >
+            ✕
+          </button>
         </div>
 
         {/* Modal Body */}
         <div style={{ padding: 24 }}>
           {/* Title */}
-          <div style={{
-            fontSize: 18, fontWeight: 700, color: '#111827',
-            marginBottom: 12, lineHeight: 1.4,
-          }}>
-            {notification.title || 'Notification'}
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: "#111827",
+              marginBottom: 12,
+              lineHeight: 1.4,
+            }}
+          >
+            {notification.title || "Notification"}
           </div>
 
           {/* Message */}
           {notification.message && (
-            <div style={{
-              fontSize: 14, color: '#374151', lineHeight: 1.7,
-              background: '#f9fafb', padding: '14px 16px',
-              borderRadius: 10, border: '1px solid #e5e7eb',
-              marginBottom: 16,
-            }}>
+            <div
+              style={{
+                fontSize: 14,
+                color: "#374151",
+                lineHeight: 1.7,
+                background: "#f9fafb",
+                padding: "14px 16px",
+                borderRadius: 10,
+                border: "1px solid #e5e7eb",
+                marginBottom: 16,
+              }}
+            >
               {notification.message}
             </div>
           )}
 
           {/* Time */}
-          <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
             🕐 {getTimeAgo(notification.createdAt)}
           </div>
 
           {/* Status badge */}
           <div style={{ marginBottom: 20 }}>
             {notification.isRead ? (
-              <span style={{
-                padding: '4px 12px', borderRadius: 20,
-                background: '#f3f4f6', color: '#6b7280',
-                fontSize: 12, fontWeight: 600,
-              }}>✓ Read</span>
+              <span
+                style={{
+                  padding: "4px 12px",
+                  borderRadius: 20,
+                  background: "#f3f4f6",
+                  color: "#6b7280",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                ✓ Read
+              </span>
             ) : (
-              <span style={{
-                padding: '4px 12px', borderRadius: 20,
-                background: '#eef2ff', color: '#667eea',
-                fontSize: 12, fontWeight: 600,
-              }}>● Unread</span>
+              <span
+                style={{
+                  padding: "4px 12px",
+                  borderRadius: 20,
+                  background: "#eef2ff",
+                  color: "#667eea",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                ● Unread
+              </span>
             )}
           </div>
 
           {/* Buttons */}
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <button
-              onClick={() => { onDelete(notification._id); onClose(); }}
+              onClick={() => {
+                onDelete(notification._id);
+                onClose();
+              }}
               style={{
-                padding: '10px 20px',
-                background: '#fef2f2', color: '#dc2626',
-                border: '1px solid #fecaca',
-                borderRadius: 10, fontSize: 13,
-                fontWeight: 600, cursor: 'pointer',
+                padding: "10px 20px",
+                background: "#fef2f2",
+                color: "#dc2626",
+                border: "1px solid #fecaca",
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
               }}
             >
               🗑️ Delete
@@ -128,11 +189,14 @@ const NotificationModal = ({ notification, onClose, onDelete, getIcon, getTimeAg
             <button
               onClick={onClose}
               style={{
-                padding: '10px 20px',
-                background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                color: 'white', border: 'none',
-                borderRadius: 10, fontSize: 13,
-                fontWeight: 600, cursor: 'pointer',
+                padding: "10px 20px",
+                background: "linear-gradient(135deg, #667eea, #764ba2)",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
               }}
             >
               Close
@@ -153,12 +217,12 @@ const NotificationCenter = () => {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
-  const { 
-    notifications, 
-    unreadCount, 
-    loading, 
-    fetchNotifications, 
-    refreshNotifications 
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    fetchNotifications,
+    refreshNotifications,
   } = useNotifications();
 
   useEffect(() => {
@@ -173,8 +237,8 @@ const NotificationCenter = () => {
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // ── Notification click → Modal kholo ──
@@ -188,7 +252,7 @@ const NotificationCenter = () => {
       setSelectedNotif({ ...notification, isRead: true });
       setIsOpen(false);
     } catch (error) {
-      console.error('Error handling notification click:', error);
+      console.error("Error handling notification click:", error);
     }
   };
 
@@ -197,7 +261,7 @@ const NotificationCenter = () => {
       await markAllAsRead();
       await refreshNotifications();
     } catch (error) {
-      console.error('Error marking all as read:', error);
+      console.error("Error marking all as read:", error);
     }
   };
 
@@ -206,7 +270,7 @@ const NotificationCenter = () => {
       await deleteNotification(notificationId);
       await refreshNotifications();
     } catch (error) {
-      console.error('Error deleting notification:', error);
+      console.error("Error deleting notification:", error);
     }
   };
 
@@ -217,19 +281,25 @@ const NotificationCenter = () => {
 
   const handleQuickApprove = async (e, notification) => {
     e.stopPropagation();
-    if (!window.confirm('Are you sure you want to approve this leave request?')) return;
+    if (!window.confirm("Are you sure you want to approve this leave request?"))
+      return;
     setActionLoading(notification._id);
     try {
       const leaveRequestId = notification.metadata?.leaveRequestId;
-      if (!leaveRequestId) { alert('Leave request ID not found'); return; }
+      if (!leaveRequestId) {
+        alert("Leave request ID not found");
+        return;
+      }
       const response = await approveLeaveRequest(leaveRequestId);
       if (response.success) {
-        try { await deleteNotification(notification._id); } catch (e) {}
+        try {
+          await deleteNotification(notification._id);
+        } catch (e) {}
         await refreshNotifications();
-        alert('✅ Leave request approved successfully!');
+        alert("✅ Leave request approved successfully!");
       }
     } catch (error) {
-      alert(error.message || 'Failed to approve leave request');
+      alert(error.message || "Failed to approve leave request");
     } finally {
       setActionLoading(null);
     }
@@ -237,20 +307,25 @@ const NotificationCenter = () => {
 
   const handleQuickReject = async (e, notification) => {
     e.stopPropagation();
-    const reason = prompt('Please enter rejection reason:');
+    const reason = prompt("Please enter rejection reason:");
     if (!reason || !reason.trim()) return;
     setActionLoading(notification._id);
     try {
       const leaveRequestId = notification.metadata?.leaveRequestId;
-      if (!leaveRequestId) { alert('Leave request ID not found'); return; }
+      if (!leaveRequestId) {
+        alert("Leave request ID not found");
+        return;
+      }
       const response = await rejectLeaveRequest(leaveRequestId, reason);
       if (response.success) {
-        try { await deleteNotification(notification._id); } catch (e) {}
+        try {
+          await deleteNotification(notification._id);
+        } catch (e) {}
         await refreshNotifications();
-        alert('❌ Leave request rejected');
+        alert("❌ Leave request rejected");
       }
     } catch (error) {
-      alert(error.message || 'Failed to reject leave request');
+      alert(error.message || "Failed to reject leave request");
     } finally {
       setActionLoading(null);
     }
@@ -258,64 +333,75 @@ const NotificationCenter = () => {
 
   const getNotificationIcon = (type) => {
     const icons = {
-      leave_request: '🏖️',
-      leave_approved: '✅',
-      leave_rejected: '❌',
-      correction_request: '⚠️',
-      correction_resolved: '✅',
-      system_update: '📢',
-      attendance_marked: '✓',
-      warning: '⚡',
-      announcement: '📣',
-      overtime_request: '⏰',
-      overtime_approved: '✅',
-      overtime_rejected: '❌',
-      overtime_added: '⏰',
+      leave_request: "🏖️",
+      leave_approved: "✅",
+      leave_rejected: "❌",
+      correction_request: "⚠️",
+      correction_resolved: "✅",
+      system_update: "📢",
+      attendance_marked: "✓",
+      warning: "⚡",
+      announcement: "📣",
+      overtime_request: "⏰",
+      overtime_approved: "✅",
+      overtime_rejected: "❌",
+      overtime_added: "⏰",
     };
-    return icons[type] || '🔔';
+    return icons[type] || "🔔";
   };
 
   const getTimeAgo = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
     const intervals = {
-      year: 31536000, month: 2592000, week: 604800,
-      day: 86400, hour: 3600, minute: 60,
+      year: 31536000,
+      month: 2592000,
+      week: 604800,
+      day: 86400,
+      hour: 3600,
+      minute: 60,
     };
     for (const [unit, value] of Object.entries(intervals)) {
       const interval = Math.floor(seconds / value);
-      if (interval >= 1) return `${interval} ${unit}${interval > 1 ? 's' : ''} ago`;
+      if (interval >= 1)
+        return `${interval} ${unit}${interval > 1 ? "s" : ""} ago`;
     }
-    return 'Just now';
+    return "Just now";
   };
 
   const hasQuickActions = (notification) => {
-    return (notification.type === 'leave_request' || 
-            notification.type === 'correction_request') &&
-            !notification.isProcessed;
+    return (
+      (notification.type === "leave_request" ||
+        notification.type === "correction_request") &&
+      !notification.isProcessed
+    );
   };
 
   return (
     <>
       {/* ── Notification Detail Modal ── */}
-      {selectedNotif && (
-        <NotificationModal
-          notification={selectedNotif}
-          onClose={() => setSelectedNotif(null)}
-          onDelete={handleDelete}
-          getIcon={getNotificationIcon}
-          getTimeAgo={getTimeAgo}
-        />
-      )}
+      {selectedNotif &&
+        createPortal(
+          <NotificationModal
+            notification={selectedNotif}
+            onClose={() => setSelectedNotif(null)}
+            onDelete={handleDelete}
+            getIcon={getNotificationIcon}
+            getTimeAgo={getTimeAgo}
+          />,
+          document.body,
+        )}
 
       <div className="notification-center" ref={dropdownRef}>
-        <button 
+        <button
           className="notification-bell"
           onClick={() => setIsOpen(!isOpen)}
           aria-label="Notifications"
         >
           <span className="bell-icon">🔔</span>
           {unreadCount > 0 && (
-            <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+            <span className="notification-badge">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
           )}
         </button>
 
@@ -324,8 +410,11 @@ const NotificationCenter = () => {
             <div className="notification-header">
               <h3>Notifications</h3>
               <div className="notification-actions">
-                <button className="filter-btn" onClick={() => setShowUnreadOnly(!showUnreadOnly)}>
-                  {showUnreadOnly ? 'All' : 'Unread'}
+                <button
+                  className="filter-btn"
+                  onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+                >
+                  {showUnreadOnly ? "All" : "Unread"}
                 </button>
                 {unreadCount > 0 && (
                   <button className="mark-all-btn" onClick={handleMarkAllRead}>
@@ -347,7 +436,7 @@ const NotificationCenter = () => {
                 notifications.map((notification) => (
                   <div
                     key={notification._id}
-                    className={`notification-item ${!notification.isRead ? 'unread' : ''}`}
+                    className={`notification-item ${!notification.isRead ? "unread" : ""}`}
                     onClick={() => handleNotificationClick(notification)}
                   >
                     <div className="notification-icon">
@@ -359,29 +448,36 @@ const NotificationCenter = () => {
                       <span className="notification-time">
                         {getTimeAgo(notification.createdAt)}
                       </span>
-                      
+
                       {hasQuickActions(notification) && (
-                        <div className="notification-quick-actions" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="notification-quick-actions"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <button
                             className="quick-action-btn approve"
                             onClick={(e) => handleQuickApprove(e, notification)}
                             disabled={actionLoading === notification._id}
                           >
-                            {actionLoading === notification._id ? '⏳' : '✅'} Approve
+                            {actionLoading === notification._id ? "⏳" : "✅"}{" "}
+                            Approve
                           </button>
                           <button
                             className="quick-action-btn reject"
                             onClick={(e) => handleQuickReject(e, notification)}
                             disabled={actionLoading === notification._id}
                           >
-                            {actionLoading === notification._id ? '⏳' : '❌'} Reject
+                            {actionLoading === notification._id ? "⏳" : "❌"}{" "}
+                            Reject
                           </button>
                         </div>
                       )}
                     </div>
                     <button
                       className="notification-delete"
-                      onClick={(e) => handleDeleteFromDropdown(e, notification._id)}
+                      onClick={(e) =>
+                        handleDeleteFromDropdown(e, notification._id)
+                      }
                       aria-label="Delete notification"
                     >
                       ×
@@ -394,7 +490,10 @@ const NotificationCenter = () => {
             <div className="notification-footer">
               <button
                 className="view-all-btn"
-                onClick={() => { navigate('/admin/notifications'); setIsOpen(false); }}
+                onClick={() => {
+                  navigate("/admin/notifications");
+                  setIsOpen(false);
+                }}
               >
                 View All Notifications
               </button>

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/Admin.css';
+import NotificationCenter from './NotificationCenter';
+import TokenExpiryWatcher from "../Common/TokenExpiryWatcher";
+
 
 const AdminNavbar = () => {
   const navigate = useNavigate();
@@ -59,6 +62,8 @@ const AdminNavbar = () => {
   };
 
   return (
+    <>
+    <TokenExpiryWatcher role="manager" />
     <nav className="admin-navbar">
       <div className="navbar-left">
         <div className="navbar-logo" onClick={() => navigate('/admin/dashboard')}>
@@ -79,6 +84,10 @@ const AdminNavbar = () => {
           <span className="badge-icon">👑</span>
           <span className="badge-text">ADMIN</span>
         </div>
+
+        <div style={{ marginRight: '8px' }}>
+  <NotificationCenter />
+</div>
 
         <div className="user-profile" onClick={toggleDropdown}>
           <div className="profile-avatar">
@@ -104,6 +113,7 @@ const AdminNavbar = () => {
         </div>
       </div>
     </nav>
+    </>
   );
 };
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "../../styles/Employee.css";
 import NotificationCenter from "../Common/NotificationCenter";
+import TokenExpiryWatcher from "../Common/TokenExpiryWatcher";
 
 const EmployeeNavbar = () => {
   const navigate = useNavigate();
@@ -44,6 +45,8 @@ const EmployeeNavbar = () => {
   };
 
   return (
+    <>
+    <TokenExpiryWatcher role="employee" />
     <nav className="employee-navbar">
       <div className="navbar-left">
         <div
@@ -144,6 +147,7 @@ const EmployeeNavbar = () => {
         </div>
       </div>
     </nav>
+    </> 
   );
 };
 

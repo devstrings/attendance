@@ -156,7 +156,7 @@ const CreateManager = () => {
       <AdminNavbar />
       <div className="admin-layout">
         <AdminSidebar />
-        <div className="admin-content">
+        <div className="admin-content" style={{ padding: '24px' }}>
           <div className="page-header">
             <h1>Create New Manager</h1>
             <button 

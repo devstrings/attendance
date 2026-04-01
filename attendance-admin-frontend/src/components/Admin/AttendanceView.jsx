@@ -177,8 +177,7 @@ const AttendanceView = () => {
   };
 
   const handleAttendanceMarked = () => {
-    setShowMarkAttendanceModal(false);
-    fetchAttendance();
+  fetchAttendance(); // ✅ sirf refresh
   };
 
   // ✅ NEW — Correct button click handler
@@ -214,7 +213,7 @@ const AttendanceView = () => {
       <div className="admin-layout">
         <AdminSidebar />
 
-        <div className="admin-content">
+        <div className="admin-content" style={{ padding: '24px' }}>
           {/* Header */}
           <div className="page-header-modern">
             <h1>Attendance View</h1>

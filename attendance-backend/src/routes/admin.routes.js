@@ -14,6 +14,11 @@ router.use(authenticate, isAdmin);
 // Dashboard
 router.get('/dashboard', adminController.getDashboard);
 
+
+// Admin Profile Update
+router.get('/profile', adminController.getAdminProfile);
+router.put('/profile', adminController.updateAdminProfile);
+
 // User Management
 router.get('/user/:userId/:userType', adminValidators.getUserDetails, adminController.getUserDetails);
 router.put('/user/:userId/:userType', adminValidators.updateUser, adminController.updateUser);
