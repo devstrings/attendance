@@ -36,6 +36,10 @@ import Unauthorized from './components/Common/Unauthorized';
 import Loader from './components/Common/Loader';
 import LandingPage from './components/Common/LandingPage';
 
+// ✅ NEW — Monthly Summary
+import MonthlySummaryPage from './components/Employee/MonthlySummaryPage';
+import ManagerMonthlySummaryPage from './components/Manager/ManagerMonthlySummaryPage';
+
 import Login from './components/Auth/Login';
 import ForgotPassword from './components/Auth/ForgotPassword';
 import VerifyOTP from './components/Auth/VerifyOTP';
@@ -108,7 +112,7 @@ function App() {
           {/* ERRORS */}
           <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* MANAGER */}
+          {/* ===== MANAGER ROUTES ===== */}
           <Route path="/manager/dashboard" element={<ProtectedRoute allowedRoles={['manager']}><ManagerDashboard /></ProtectedRoute>} />
           <Route path="/manager/profile" element={<ProtectedRoute allowedRoles={['manager']}><ManagerProfile /></ProtectedRoute>} />
           <Route path="/manager/mark-attendance" element={<ProtectedRoute allowedRoles={['manager']}><MarkAttendance /></ProtectedRoute>} />
@@ -118,8 +122,10 @@ function App() {
           <Route path="/manager/attendance-history" element={<ProtectedRoute allowedRoles={['manager']}><EmployeeAttendanceHistory /></ProtectedRoute>} />
           <Route path="/manager/notifications" element={<ProtectedRoute allowedRoles={['manager']}><ManagerNotifications /></ProtectedRoute>} />
           <Route path="/manager/overtime" element={<ProtectedRoute allowedRoles={['manager']}><OvertimeManagement isManager={true} /></ProtectedRoute>} />
+          {/* ✅ NEW — Manager Monthly Summary */}
+          <Route path="/manager/monthly-summary" element={<ProtectedRoute allowedRoles={['manager']}><ManagerMonthlySummaryPage /></ProtectedRoute>} />
 
-          {/* EMPLOYEE */}
+          {/* ===== EMPLOYEE ROUTES ===== */}
           <Route path="/employee/dashboard" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeDashboard /></ProtectedRoute>} />
           <Route path="/employee/profile" element={<ProtectedRoute allowedRoles={['employee']}><MyProfile /></ProtectedRoute>} />
           <Route path="/employee/my-attendance" element={<ProtectedRoute allowedRoles={['employee']}><MyAttendance /></ProtectedRoute>} />
@@ -129,6 +135,8 @@ function App() {
           <Route path="/employee/report-issue" element={<ProtectedRoute allowedRoles={['employee']}><CorrectionRequestForm /></ProtectedRoute>} />
           <Route path="/employee/my-requests" element={<ProtectedRoute allowedRoles={['employee']}><MyRequests /></ProtectedRoute>} />
           <Route path="/employee/notifications" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeNotifications /></ProtectedRoute>} />
+          {/* ✅ NEW — Employee Monthly Summary */}
+          <Route path="/employee/monthly-summary" element={<ProtectedRoute allowedRoles={['employee']}><MonthlySummaryPage /></ProtectedRoute>} />
 
           {/* ✅ FIXED (correct placement only here) */}
           <Route path="/employee/overtime-requests" element={

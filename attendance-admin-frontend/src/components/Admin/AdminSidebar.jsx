@@ -50,11 +50,11 @@ const AdminSidebar = () => {
     },
     // ✅ NEW — Overtime Management
     {
-      title: 'Overtime',
-      icon: '⏱️',
-      path: '/admin/overtime',
-      color: 'yellow'
-    },
+  title: 'Overtime & Corrections',
+  icon: '⏱️',
+  path: '/admin/overtime',
+  color: 'yellow'
+},
     {
       title: 'Management Panel',
       icon: '⚙️',

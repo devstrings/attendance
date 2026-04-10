@@ -11,7 +11,6 @@ const config = require('../config/config');
 const registerRoutes = require('./routes');
 
 // Utils & Middleware
-const { autoCheckoutJob } = require('./utils/autoCheckout');
 const { authenticate } = require('./middleware/auth.middleware');
 
 // ================================
@@ -139,12 +138,13 @@ app.post(
   }
 );
 
-// ================================
-// CRON JOB
-// ================================
-console.log('🕐 Starting auto checkout cron job...');
-autoCheckoutJob.start();
-console.log('✅ Auto checkout cron job running (7:15 PM PKT)');
+
+
+
+// ✅ NEW — Monthly Summary Scheduler
+const { startScheduler } = require('./utils/Services/schedulerService');
+startScheduler();
+console.log('✅ Monthly summary scheduler running');
 
 // ================================
 // 404 HANDLER

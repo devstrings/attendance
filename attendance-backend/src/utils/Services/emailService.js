@@ -26,6 +26,7 @@ class EmailService {
       return false;
     }
   }
+  
 
   // Test SMTP connection
   async testConnection() {
@@ -92,6 +93,104 @@ class EmailService {
       return { success: true, messageId: info.messageId };
     } catch (error) {
       console.error('❌ Email send error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ✅ NEW — Monthly Summary Email
+  async sendMonthlySummaryEmail({ toEmail, toName, monthLabel, summary, employeeName, role }) {
+    try {
+      const initialized = await this.initializeTransporter();
+      if (!initialized) {
+        console.warn('⚠️ Monthly summary email not sent - SMTP not configured');
+        return { success: false, reason: 'SMTP not configured' };
+      }
+
+      const subject = `📊 ${monthLabel} Attendance Summary & Salary Slip`;
+      const name    = role === 'manager' ? `${toName} (Manager)` : toName;
+      const empName = role === 'manager' ? employeeName : toName;
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div style="background:#1a73e8;padding:20px;text-align:center;border-radius:10px 10px 0 0;">
+              <h2 style="color:white;margin:0">📊 Monthly Attendance Summary</h2>
+              <p style="color:#cce5ff;margin:5px 0">${monthLabel}</p>
+            </div>
+            <div style="background:#f9f9f9;padding:24px;border-radius:0 0 10px 10px;">
+              <p>Dear <strong>${name}</strong>,</p>
+              <p>Here is the attendance summary for <strong>${empName}</strong> for <strong>${monthLabel}</strong>:</p>
+
+              <table style="width:100%;border-collapse:collapse;margin:16px 0">
+                <tr style="background:#f5f5f5">
+                  <th style="padding:10px;text-align:left;border:1px solid #ddd">Description</th>
+                  <th style="padding:10px;text-align:right;border:1px solid #ddd">Value</th>
+                </tr>
+                <tr>
+                  <td style="padding:10px;border:1px solid #ddd">Total Working Days</td>
+                  <td style="padding:10px;text-align:right;border:1px solid #ddd">${summary.totalWorkingDays}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px;border:1px solid #ddd">Days Present</td>
+                  <td style="padding:10px;text-align:right;border:1px solid #ddd">${summary.totalPresent}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px;border:1px solid #ddd">Approved Leaves</td>
+                  <td style="padding:10px;text-align:right;border:1px solid #ddd">${summary.totalApprovedLeaves}</td>
+                </tr>
+                <tr style="background:#fff3cd">
+                  <td style="padding:10px;border:1px solid #ddd">Unauthorized Absences</td>
+                  <td style="padding:10px;text-align:right;border:1px solid #ddd">${summary.totalUnauthorizedAbsences}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px;border:1px solid #ddd">Deduction per Absence</td>
+                  <td style="padding:10px;text-align:right;border:1px solid #ddd">Rs. ${summary.deductionPerAbsence}</td>
+                </tr>
+                <tr style="background:#fdecea">
+                  <td style="padding:10px;border:1px solid #ddd"><strong>Total Deduction</strong></td>
+                  <td style="padding:10px;text-align:right;border:1px solid #ddd"><strong>Rs. ${summary.totalDeduction}</strong></td>
+                </tr>
+                <tr>
+                  <td style="padding:10px;border:1px solid #ddd">Base Salary</td>
+                  <td style="padding:10px;text-align:right;border:1px solid #ddd">Rs. ${summary.baseSalary}</td>
+                </tr>
+                <tr style="background:#e8f5e9">
+                  <td style="padding:10px;border:1px solid #ddd"><strong>Net Salary</strong></td>
+                  <td style="padding:10px;text-align:right;border:1px solid #ddd"><strong>Rs. ${summary.netSalary}</strong></td>
+                </tr>
+              </table>
+
+              <p style="color:#888;font-size:13px">Login to your dashboard to view detailed salary slip.</p>
+            </div>
+            <div style="background:#f5f5f5;padding:12px;text-align:center;color:#888;font-size:12px;margin-top:10px;">
+              Devstrings Attendance System
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const mailOptions = {
+        ...this.defaultMailOptions,
+        to: toEmail,
+        subject,
+        html
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      await this.smtpSettings.incrementEmailCount();
+
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      console.error('❌ Monthly summary email error:', error);
       return { success: false, error: error.message };
     }
   }

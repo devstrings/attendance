@@ -90,33 +90,41 @@ const ClockInOut = () => {
 
       const combinedData = employees.map((emp) => {
         const attendance = attendanceMap[emp._id];
+        const isOnLeave =
+          attendance?.status === "leave" || attendance?.status === "on-leave";
+
         return {
           id: emp._id,
           employeeId: emp.employeeCode || "N/A",
           employeeName: `${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
-          clockIn: attendance?.clockIn
-            ? new Date(attendance.clockIn).toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-              })
-            : null,
-          clockOut: attendance?.clockOut
-            ? new Date(attendance.clockOut).toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-              })
-            : null,
+          clockIn:
+            attendance?.clockIn && !isOnLeave
+              ? new Date(attendance.clockIn).toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })
+              : null,
+          clockOut:
+            attendance?.clockOut && !isOnLeave
+              ? new Date(attendance.clockOut).toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })
+              : null,
           status: isWeekend
             ? "weekend"
-            : attendance?.clockOut
-              ? "clocked-out"
-              : attendance?.clockIn
-                ? "clocked-in"
-                : "not-clocked-in",
+            : isOnLeave
+              ? "on-leave"
+              : attendance?.clockOut
+                ? "clocked-out"
+                : attendance?.clockIn
+                  ? "clocked-in"
+                  : "not-clocked-in",
           attendanceId: attendance?._id,
           isWeekend,
+          isOnLeave,
         };
       });
 
@@ -396,9 +404,11 @@ const ClockInOut = () => {
         <ManagerSidebar />
         <div className="manager-content">
           <div className="page-header">
-  <h1 style={{ color: '#111827' }}>⏰ Clock In/Out</h1>
-  <small style={{ color: '#6b7280', fontSize: '12px' }}>🔄 Auto-refreshing every 5 seconds</small>
-</div>
+            <h1 style={{ color: "#111827" }}>⏰ Clock In/Out</h1>
+            <small style={{ color: "#6b7280", fontSize: "12px" }}>
+              🔄 Auto-refreshing every 5 seconds
+            </small>
+          </div>
 
           {/* ✅ Off Day Banner - uses real config */}
           {isWeekend && (
@@ -505,6 +515,7 @@ const ClockInOut = () => {
                       <td>
                         <span className={`status-badge ${record.status}`}>
                           {record.status === "weekend" && "🏖️ Off Day"}
+                          {record.status === "on-leave" && "🏖️ On Leave"}
                           {record.status === "clocked-in" && "🟢 Working"}
                           {record.status === "clocked-out" && "🔴 Finished"}
                           {record.status === "not-clocked-in" &&
@@ -514,6 +525,8 @@ const ClockInOut = () => {
                       <td>
                         {record.isWeekend ? (
                           <span className="text-muted">Off Day</span>
+                        ) : record.isOnLeave ? (
+                          <span className="text-muted">On Leave</span>
                         ) : record.status === "clocked-in" ? (
                           <button
                             className="btn-small danger"

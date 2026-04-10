@@ -2,6 +2,9 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 
+
+import AdminMonthlySummary from './components/Admin/AdminMonthlySummary';
+
 import { NotificationProvider } from './context/NotificationContext';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 
@@ -118,6 +121,7 @@ function App() {
             <Route path="/admin/employee-attendance/:employeeId" element={<ProtectedRoute allowedRoles={['admin']}><AttendanceDetails /></ProtectedRoute>} />
 
 <Route path="/admin/overtime" element={<ProtectedRoute allowedRoles={['admin']}><OvertimeManagement isManager={false} /></ProtectedRoute>} />
+<Route path="/admin/monthly-summary" element={<ProtectedRoute allowedRoles={['admin']}><AdminMonthlySummary /></ProtectedRoute>} />
 
 {/* ===== 404 ===== */}
 <Route path="*" element={<NotFound />} />

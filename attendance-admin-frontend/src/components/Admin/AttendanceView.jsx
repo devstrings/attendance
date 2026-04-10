@@ -54,10 +54,18 @@ const AttendanceView = () => {
           department: record.employeeId?.department || "N/A",
           status: record.status,
           clockIn: record.clockIn
-            ? new Date(record.clockIn).toLocaleTimeString()
+            ? new Date(record.clockIn).toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              })
             : null,
           clockOut: record.clockOut
-            ? new Date(record.clockOut).toLocaleTimeString()
+            ? new Date(record.clockOut).toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              })
             : null,
           hoursWorked: record.workHours || 0,
           notes: record.remarks || "",
@@ -172,12 +180,16 @@ const AttendanceView = () => {
     holiday: holidayCount,
   };
 
-  const handleViewDetails = (id) => {
-    navigate(`/admin/attendance-details/${id}`);
-  };
+const handleViewDetails = (record) => {
+  if (record.hasRecord) {
+    navigate(`/admin/attendance-details/${record.id}`);
+  } else {
+    navigate(`/admin/employee-attendance/${record.id}`);
+  }
+};
 
   const handleAttendanceMarked = () => {
-  fetchAttendance(); // ✅ sirf refresh
+    fetchAttendance(); // ✅ sirf refresh
   };
 
   // ✅ NEW — Correct button click handler
@@ -213,7 +225,7 @@ const AttendanceView = () => {
       <div className="admin-layout">
         <AdminSidebar />
 
-        <div className="admin-content" style={{ padding: '24px' }}>
+        <div className="admin-content" style={{ padding: "24px" }}>
           {/* Header */}
           <div className="page-header-modern">
             <h1>Attendance View</h1>
@@ -351,7 +363,7 @@ const AttendanceView = () => {
                         {/* ✅ View button */}
                         <button
                           className="btn-icon view"
-                          onClick={() => handleViewDetails(record.id)}
+                          onClick={() => handleViewDetails(record)}
                           title="View Details"
                         >
                           👁
@@ -364,7 +376,8 @@ const AttendanceView = () => {
                             title="Correct Attendance"
                             style={{
                               marginLeft: "6px",
-                              background: "linear-gradient(135deg, #f97316, #ef4444)",
+                              background:
+                                "linear-gradient(135deg, #f97316, #ef4444)",
                               color: "white",
                               border: "none",
                               borderRadius: "6px",

@@ -74,8 +74,10 @@ const Report = () => {
     let count = 0;
     const current = new Date(startDate);
     current.setHours(0, 0, 0, 0);
+
+    // ✅ End = endDate ki midnight tak (us din include, agle din nahi)
     const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+    end.setHours(0, 0, 0, 0); // date of end, not beyond
 
     while (current <= end) {
       const dayName = current.toLocaleDateString("en-US", { weekday: "long" });
@@ -181,9 +183,39 @@ const Report = () => {
       const reportEnd = new Date(endDate);
       reportEnd.setHours(23, 59, 59, 999);
       // ✅ Future days nahi, lekin aaj ka poora din include
-      const todayEnd = new Date();
-      todayEnd.setHours(23, 59, 59, 999);
-      const effectiveEnd = reportEnd > todayEnd ? todayEnd : reportEnd;
+      // ✅ Sirf abhi tak ke complete hours — aaj ki current time tak
+      const now = new Date();
+      // ✅ Aaj ki date tak — time nahi, date
+      // ✅ Today = aaj ki date, end of day
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+
+      // ✅ Future month = 0 days (abhi koi working day nahi)
+      const reportStartDate = new Date(startDate);
+      reportStartDate.setHours(0, 0, 0, 0);
+
+      if (reportStartDate > today) {
+        // Pure future month — koi data nahi
+        setEmployees(
+          allEmployees.map((emp) => ({
+            id: emp._id,
+            name: `${emp.firstName} ${emp.lastName}`,
+            department: emp.department || "General",
+            joiningDate: emp.joiningDate,
+            workingDays: 0,
+            present: 0,
+            absent: 0,
+            leave: 0,
+            late: 0,
+            attendanceRate: 0,
+            overtimeHours: 0,
+          })),
+        );
+        setLoading(false);
+        return;
+      }
+
+      const effectiveEnd = reportEnd > today ? today : reportEnd;
 
       const stats = allEmployees.map((emp) => {
         // ✅ Joining date ke hisaab se effective start date
@@ -219,8 +251,8 @@ const Report = () => {
 
         const late = empAtt.filter((a) => a.isLate === true).length;
 
-        // ✅ KEY FIX: absent = workingDays - present - leave
-        // Jo din record nahi woh bhi absent count hoga
+        // ✅ Absent = working days - present - leave
+        // Lekin sirf past days count karo (aaj bhi agar attendance nahi to absent)
         const absent = Math.max(0, workingDays - present - leave);
 
         const rate =

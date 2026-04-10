@@ -8,6 +8,7 @@ const correctionRequestRoutes = require('./correctionRequest.routes'); // ✅ AD
 const notificationRoutes = require('./notification.routes');
 const salaryRoutes = require('./salary.routes');
 const reportRoutes = require('./report.routes');
+const monthlySummaryRoutes = require('./monthlySummary.routes'); // ✅ NEW
 
 module.exports = function (app, apiPrefix) {
   console.log('📡 Registering routes with prefix:', apiPrefix);
@@ -22,8 +23,10 @@ module.exports = function (app, apiPrefix) {
   app.use(`${apiPrefix}/notifications`, notificationRoutes);
   app.use(`${apiPrefix}/salary`, salaryRoutes);
   app.use(`${apiPrefix}/report`, reportRoutes);
+  app.use(`${apiPrefix}/monthly-summary`, monthlySummaryRoutes); // ✅ NEW
   
   console.log('✅ All routes registered');
   console.log('✅ Leave requests route: ' + apiPrefix + '/leave-requests');
-  console.log('✅ Correction requests route: ' + apiPrefix + '/correction-requests'); // ✅ ADDED
+  console.log('✅ Correction requests route: ' + apiPrefix + '/correction-requests');
+  console.log('✅ Monthly summary route: ' + apiPrefix + '/monthly-summary'); // ✅ NEW
 };

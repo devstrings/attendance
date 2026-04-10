@@ -214,6 +214,10 @@ exports.getCorrectionRequestById = async (req, res) => {
 };
 
 // ─── Admin/Manager: Approve correction request ────────────────────────────────
+// ─── Admin/Manager: Approve correction request ────────────────────────────────
+// attendance-backend/src/controllers/correctionRequest.controller.js mein
+// approveCorrectionRequest function ko replace karo is se:
+
 exports.approveCorrectionRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
@@ -237,7 +241,7 @@ exports.approveCorrectionRequest = async (req, res) => {
       });
     }
 
-    // Update correction request
+    // Update correction request status
     correctionRequest.status = 'approved';
     correctionRequest.resolvedBy = userId;
     correctionRequest.resolverModel = userRole === 'admin' ? 'Admin' : 'Manager';
@@ -247,33 +251,87 @@ exports.approveCorrectionRequest = async (req, res) => {
     correctionRequest.adminNotes = adminNotes || '';
     await correctionRequest.save();
 
-    // ✅ Update attendance record if attendanceId exists
-    if (updateAttendance && correctionRequest.attendanceId) {
+    // ✅ Update attendance record
+    if (updateAttendance) {
       try {
-        const attendance = await Attendance.findById(correctionRequest.attendanceId);
+        let attendance = null;
+
+        // 1. Pehle attendanceId se dhoondo
+        if (correctionRequest.attendanceId) {
+          attendance = await Attendance.findById(correctionRequest.attendanceId);
+        }
+
+        // 2. ✅ Agar attendanceId nahi hai — date + employee se dhoondo
+        if (!attendance && correctionRequest.employee && correctionRequest.attendanceDate) {
+          const employee = await Employee.findById(correctionRequest.employee);
+          if (employee) {
+            const dateStart = new Date(correctionRequest.attendanceDate);
+            dateStart.setHours(0, 0, 0, 0);
+            const dateEnd = new Date(correctionRequest.attendanceDate);
+            dateEnd.setHours(23, 59, 59, 999);
+
+            attendance = await Attendance.findOne({
+              employeeId: employee._id,
+              date: { $gte: dateStart, $lte: dateEnd }
+            });
+          }
+        }
+
         if (attendance) {
+          // ✅ Status update
           attendance.status = correctionRequest.requestedStatus;
 
+          // ✅ Clock In update
           if (correctionRequest.requestedClockIn) {
             const dateStr = new Date(correctionRequest.attendanceDate).toISOString().split('T')[0];
-            attendance.clockIn = new Date(`${dateStr}T${correctionRequest.requestedClockIn}:00`);
+            attendance.clockIn = new Date(`${dateStr}T${correctionRequest.requestedClockIn}:00+05:00`);
           }
+
+          // ✅ Clock Out update
           if (correctionRequest.requestedClockOut) {
             const dateStr = new Date(correctionRequest.attendanceDate).toISOString().split('T')[0];
-            attendance.clockOut = new Date(`${dateStr}T${correctionRequest.requestedClockOut}:00`);
+            attendance.clockOut = new Date(`${dateStr}T${correctionRequest.requestedClockOut}:00+05:00`);
           }
 
           attendance.correctionReason = `Approved correction request: ${resolution}`;
           attendance.correctedBy = userId;
           attendance.correctedAt = new Date();
           await attendance.save();
+
+          console.log(`✅ Attendance updated for employee on ${correctionRequest.attendanceDate}`);
+        } else {
+          // ✅ Agar koi attendance record nahi mila — naya banao
+          const employee = await Employee.findById(correctionRequest.employee);
+          if (employee && correctionRequest.requestedStatus === 'present') {
+            const dateStr = new Date(correctionRequest.attendanceDate).toISOString().split('T')[0];
+            const newAttendance = new Attendance({
+              employeeId: employee._id,
+              managerId: employee.managerId,
+              date: new Date(correctionRequest.attendanceDate),
+              clockIn: correctionRequest.requestedClockIn
+                ? new Date(`${dateStr}T${correctionRequest.requestedClockIn}:00+05:00`)
+                : new Date(`${dateStr}T10:00:00+05:00`),
+              clockOut: correctionRequest.requestedClockOut
+                ? new Date(`${dateStr}T${correctionRequest.requestedClockOut}:00+05:00`)
+                : null,
+              status: correctionRequest.requestedStatus,
+              markedBy: userId,
+              isApproved: true,
+              approvedBy: userId,
+              correctionReason: `Created via approved correction request: ${resolution}`,
+              correctedBy: userId,
+              correctedAt: new Date(),
+            });
+            await newAttendance.save();
+            console.log(`✅ New attendance record created for employee on ${dateStr}`);
+          }
         }
       } catch (attErr) {
         console.error('⚠️ Attendance update error:', attErr);
       }
     }
 
-    // Notify employee
+    // ✅ Notify employee
     try {
       const employee = await Employee.findById(correctionRequest.employee).populate('userId');
       if (employee?.userId) {
@@ -281,11 +339,28 @@ exports.approveCorrectionRequest = async (req, res) => {
         await notificationService.createNotification(
           employee.userId._id,
           '✅ Correction Request Approved',
-          `Your correction request for ${dateStr} has been approved. ${resolution}`,
+          `Your correction request for ${dateStr} has been approved. Status updated to: ${correctionRequest.requestedStatus}. ${resolution}`,
           'correction_approved',
           '/employee/my-requests',
           { correctionRequestId: correctionRequest._id }
         );
+      }
+
+      // ✅ Notify manager too
+      if (employee?.managerId) {
+        const managerDoc = await Manager.findById(employee.managerId).populate('userId');
+        if (managerDoc?.userId) {
+          const empName = `${employee.firstName} ${employee.lastName}`;
+          const dateStr = new Date(correctionRequest.attendanceDate).toLocaleDateString('en-GB');
+          await notificationService.createNotification(
+            managerDoc.userId._id,
+            '✅ Attendance Correction Approved',
+            `Admin approved ${empName}'s correction request for ${dateStr}. Status: ${correctionRequest.requestedStatus}`,
+            'correction_approved',
+            '/manager/attendance-history',
+            { correctionRequestId: correctionRequest._id }
+          );
+        }
       }
     } catch (notifErr) {
       console.error('⚠️ Notification error:', notifErr);

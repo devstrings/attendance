@@ -6,8 +6,7 @@ import adminService from "../../services/adminService";
 import api from "../../services/api";
 import "../../styles/Admin.css";
 import MarkAttendanceModal from "./MarkAttendanceModal";
-import { sendBroadcast } from '../../services/notificationService';
-
+import { sendBroadcast } from "../../services/notificationService";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -21,38 +20,60 @@ const AdminDashboard = () => {
     },
   });
   const [pendingOvertimeCount, setPendingOvertimeCount] = useState(0);
+  const [pendingCorrectionCount, setPendingCorrectionCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showMarkAttendanceModal, setShowMarkAttendanceModal] = useState(false);
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
-
-const [broadcastData, setBroadcastData] = useState({ updateType: '', updateDetails: '', affectedUsers: 'all' });
-const [sending, setSending] = useState(false);
+  const [broadcastData, setBroadcastData] = useState({
+    updateType: "",
+    updateDetails: "",
+    affectedUsers: "all",
+  });
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
     fetchPendingOvertimeCount();
   }, []);
 
+  const fetchPendingCorrectionCount = async () => {
+    try {
+      const res = await api.get("/correction-requests?status=pending&limit=1");
+      if (res.data.success) {
+        setPendingCorrectionCount(res.data.data?.pendingCount || 0);
+      }
+    } catch (e) {
+      console.warn("Correction count fetch failed:", e);
+    }
+  };
 
   const handleSendBroadcast = async () => {
-  if (!broadcastData.updateType || !broadcastData.updateDetails) {
-    alert('Please fill in all fields');
-    return;
-  }
-  setSending(true);
-  try {
-    const response = await sendBroadcast(broadcastData.updateType, broadcastData.updateDetails, broadcastData.affectedUsers);
-    if (response.success) {
-      alert(`✅ Broadcast sent to ${response.data?.count ?? 0} users`);
-      setBroadcastData({ updateType: '', updateDetails: '', affectedUsers: 'all' });
-      setShowBroadcastModal(false);
+    if (!broadcastData.updateType || !broadcastData.updateDetails) {
+      alert("Please fill in all fields");
+      return;
     }
-  } catch (error) {
-    alert(error.message || 'Failed to send broadcast');
-  } finally {
-    setSending(false);
-  }
-};
+    setSending(true);
+    try {
+      const response = await sendBroadcast(
+        broadcastData.updateType,
+        broadcastData.updateDetails,
+        broadcastData.affectedUsers,
+      );
+      if (response.success) {
+        alert(`✅ Broadcast sent to ${response.data?.count ?? 0} users`);
+        setBroadcastData({
+          updateType: "",
+          updateDetails: "",
+          affectedUsers: "all",
+        });
+        setShowBroadcastModal(false);
+      }
+    } catch (error) {
+      alert(error.message || "Failed to send broadcast");
+    } finally {
+      setSending(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -355,7 +376,7 @@ const [sending, setSending] = useState(false);
 
                   <div
                     style={styles.quickActionItem}
-                    onClick={() => navigate("/admin/notifications")}
+                    onClick={() => setShowBroadcastModal(true)}
                   >
                     <div
                       style={{
@@ -414,20 +435,65 @@ const [sending, setSending] = useState(false);
 
                   <div
                     style={styles.quickActionItem}
-                    onClick={() => navigate("/admin/create-employee")}
+                    onClick={() => navigate("/admin/monthly-summary")}
                   >
                     <div
                       style={{
                         ...styles.actionIcon,
-                        background: "#3b82f615",
-                        color: "#3b82f6",
+                        background: "#10b98115",
+                        color: "#10b981",
                       }}
                     >
-                      👥
+                      📊
                     </div>
                     <div style={styles.actionInfo}>
-                      <div style={styles.actionTitle}>Add Employee</div>
-                      <div style={styles.actionDesc}>Register new employee</div>
+                      <div style={styles.actionTitle}>Monthly Summary</div>
+                      <div style={styles.actionDesc}>
+                        View attendance & salary reports
+                      </div>
+                    </div>
+                    <div style={styles.actionArrow}>→</div>
+                  </div>
+
+                  <div
+                    style={styles.quickActionItem}
+                    onClick={() => navigate("/admin/overtime")}
+                  >
+                    <div
+                      style={{
+                        ...styles.actionIcon,
+                        background: "#ef444415",
+                        color: "#ef4444",
+                      }}
+                    >
+                      ✏️
+                    </div>
+                    <div style={styles.actionInfo}>
+                      <div
+                        style={{
+                          ...styles.actionTitle,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        Attendance Corrections
+                        {pendingCorrectionCount > 0 && (
+                          <span
+                            style={{
+                              ...styles.overtimeBadge,
+                              background: "#fef2f2",
+                              color: "#dc2626",
+                              border: "1px solid #fecaca",
+                            }}
+                          >
+                            {pendingCorrectionCount} pending
+                          </span>
+                        )}
+                      </div>
+                      <div style={styles.actionDesc}>
+                        Review & fix attendance records
+                      </div>
                     </div>
                     <div style={styles.actionArrow}>→</div>
                   </div>
@@ -447,6 +513,209 @@ const [sending, setSending] = useState(false);
             fetchDashboardData();
           }}
         />
+      )}
+
+      {showBroadcastModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 99999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+          onClick={() => setShowBroadcastModal(false)}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 520,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                background: "linear-gradient(135deg, #667eea, #764ba2)",
+                padding: "20px 24px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div style={{ fontSize: 18, fontWeight: 700, color: "white" }}>
+                📢 Send Broadcast Notification
+              </div>
+              <button
+                onClick={() => setShowBroadcastModal(false)}
+                style={{
+                  background: "rgba(255,255,255,0.2)",
+                  border: "none",
+                  color: "white",
+                  fontSize: 20,
+                  width: 36,
+                  height: 36,
+                  borderRadius: "50%",
+                  cursor: "pointer",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ padding: 24 }}>
+              <div style={{ marginBottom: 16 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#374151",
+                    marginBottom: 8,
+                  }}
+                >
+                  Update Type *
+                </label>
+                <input
+                  type="text"
+                  value={broadcastData.updateType}
+                  onChange={(e) =>
+                    setBroadcastData({
+                      ...broadcastData,
+                      updateType: e.target.value,
+                    })
+                  }
+                  placeholder="e.g., Holiday Announcement, Policy Change"
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    border: "2px solid #e5e7eb",
+                    borderRadius: 10,
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#374151",
+                    marginBottom: 8,
+                  }}
+                >
+                  Update Details *
+                </label>
+                <textarea
+                  value={broadcastData.updateDetails}
+                  onChange={(e) =>
+                    setBroadcastData({
+                      ...broadcastData,
+                      updateDetails: e.target.value,
+                    })
+                  }
+                  placeholder="Enter detailed message..."
+                  rows="4"
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    border: "2px solid #e5e7eb",
+                    borderRadius: 10,
+                    fontSize: 14,
+                    outline: "none",
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: 24 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#374151",
+                    marginBottom: 8,
+                  }}
+                >
+                  Send To
+                </label>
+                <select
+                  value={broadcastData.affectedUsers}
+                  onChange={(e) =>
+                    setBroadcastData({
+                      ...broadcastData,
+                      affectedUsers: e.target.value,
+                    })
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    border: "2px solid #e5e7eb",
+                    borderRadius: 10,
+                    fontSize: 14,
+                    outline: "none",
+                    background: "white",
+                  }}
+                >
+                  <option value="all">All Users</option>
+                  <option value="employee">Employees Only</option>
+                  <option value="manager">Managers Only</option>
+                </select>
+              </div>
+              <div
+                style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}
+              >
+                <button
+                  onClick={() => setShowBroadcastModal(false)}
+                  style={{
+                    padding: "10px 20px",
+                    background: "#f3f4f6",
+                    color: "#374151",
+                    border: "none",
+                    borderRadius: 10,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendBroadcast}
+                  disabled={
+                    sending ||
+                    !broadcastData.updateType ||
+                    !broadcastData.updateDetails
+                  }
+                  style={{
+                    padding: "10px 24px",
+                    background: sending
+                      ? "#9ca3af"
+                      : "linear-gradient(135deg, #667eea, #764ba2)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 10,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: sending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {sending ? "⏳ Sending..." : "📢 Send Broadcast"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

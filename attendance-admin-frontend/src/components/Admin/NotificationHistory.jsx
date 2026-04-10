@@ -81,6 +81,13 @@ const NotificationHistory = () => {
     }
   };
 
+  // ✅ Bell se sync — jab bell side se approve/reject ho to idhar bhi refresh
+useEffect(() => {
+  const handler = () => fetchAllData();
+  window.addEventListener('requests-updated', handler);
+  return () => window.removeEventListener('requests-updated', handler);
+}, []);
+
   // ===== BROADCAST FUNCTIONS =====
   const groupBroadcasts = (notifications) => {
     const map = {};
@@ -146,6 +153,7 @@ const NotificationHistory = () => {
         
         // ✅ CRITICAL: Fetch data again to refresh bell icon
         await fetchAllData();
+        window.dispatchEvent(new CustomEvent('requests-updated'));
         
         alert('✅ Leave request approved! Notification sent to employee.');
       } else {

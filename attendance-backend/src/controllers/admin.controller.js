@@ -1517,52 +1517,58 @@ const fixEmployeeManagerLinks = async (req, res) => {
 const getAdminProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const user = await User.findById(userId).select("-password");
-    if (!user)
-      return res
-        .status(404)
-        .json({ success: false, message: "Admin not found." });
-    res.status(200).json({ success: true, data: { user } });
+    const user = await User.findById(userId).select('-password');
+    if (!user) return res.status(404).json({ 
+      success: false, message: 'Admin not found.' 
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user: {
+          name:        user.name || '',
+          email:       user.email || '',
+          phone:       user.phoneNumber || '',
+          address:     user.address || '',
+        }
+      }
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to fetch profile.",
-        error: error.message,
-      });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch profile.', 
+      error: error.message 
+    });
   }
 };
 
 const updateAdminProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { name, phoneNumber, address } = req.body;
+    const { name, phone, address } = req.body;
 
+    // User model mein name field save karo
     const user = await User.findByIdAndUpdate(
       userId,
-      { $set: { name, phoneNumber, address } },
-      { new: true },
-    ).select("-password");
+      { $set: { name, phoneNumber: phone, address } },
+      { new: true }
+    ).select('-password');
 
-    if (!user)
-      return res
-        .status(404)
-        .json({ success: false, message: "Admin not found." });
+    if (!user) return res.status(404).json({ 
+      success: false, message: 'Admin not found.' 
+    });
 
     res.status(200).json({
       success: true,
-      message: "Profile updated successfully.",
-      data: { user },
+      message: 'Profile updated successfully.',
+      data: { user }
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to update profile.",
-        error: error.message,
-      });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to update profile.', 
+      error: error.message 
+    });
   }
 };
 

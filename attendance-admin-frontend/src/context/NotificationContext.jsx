@@ -54,6 +54,12 @@ export const NotificationProvider = ({ children }) => {
     ]);
   }, [fetchNotifications, fetchUnreadCount]);
 
+  const broadcastRefresh = useCallback(() => {
+  // Custom event fire karo — NotificationHistory sun-ga
+  window.dispatchEvent(new CustomEvent('requests-updated'));
+  refreshNotifications();
+}, [refreshNotifications]);
+
   // Auto-refresh every 30 seconds
   useEffect(() => {
     fetchUnreadCount(); // Initial fetch
@@ -71,7 +77,8 @@ export const NotificationProvider = ({ children }) => {
     loading,
     fetchNotifications,
     fetchUnreadCount,
-    refreshNotifications
+     refreshNotifications,   // ✅ comma add karo
+    broadcastRefresh
   };
 
   return (

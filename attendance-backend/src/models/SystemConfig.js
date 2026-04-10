@@ -13,7 +13,9 @@ const systemConfigSchema = new mongoose.Schema({
     autoAbsentOnExceed: { type: Boolean, default: true }
   },
   weekendDays: { type: [String], default: ['Saturday','Sunday'] },
-  isActive: { type: Boolean, default: true },
+absenceDeductionAmount: { type: Number, default: 500 }, // ✅ NEW — per absence deduction
+alertDay: { type: Number, default: 26 },
+isActive: { type: Boolean, default: true },
   effectiveFrom: { type: Date, default: Date.now },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }

@@ -1,6 +1,6 @@
-const Notification = require('../models/Notification');
-const User = require('../models/User');
-const emailService = require('./Services/emailService');
+const Notification = require('../../models/Notification');  // already sahi ✅
+const User = require('../../models/User');                   // ../ → ../../
+const emailService = require('./emailService');              // ./Services/ hatao — same folder mein hai
 
 // ===== Helper: Create Notification + Email =====
 const createNotification = async (recipientId, title, message, type, link = null, metadata = {}) => {
@@ -185,7 +185,7 @@ const notifyLeaveApproval = async (leaveRequest, employee, approver) => {
   try {
     console.log('📢 Notifying employee about leave approval');
 
-    const Employee = require('../models/Employee');
+    const Employee = require('../../models/Employee');
     const employeeDoc = await Employee.findById(leaveRequest.employee).populate('userId');
 
     if (!employeeDoc || !employeeDoc.userId) {

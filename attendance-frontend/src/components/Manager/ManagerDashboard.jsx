@@ -55,7 +55,28 @@ const ManagerDashboard = () => {
             leaveToday: s.leaveToday || 0, // ✅ ADD
           },
         });
-        setRecentAttendance(response.data.recentAttendance || []);
+        const allAttendance = response.data.recentAttendance || [];
+        const today = new Date().toDateString();
+        const todayAttendance = allAttendance.filter(
+          (r) => new Date(r.date).toDateString() === today,
+        );
+
+        // Absent employees add karo
+        const allEmployees = response.data.employees || [];
+        const presentIds = todayAttendance.map(
+          (r) => r.employeeId?._id?.toString() || r.employeeId?.toString(),
+        );
+        const absentEmployees = allEmployees
+          .filter((emp) => !presentIds.includes(emp._id?.toString()))
+          .map((emp) => ({
+            _id: emp._id,
+            employeeId: { firstName: emp.firstName, lastName: emp.lastName },
+            status: "absent",
+            date: new Date(),
+            clockIn: null,
+          }));
+
+        setRecentAttendance([...todayAttendance, ...absentEmployees]);
       }
     } catch (error) {
       console.error("❌ Dashboard error:", error);

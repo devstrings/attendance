@@ -26,11 +26,11 @@ const performAutoCheckout = async (forcedEndTime = null) => {
   const endTime = forcedEndTime || config.workingHours?.endTime || '19:00';
   const [endHour, endMinute] = endTime.split(':').map(Number);
 
-  const today = new Date();
-today.setHours(0, 0, 0, 0);
-
-// UTC offset fix — date field UTC mein store hoti hai
-const todayUTC = new Date(today.getTime() - (5 * 60 * 60 * 1000));
+// PKT midnight calculate karo
+const pktNow = new Date(Date.now() + 5 * 60 * 60 * 1000);
+const todayPKT = new Date(pktNow.toISOString().split('T')[0] + 'T00:00:00+05:00');
+// DB mein date UTC-5 offset pe store hoti hai, isliye 19:00 UTC = 00:00 PKT
+const todayUTC = new Date(todayPKT.getTime() - 24 * 60 * 60 * 1000);
 
 const openAttendance = await Attendance.find({
   date: { $gte: todayUTC },
