@@ -94,11 +94,12 @@ const Report = () => {
   // =====================================================
   const getDateRange = useCallback(() => {
     if (reportType === "monthly") {
-      const start = new Date(selectedYear, selectedMonth - 1, 1);
-      const end = new Date(selectedYear, selectedMonth, 0);
+      const monthStr = String(selectedMonth).padStart(2, "0");
+      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+      const lastDayStr = String(lastDay).padStart(2, "0");
       return {
-        startDate: start.toISOString().split("T")[0],
-        endDate: end.toISOString().split("T")[0],
+        startDate: `${selectedYear}-${monthStr}-01`,
+        endDate: `${selectedYear}-${monthStr}-${lastDayStr}`,
       };
     }
     if (reportType === "weekly") {
@@ -150,10 +151,25 @@ const Report = () => {
       ];
       try {
         const configRes = await adminService.getSystemConfig();
-        if (configRes.success && configRes.data.config?.workingDays) {
-          configWorkingDays = configRes.data.config.workingDays;
+        console.log("FULL CONFIG:", JSON.stringify(configRes)); // ✅ ADD
+        if (configRes.success && configRes.data?.config?.weekendDays) {
+          const allDays = [
+            "Sunday",
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+          ];
+          configWorkingDays = allDays.filter(
+            (d) => !configRes.data.config.weekendDays.includes(d),
+          );
+          console.log("WORKING DAYS:", configWorkingDays); // ✅ ADD
         }
-      } catch (e) {}
+      } catch (e) {
+        console.log("CONFIG ERROR:", e);
+      } // ✅ catch mein bhi log
 
       const empRes = await adminService.getAllEmployees({ limit: 1000 });
       if (!empRes.success || !empRes.data.employees) {
@@ -178,7 +194,7 @@ const Report = () => {
         })
         .map((h) => h.date);
 
-      const reportStart = new Date(startDate);
+      const reportStart = new Date(startDate + "T00:00:00");
       reportStart.setHours(0, 0, 0, 0);
       const reportEnd = new Date(endDate);
       reportEnd.setHours(23, 59, 59, 999);
@@ -220,7 +236,7 @@ const Report = () => {
       const stats = allEmployees.map((emp) => {
         // ✅ Joining date ke hisaab se effective start date
         const joiningDate = emp.joiningDate
-          ? new Date(emp.joiningDate)
+          ? new Date(emp.joiningDate.split("T")[0] + "T00:00:00")
           : reportStart;
         joiningDate.setHours(0, 0, 0, 0);
 
@@ -235,11 +251,26 @@ const Report = () => {
           rangeHolidayDates,
           configWorkingDays,
         );
+        console.log(
+          emp.firstName,
+          "| joining:",
+          emp.joiningDate,
+          "| reportStart:",
+          reportStart.toDateString(),
+          "| empEffectiveStart:",
+          empEffectiveStart.toDateString(),
+          "| effectiveEnd:",
+          effectiveEnd.toDateString(),
+          "| workingDays:",
+          workingDays,
+        );
 
         const empAtt = attendanceData.filter((a) => {
           const empId = a.employeeId?._id || a.employeeId;
           return empId?.toString() === emp._id?.toString();
         });
+        console.log(emp.firstName, '| attRecords:', empAtt.length, '| present:', empAtt.filter(a => ['present','half-day','late'].includes(a.status)).length);
+
 
         const present = empAtt.filter((a) =>
           ["present", "half-day", "late"].includes(a.status),
@@ -264,12 +295,17 @@ const Report = () => {
             : sum;
         }, 0);
 
+        // Total days in range (joining se aaj tak)
+const totalCalendarDays = Math.floor((effectiveEnd - empEffectiveStart) / (1000 * 60 * 60 * 24)) + 1;
+const offDays = totalCalendarDays - workingDays; // weekends + holidays
+
         return {
           id: emp._id,
           name: `${emp.firstName} ${emp.lastName}`,
           department: emp.department || "General",
           joiningDate: emp.joiningDate,
           workingDays,
+          offDays,
           present,
           absent,
           leave,
@@ -582,6 +618,7 @@ const Report = () => {
                       <th style={styles.th}>Employee</th>
                       <th style={styles.th}>Department</th>
                       <th style={styles.th}>Days</th>
+                      <th style={styles.th}>Off Days</th>
                       <th style={styles.th}>Present</th>
                       <th style={styles.th}>Absent</th>
                       <th style={styles.th}>Leave</th>
@@ -635,6 +672,9 @@ const Report = () => {
                           <td style={styles.td}>
                             <strong>{emp.workingDays}</strong>
                           </td>
+                          <td style={styles.td}>
+  <span style={{ color: '#8b5cf6', fontWeight: 700 }}>{emp.offDays}</span>
+</td>
                           <td style={styles.td}>
                             <span style={styles.presentBadge}>
                               {emp.present}

@@ -42,20 +42,20 @@ const getAllAttendance = async (req, res) => {
     }
 
     if (startDate && endDate) {
-  const start = new Date(startDate);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(endDate);
-  end.setHours(23, 59, 59, 999);
-  query.date = { $gte: start, $lte: end };
-} else if (startDate) {
-  const start = new Date(startDate);
-  start.setHours(0, 0, 0, 0);
-  query.date = { $gte: start };
-} else if (endDate) {
-  const end = new Date(endDate);
-  end.setHours(23, 59, 59, 999);
-  query.date = { $lte: end };
-}
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      query.date = { $gte: start, $lte: end };
+    } else if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      query.date = { $gte: start };
+    } else if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      query.date = { $lte: end };
+    }
 
     if (status) {
       query.status = status;
@@ -582,12 +582,14 @@ const clockOut = async (req, res) => {
     }
 
     const pktNow = new Date(Date.now() + 5 * 60 * 60 * 1000);
-const today = new Date(pktNow.toISOString().split('T')[0] + 'T00:00:00+05:00');
+    const today = new Date(
+      pktNow.toISOString().split("T")[0] + "T00:00:00+05:00",
+    );
 
-const attendance = await Attendance.findOne({
-  employeeId: employeeProfile._id,
-  date: { $gte: today }
-});
+    const attendance = await Attendance.findOne({
+      employeeId: employeeProfile._id,
+      date: { $gte: today },
+    });
 
     if (!attendance) {
       return res.status(400).json({
@@ -603,10 +605,35 @@ const attendance = await Attendance.findOne({
       });
     }
 
-    attendance.clockOut = new Date();
+    const clockOutTime = new Date();
+    attendance.clockOut = clockOutTime;
     if (location) {
       attendance.location.clockOutLocation = location;
     }
+
+    // Work hours calculate karo
+    const clockInTime = new Date(attendance.clockIn);
+    const SystemConfig = require("../models/SystemConfig");
+    const config = await SystemConfig.findOne({ isActive: true });
+    const breakHours = (config?.breakTime || 60) / 60;
+    let workHours = Math.max(
+      0,
+      (clockOutTime - clockInTime) / (1000 * 60 * 60) - breakHours,
+    );
+
+    // Approved overtime add karo
+    const approvedOvertimeMinutes =
+      attendance.overtimeStatus === "approved"
+        ? attendance.overtimeMinutes || 0
+        : 0;
+    const approvedOvertimeHours = parseFloat(
+      (approvedOvertimeMinutes / 60).toFixed(2),
+    );
+
+    attendance.workHours = parseFloat(
+      (workHours + approvedOvertimeHours).toFixed(2),
+    );
+    attendance.overtimeHours = approvedOvertimeHours;
 
     await attendance.save();
 
@@ -652,12 +679,14 @@ const getTodayClockStatus = async (req, res) => {
     }
 
     const pktNow = new Date(Date.now() + 5 * 60 * 60 * 1000);
-const today = new Date(pktNow.toISOString().split('T')[0] + 'T00:00:00+05:00');
+    const today = new Date(
+      pktNow.toISOString().split("T")[0] + "T00:00:00+05:00",
+    );
 
-const attendance = await Attendance.findOne({
-  employeeId: employeeProfile._id,
-  date: { $gte: today }
-});
+    const attendance = await Attendance.findOne({
+      employeeId: employeeProfile._id,
+      date: { $gte: today },
+    });
 
     if (!attendance) {
       return res.status(200).json({
@@ -918,6 +947,21 @@ const setOvertime = async (req, res) => {
     attendance.overtimeApprovedAt = new Date();
     attendance.overtimeStatus = "approved";
     attendance.overtimeRequestedByEmployee = false;
+
+    // Agar clockOut ho chuka hai toh workHours recalculate karo
+    if (attendance.clockOut && attendance.clockIn) {
+      const SystemConfig = require("../models/SystemConfig");
+      const config = await SystemConfig.findOne({ isActive: true });
+      const breakHours = (config?.breakTime || 60) / 60;
+      const rawWork = Math.max(
+        0,
+        (new Date(attendance.clockOut) - new Date(attendance.clockIn)) /
+          (1000 * 60 * 60) -
+          breakHours,
+      );
+      attendance.workHours = parseFloat((rawWork + overtimeHours).toFixed(2));
+    }
+
     await attendance.save();
 
     try {
@@ -949,13 +993,11 @@ const setOvertime = async (req, res) => {
     });
   } catch (error) {
     console.error("Set overtime error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to set overtime.",
-        error: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to set overtime.",
+      error: error.message,
+    });
   }
 };
 
@@ -996,31 +1038,25 @@ const requestOvertime = async (req, res) => {
     } else if (
       employeeProfile._id.toString() !== attendance.employeeId.toString()
     ) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message:
-            "Access denied. Aap sirf apna overtime request kar sakte hain.",
-        });
+      return res.status(403).json({
+        success: false,
+        message:
+          "Access denied. Aap sirf apna overtime request kar sakte hain.",
+      });
     }
 
     if (attendance.overtimeStatus === "approved") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Is din ka overtime already approved hai.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Is din ka overtime already approved hai.",
+      });
     }
 
     if (attendance.overtimeStatus === "pending") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Aapki overtime request pehle se pending hai.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Aapki overtime request pehle se pending hai.",
+      });
     }
 
     const overtimeHours = parseFloat((overtimeMinutes / 60).toFixed(2));
@@ -1084,13 +1120,11 @@ const requestOvertime = async (req, res) => {
     });
   } catch (error) {
     console.error("Request overtime error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to submit overtime request.",
-        error: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to submit overtime request.",
+      error: error.message,
+    });
   }
 };
 
@@ -1118,12 +1152,10 @@ const approveOvertimeRequest = async (req, res) => {
     }
 
     if (attendance.overtimeStatus !== "pending") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: `Overtime request already ${attendance.overtimeStatus} hai.`,
-        });
+      return res.status(400).json({
+        success: false,
+        message: `Overtime request already ${attendance.overtimeStatus} hai.`,
+      });
     }
 
     if (approved) {
@@ -1132,15 +1164,66 @@ const approveOvertimeRequest = async (req, res) => {
         attendance.overtimeHours = parseFloat(
           (overtimeMinutes / 60).toFixed(2),
         );
+        attendance.overtimeStatus = "approved";
+        attendance.overtimeApprovedBy = userId;
+        attendance.overtimeApprovedAt = new Date();
+
+        // Agar clockOut ho chuka hai toh workHours mein overtime add karo
+        if (attendance.clockOut && attendance.clockIn) {
+          const SystemConfig = require("../models/SystemConfig");
+          const config = await SystemConfig.findOne({ isActive: true });
+          const breakHours = (config?.breakTime || 60) / 60;
+          const rawWork = Math.max(
+            0,
+            (new Date(attendance.clockOut) - new Date(attendance.clockIn)) /
+              (1000 * 60 * 60) -
+              breakHours,
+          );
+          const otHours = parseFloat(
+            (attendance.overtimeMinutes / 60).toFixed(2),
+          );
+          attendance.workHours = parseFloat((rawWork + otHours).toFixed(2));
+          attendance.overtimeHours = otHours;
+        }
       }
-      attendance.overtimeStatus = "approved";
-      attendance.overtimeApprovedBy = userId;
-      attendance.overtimeApprovedAt = new Date();
+
+      // Agar clockOut ho chuka hai toh workHours mein overtime add karo
+      if (attendance.clockOut && attendance.clockIn) {
+        const SystemConfig = require("../models/SystemConfig");
+        const config = await SystemConfig.findOne({ isActive: true });
+        const breakHours = (config?.breakTime || 60) / 60;
+        const rawWork = Math.max(
+          0,
+          (new Date(attendance.clockOut) - new Date(attendance.clockIn)) /
+            (1000 * 60 * 60) -
+            breakHours,
+        );
+        const otHours = parseFloat(
+          (attendance.overtimeMinutes / 60).toFixed(2),
+        );
+        attendance.workHours = parseFloat((rawWork + otHours).toFixed(2));
+        attendance.overtimeHours = otHours;
+      }
     } else {
       attendance.overtimeStatus = "rejected";
       attendance.overtimeMinutes = 0;
       attendance.overtimeHours = 0;
       attendance.overtimeRejectionNote = rejectionNote || "Request rejected";
+    }
+
+    // Agar clockOut ho chuka hai toh workHours recalculate karo
+    if (attendance.clockOut && attendance.clockIn) {
+      const SystemConfig = require("../models/SystemConfig");
+      const config = await SystemConfig.findOne({ isActive: true });
+      const breakHours = (config?.breakTime || 60) / 60;
+      const rawWork = Math.max(
+        0,
+        (new Date(attendance.clockOut) - new Date(attendance.clockIn)) /
+          (1000 * 60 * 60) -
+          breakHours,
+      );
+      attendance.workHours = parseFloat((rawWork + overtimeHours).toFixed(2));
+      attendance.overtimeHours = overtimeHours;
     }
 
     await attendance.save();
@@ -1176,13 +1259,11 @@ const approveOvertimeRequest = async (req, res) => {
     });
   } catch (error) {
     console.error("Approve overtime error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to process overtime request.",
-        error: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to process overtime request.",
+      error: error.message,
+    });
   }
 };
 
@@ -1218,13 +1299,11 @@ const getPendingOvertimeRequests = async (req, res) => {
     });
   } catch (error) {
     console.error("Get pending overtime error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to fetch pending overtime requests.",
-        error: error.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch pending overtime requests.",
+      error: error.message,
+    });
   }
 };
 /**
@@ -1236,7 +1315,7 @@ const adminCorrectAttendance = async (req, res) => {
     const { status, clockIn, clockOut, remarks, correctionReason } = req.body;
     const userId = req.user.userId;
     const userRole = req.user.role;
- 
+
     // Sirf admin correct kar sakta hai
     if (userRole !== "admin") {
       return res.status(403).json({
@@ -1244,32 +1323,32 @@ const adminCorrectAttendance = async (req, res) => {
         message: "Access denied. Only admin can correct attendance records.",
       });
     }
- 
+
     if (!status) {
       return res.status(400).json({
         success: false,
         message: "New status is required.",
       });
     }
- 
+
     if (!correctionReason || correctionReason.trim() === "") {
       return res.status(400).json({
         success: false,
         message: "Correction reason is required.",
       });
     }
- 
+
     const attendance = await Attendance.findById(attendanceId);
- 
+
     if (!attendance) {
       return res.status(404).json({
         success: false,
         message: "Attendance record not found.",
       });
     }
- 
+
     const oldStatus = attendance.status;
- 
+
     // Fields update karo
     attendance.status = status;
     attendance.remarks = remarks || attendance.remarks;
@@ -1277,21 +1356,26 @@ const adminCorrectAttendance = async (req, res) => {
     attendance.correctedBy = userId;
     attendance.correctedAt = new Date();
     attendance.originalStatus = oldStatus;
- 
+
     if (clockIn) attendance.clockIn = new Date(clockIn);
     if (clockOut) attendance.clockOut = new Date(clockOut);
- 
+
     // Agar absent tha aur ab present/half-day ho raha hai
-    if (oldStatus === "absent" && (status === "present" || status === "half-day")) {
+    if (
+      oldStatus === "absent" &&
+      (status === "present" || status === "half-day")
+    ) {
       attendance.isApproved = true;
       attendance.approvedBy = userId;
     }
- 
+
     await attendance.save();
- 
+
     // Employee ko notification bhejo
     try {
-      const employee = await Employee.findById(attendance.employeeId).populate("userId");
+      const employee = await Employee.findById(attendance.employeeId).populate(
+        "userId",
+      );
       if (employee && employee.userId) {
         const dateStr = new Date(attendance.date).toLocaleDateString("en-GB");
         await notificationService.createNotification(
@@ -1305,16 +1389,20 @@ const adminCorrectAttendance = async (req, res) => {
             oldStatus,
             newStatus: status,
             date: attendance.date,
-          }
+          },
         );
       }
- 
+
       // Manager ko bhi notify karo
       if (attendance.managerId) {
-        const managerDoc = await Manager.findById(attendance.managerId).populate("userId");
+        const managerDoc = await Manager.findById(
+          attendance.managerId,
+        ).populate("userId");
         if (managerDoc && managerDoc.userId) {
           const employee2 = await Employee.findById(attendance.employeeId);
-          const empName = employee2 ? `${employee2.firstName} ${employee2.lastName}` : "Employee";
+          const empName = employee2
+            ? `${employee2.firstName} ${employee2.lastName}`
+            : "Employee";
           const dateStr = new Date(attendance.date).toLocaleDateString("en-GB");
           await notificationService.createNotification(
             managerDoc.userId._id,
@@ -1326,19 +1414,19 @@ const adminCorrectAttendance = async (req, res) => {
               attendanceId: attendance._id,
               oldStatus,
               newStatus: status,
-            }
+            },
           );
         }
       }
     } catch (notifErr) {
       console.error("⚠️ Correction notification error:", notifErr);
     }
- 
+
     const updatedAttendance = await Attendance.findById(attendanceId)
       .populate("employeeId", "firstName lastName employeeCode department")
       .populate("managerId", "firstName lastName")
       .populate("correctedBy", "email role");
- 
+
     res.status(200).json({
       success: true,
       message: `✅ Attendance corrected: ${oldStatus} → ${status}`,
@@ -1370,9 +1458,9 @@ module.exports = {
   requestOvertime,
   approveOvertimeRequest,
   getPendingOvertimeRequests,
-   setOvertime,
+  setOvertime,
   requestOvertime,
   approveOvertimeRequest,
   adminCorrectAttendance,
-  getPendingOvertimeRequests
+  getPendingOvertimeRequests,
 };

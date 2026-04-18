@@ -15,6 +15,7 @@ const systemConfigSchema = new mongoose.Schema({
   weekendDays: { type: [String], default: ['Saturday','Sunday'] },
 absenceDeductionAmount: { type: Number, default: 500 }, // ✅ NEW — per absence deduction
 alertDay: { type: Number, default: 26 },
+alertTime: { type: String, default: '10:00' },
 isActive: { type: Boolean, default: true },
   effectiveFrom: { type: Date, default: Date.now },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

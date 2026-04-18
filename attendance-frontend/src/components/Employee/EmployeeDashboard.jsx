@@ -367,13 +367,7 @@ const EmployeeDashboard = () => {
                   color: "#f59e0b",
                   path: "/employee/request-leave",
                 },
-                {
-                  icon: "⚠️",
-                  label: "Report Issue",
-                  desc: "Flag a problem",
-                  color: "#ef4444",
-                  path: "/employee/report-issue",
-                },
+                
                 {
                   icon: "👤",
                   label: "My Profile",
@@ -436,155 +430,176 @@ const EmployeeDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {/* Today's row at top if exists */}
-                {todayRecord && (
-                  <tr
-                    style={{
-                      ...s.tr,
-                      background: "#f0f9ff",
-                      borderLeft: "3px solid #3b82f6",
-                    }}
-                  >
-                    <td style={s.td}>
-                      <span style={{ fontWeight: "700", color: "#2563eb" }}>
-                        Today
-                      </span>
-                      <span
-                        style={{
-                          fontSize: "11px",
-                          color: "#6b7280",
-                          marginLeft: "6px",
-                        }}
-                      >
-                        {new Date(todayRecord.date).toLocaleDateString()}
-                      </span>
-                    </td>
-                    <td style={s.td}>
-                      <span
-                        style={{
-                          ...s.badge,
-                          ...badgeStyle(todayRecord.status),
-                        }}
-                      >
-                        {statusIcon(todayRecord.status)} {todayRecord.status}
-                        {isLateToday && (
-                          <span style={{ marginLeft: "4px", fontSize: "10px" }}>
-                            ⏰
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td style={s.td}>
-                      {todayRecord.clockIn ? (
-                        <span style={{ color: "#059669", fontWeight: "600" }}>
-                          {new Date(todayRecord.clockIn).toLocaleTimeString(
-                            [],
-                            { hour: "2-digit", minute: "2-digit" },
-                          )}
-                        </span>
-                      ) : (
-                        <span style={{ color: "#9ca3af" }}>Not yet</span>
-                      )}
-                    </td>
-                    <td style={s.td}>
-                      {todayRecord.clockOut ? (
-                        new Date(todayRecord.clockOut).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      ) : (
-                        <span style={{ color: "#9ca3af" }}>—</span>
-                      )}
-                    </td>
-                    <td style={s.td}>{todayRecord.workHours || 0} hrs</td>
-                    <td style={s.td}>
-                      {todayRecord.overtimeMinutes > 0 ? (
-                        <span
-                          style={{
-                            color:
-                              todayRecord.overtimeStatus === "approved"
-                                ? "#d97706"
-                                : "#9ca3af",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {todayRecord.overtimeStatus === "approved"
-                            ? `+${Math.floor(todayRecord.overtimeMinutes / 60)}h ${todayRecord.overtimeMinutes % 60}m`
-                            : "⏳ Pending"}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                  </tr>
-                )}
-                {/* Rest of recent records (skip today if already shown) */}
-                {recentAttendance.length > 0
-                  ? recentAttendance
-                      .filter(
-                        (r) =>
-                          new Date(r.date).toDateString() !==
-                          new Date().toDateString(),
-                      )
-                      .map((r) => (
-                        <tr key={r._id} style={s.tr}>
-                          <td style={s.td}>
-                            {new Date(r.date).toLocaleDateString()}
-                          </td>
-                          <td style={s.td}>
-                            <span
-                              style={{ ...s.badge, ...badgeStyle(r.status) }}
-                            >
-                              {statusIcon(r.status)} {r.status}
-                            </span>
-                          </td>
-                          <td style={s.td}>
-                            {r.clockIn
-                              ? new Date(r.clockIn).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "—"}
-                          </td>
-                          <td style={s.td}>
-                            {r.clockOut
-                              ? new Date(r.clockOut).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "—"}
-                          </td>
-                          <td style={s.td}>{r.workHours || 0} hrs</td>
-                          <td style={s.td}>
-                            {r.overtimeMinutes > 0 ? (
-                              <span
-                                style={{
-                                  color:
-                                    r.overtimeStatus === "approved"
-                                      ? "#d97706"
-                                      : "#9ca3af",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {r.overtimeStatus === "approved"
-                                  ? `+${Math.floor(r.overtimeMinutes / 60)}h ${r.overtimeMinutes % 60}m`
-                                  : "⏳ Pending"}
-                              </span>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                  : !todayRecord && (
-                      <tr>
-                        <td colSpan="6" style={s.noData}>
-                          No attendance records yet
-                        </td>
-                      </tr>
-                    )}
-              </tbody>
-            </table>
+  {/* Today's row at top if exists */}
+  {todayRecord && (
+    <tr
+      style={{
+        ...s.tr,
+        background: "#f0f9ff",
+        borderLeft: "3px solid #3b82f6",
+      }}
+    >
+      <td style={s.td}>
+        <span style={{ fontWeight: "700", color: "#2563eb" }}>
+          Today
+        </span>
+        <span style={{ fontSize: "11px", color: "#6b7280", marginLeft: "6px" }}>
+          {new Date(todayRecord.date).toLocaleDateString()}
+        </span>
+      </td>
+      <td style={s.td}>
+        <span style={{ ...s.badge, ...badgeStyle(todayRecord.status) }}>
+          {statusIcon(todayRecord.status)} {todayRecord.status}
+          {isLateToday && (
+            <span style={{ marginLeft: "4px", fontSize: "10px" }}>⏰</span>
+          )}
+        </span>
+      </td>
+      <td style={s.td}>
+        {todayRecord.clockIn ? (
+          <span style={{ color: "#059669", fontWeight: "600" }}>
+            {new Date(todayRecord.clockIn).toLocaleTimeString([], {
+              hour: "2-digit", minute: "2-digit",
+            })}
+          </span>
+        ) : (
+          <span style={{ color: "#9ca3af" }}>Not yet</span>
+        )}
+      </td>
+      <td style={s.td}>
+        {todayRecord.clockOut
+          ? new Date(todayRecord.clockOut).toLocaleTimeString([], {
+              hour: "2-digit", minute: "2-digit",
+            })
+          : <span style={{ color: "#9ca3af" }}>—</span>}
+      </td>
+      <td style={s.td}>{todayRecord.workHours || 0} hrs</td>
+      <td style={s.td}>
+        {todayRecord.overtimeMinutes > 0 ? (
+          <span style={{
+            color: todayRecord.overtimeStatus === "approved" ? "#d97706" : "#9ca3af",
+            fontWeight: 600,
+          }}>
+            {todayRecord.overtimeStatus === "approved"
+              ? `+${Math.floor(todayRecord.overtimeMinutes / 60)}h ${todayRecord.overtimeMinutes % 60}m`
+              : "⏳ Pending"}
+          </span>
+        ) : "—"}
+      </td>
+    </tr>
+  )}
+
+  {/* ── Previous 7 days — consecutive, no gaps ── */}
+  {(() => {
+    const rows = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const dateStr = d.toDateString();
+
+      // Backend record se match karo
+      const record = recentAttendance.find(
+        (r) => new Date(r.date).toDateString() === dateStr
+      );
+
+      // Day name check (weekend detection)
+      const dayName = d.toLocaleDateString("en-US", { weekday: "long" });
+      const isWeekend =
+        systemConfig?.weekendDays?.includes(dayName) ||
+        ["Saturday", "Sunday"].includes(dayName);
+
+      // Display date
+      const displayDate = d.toLocaleDateString("en-GB", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+      });
+
+      if (record) {
+        // Record maujood hai — normal row
+        rows.push(
+          <tr key={record._id} style={s.tr}>
+            <td style={s.td}>{displayDate}</td>
+            <td style={s.td}>
+              <span style={{ ...s.badge, ...badgeStyle(record.status) }}>
+                {statusIcon(record.status)} {record.status}
+              </span>
+            </td>
+            <td style={s.td}>
+              {record.clockIn
+                ? new Date(record.clockIn).toLocaleTimeString([], {
+                    hour: "2-digit", minute: "2-digit",
+                  })
+                : "—"}
+            </td>
+            <td style={s.td}>
+              {record.clockOut
+                ? new Date(record.clockOut).toLocaleTimeString([], {
+                    hour: "2-digit", minute: "2-digit",
+                  })
+                : "—"}
+            </td>
+            <td style={s.td}>{record.workHours || 0} hrs</td>
+            <td style={s.td}>
+              {record.overtimeMinutes > 0 ? (
+                <span style={{
+                  color: record.overtimeStatus === "approved" ? "#d97706" : "#9ca3af",
+                  fontWeight: 600,
+                }}>
+                  {record.overtimeStatus === "approved"
+                    ? `+${Math.floor(record.overtimeMinutes / 60)}h ${record.overtimeMinutes % 60}m`
+                    : "⏳ Pending"}
+                </span>
+              ) : "—"}
+            </td>
+          </tr>
+        );
+      } else if (isWeekend) {
+        // Weekend — record nahi hai
+        rows.push(
+          <tr key={dateStr} style={{ ...s.tr, background: "#f9fafb" }}>
+            <td style={s.td}>{displayDate}</td>
+            <td style={s.td}>
+              <span style={{
+                ...s.badge,
+                background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb",
+              }}>
+                🏠 Weekend
+              </span>
+            </td>
+            <td style={{ ...s.td, color: "#d1d5db" }}>—</td>
+            <td style={{ ...s.td, color: "#d1d5db" }}>—</td>
+            <td style={{ ...s.td, color: "#d1d5db" }}>—</td>
+            <td style={{ ...s.td, color: "#d1d5db" }}>—</td>
+          </tr>
+        );
+      } else {
+        // Working day — record nahi = Absent
+        rows.push(
+          <tr key={dateStr} style={{ ...s.tr, background: "#fff5f5" }}>
+            <td style={s.td}>{displayDate}</td>
+            <td style={s.td}>
+              <span style={{
+                ...s.badge,
+                background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca",
+              }}>
+                ❌ Absent
+              </span>
+            </td>
+            <td style={{ ...s.td, color: "#d1d5db" }}>—</td>
+            <td style={{ ...s.td, color: "#d1d5db" }}>—</td>
+            <td style={{ ...s.td, color: "#d1d5db" }}>—</td>
+            <td style={{ ...s.td, color: "#d1d5db" }}>—</td>
+          </tr>
+        );
+      }
+    }
+    return rows;
+  })()}
+  
+</tbody>
+</table>
           </div>
         </div>
 

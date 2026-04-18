@@ -231,7 +231,7 @@ const MyEmployees = () => {
                     👥
                   </div>
                   <div>
-                    <span style={S.summaryLabel}>Total Under You</span>
+                    <span style={S.summaryLabel}>Total Employee</span>
                     <div style={S.summaryValue}>{employees.length}</div>
                   </div>
                 </div>

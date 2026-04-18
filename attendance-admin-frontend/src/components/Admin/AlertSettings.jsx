@@ -3,6 +3,7 @@ import adminService from '../../services/adminService';
 
 const AlertSettings = () => {
   const [alertDay, setAlertDay]     = useState(26);
+  const [alertTime, setAlertTime]   = useState('10:00');
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved]           = useState(false);
@@ -17,6 +18,7 @@ const AlertSettings = () => {
       if (res.success && res.data?.config) {
         setCurrentConfig(res.data.config);
         setAlertDay(res.data.config.alertDay || 26);
+        setAlertTime(res.data.config.alertTime || '10:00');
       }
     } catch (err) {
       console.error('Config fetch error:', err);
@@ -40,6 +42,7 @@ const AlertSettings = () => {
         weekendDays:            currentConfig?.weekendDays,
         absenceDeductionAmount: currentConfig?.absenceDeductionAmount,
         alertDay:               parseInt(alertDay),
+        alertTime:              alertTime,
       };
       let res;
       if (currentConfig?._id) {
@@ -67,8 +70,8 @@ const AlertSettings = () => {
     <div className="config-card">
       <h2>🔔 Monthly Absence Alert Settings</h2>
       <p className="card-description">
-        Har mahine is date ko employees ko automatically alert jaayega agar unki absences hain.
-        Email + Bell notification dono jaayenge.
+        Every month on this date, employees will automatically receive an alert if they have any absences.
+        Both Email and Bell notifications will be sent.
       </p>
 
       {/* Presets */}
@@ -92,6 +95,30 @@ const AlertSettings = () => {
         </div>
       </div>
 
+      {/* Time presets */}
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#6b7280', marginBottom: 8 }}>
+          Alert Time
+        </label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          {['08:00','09:00','10:00','11:00','12:00'].map(t => (
+            <button key={t} onClick={() => setAlertTime(t)}
+              style={{
+                padding: '6px 16px', borderRadius: 20, border: '2px solid',
+                borderColor: alertTime === t ? '#667eea' : '#e5e7eb',
+                background:  alertTime === t ? '#667eea' : 'white',
+                color:       alertTime === t ? 'white'   : '#374151',
+                fontWeight: 600, fontSize: 13, cursor: 'pointer'
+              }}>
+              {t}
+            </button>
+          ))}
+        </div>
+        <input type="time" value={alertTime}
+          onChange={e => setAlertTime(e.target.value)}
+          style={{ padding: '8px 12px', border: '2px solid #e5e7eb', borderRadius: 8, fontSize: 14 }} />
+      </div>
+
       {/* Custom input */}
       <div className="form-grid" style={{ marginBottom: 16 }}>
         <div className="form-group">
@@ -99,15 +126,15 @@ const AlertSettings = () => {
           <input type="number" value={alertDay} min="1" max="28"
             onChange={e => { setAlertDay(e.target.value); setError(''); }}
             placeholder="e.g. 26" />
-          <small>1 se 28 tak — har mahine is date ko alert jaayega</small>
+          <small>From 1 to 28 — the alert will be sent on this date every month</small>
         </div>
       </div>
 
       {/* Preview */}
       <div className="info-box warning" style={{ marginBottom: 16 }}>
-        <strong>⚠️ Preview:</strong> Har mahine <strong>{alertDay} tarikh</strong> ko subah 10 baje
-        un employees ko alert jaayega jinka us mahine mein koi unauthorized absence hai.
-        Message mein absence count aur expected deduction bhi hoga.
+        <strong>⚠️ Preview:</strong> EVERY month on <strong>{alertDay} DATE</strong> at <strong>{alertTime}</strong>,
+alerts will be sent to those employees who have any unauthorized absences in that month.
+The message will also include the absence count and the expected deduction.
       </div>
 
       {error && (

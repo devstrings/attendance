@@ -24,6 +24,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showMarkAttendanceModal, setShowMarkAttendanceModal] = useState(false);
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  
   const [broadcastData, setBroadcastData] = useState({
     updateType: "",
     updateDetails: "",

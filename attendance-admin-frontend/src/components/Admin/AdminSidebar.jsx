@@ -100,6 +100,7 @@ const AdminSidebar = () => {
         className={`sidebar-overlay ${mobileOpen ? 'active' : ''}`}
         onClick={() => setMobileOpen(false)}
       />
+      
       <aside className={`admin-sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
         <button className="sidebar-toggle-btn" onClick={toggleSidebar} aria-label="Toggle Sidebar">
           <span className="toggle-icon">

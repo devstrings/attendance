@@ -12,6 +12,7 @@
   display: flex;
   min-height: calc(100vh - var(--navbar-height));
   position: relative;
+  z-index: 1;
 }
 
 /* ============ NAVBAR (FIXED TOP) ============ */
@@ -25,7 +26,8 @@
   padding: 0 2rem;
   position: sticky;
   top: 0;
-  z-index: 1000;
+  z-index: 9999;
+  overflow: visible; /* ✅ ADD THIS */
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
@@ -151,6 +153,41 @@
   color: white;
   font-weight: 700;
   font-size: 1.1rem;
+}
+.profile-dropdown {
+  position: absolute;
+  top: 110%;
+  right: 0;
+  width: 220px;
+  
+  background: #ffffff !important; /* 🔥 force solid */
+  opacity: 1 !important;
+
+  border-radius: 12px;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+  z-index: 9999;
+
+  padding: 8px 0;
+  backdrop-filter: none !important; /* 🔥 blur hatao */
+}
+.dropdown-item {
+  padding: 10px 15px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.dropdown-item:hover {
+  background: #f7fafc;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #eee;
+  margin: 5px 0;
+}
+
+.logout {
+  color: red;
 }
 
 /* ============ SIDEBAR (WITH TOGGLE) ============ */
@@ -899,9 +936,20 @@
   }
 }
 
+.sidebar-overlay {
+  opacity: 0;
+  visibility: hidden;
+  transition: 0.3s;
+}
+
+.sidebar-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
 /* Mobile Overlay */
 .sidebar-overlay {
-  display: none;
+  /* display: none; */
   position: fixed;
   top: 0;
   left: 0;
@@ -3397,5 +3445,95 @@ select {
   .data-table-modern tr {
     page-break-inside: avoid;
     page-break-after: auto;
+  }
+}
+@media (max-width: 768px) {
+  .navbar-left .sidebar-toggle-btn {
+    display: flex;
+  }
+}
+
+@media (min-width: 769px) {
+  .navbar-left .sidebar-toggle-btn {
+    display: none;
+  }
+}
+.admin-layout {
+  display: flex;
+}
+
+
+.admin-sidebar {
+  transition: transform 0.3s ease;
+}
+
+/* MOBILE WHATSAPP STYLE */
+@media (max-width: 768px) {
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 260px;
+    background: #fff;
+    z-index: 1000;
+
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    box-shadow: 2px 0 20px rgba(0,0,0,0.15);
+  }
+
+  .admin-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Overlay like WhatsApp */
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    visibility: hidden;
+    transition: 0.3s;
+    z-index: 999;
+  }
+
+  .sidebar-overlay.active {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+@media (max-width: 600px) {
+  .table-container-modern {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .data-table-modern {
+    min-width: 800px;
+  }
+}
+.page-header-modern > div {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .page-header-modern button {
+    width: 100%;
+  }
+}
+
+.filters-modern input,
+.filters-modern select {
+  flex: 1;
+  min-width: 200px;
+}
+
+@media (max-width: 768px) {
+  .filters-modern input,
+  .filters-modern select {
+    min-width: 100%;
   }
 }

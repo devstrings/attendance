@@ -26,10 +26,20 @@ const notificationSchema = new mongoose.Schema({
       'leave_rejected',
       'correction_request',
       'correction_resolved',
+      'correction_approved',
+      'correction_rejected',
       'attendance_marked',
       'system_update',
       'announcement',
-      'warning'
+      'warning',
+      'attendance_alert',
+      'monthly_summary',
+      'overtime_added',
+      'overtime_request',
+      'overtime_approved',
+      'overtime_rejected',
+      'attendance_corrected',
+      'attendance_alert'
     ]
   },
   link: {

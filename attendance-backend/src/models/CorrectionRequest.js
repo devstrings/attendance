@@ -69,11 +69,11 @@ const correctionRequestSchema = new mongoose.Schema({
   },
   resolvedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    refPath: 'resolverModel'
+    ref: 'User'
   },
   resolverModel: {
     type: String,
-    enum: ['Admin', 'Manager']
+    enum: ['Admin', 'Manager', 'User']
   },
   resolverName: {
     type: String

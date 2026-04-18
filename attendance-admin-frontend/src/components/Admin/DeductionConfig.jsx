@@ -61,7 +61,7 @@ const DeductionConfig = () => {
   try {
     await adminService.broadcastAnnouncement({
       title: '💰 Deduction Policy Updated',
-      message: `Absence deduction amount update ho gaya hai: Rs. ${amount} per unauthorized absence. Yeh next monthly summary mein apply hoga.`
+      message: `The absence deduction amount has been updated: Rs. ${amount} per unauthorized absence. This will be applied in the next monthly summary.`
     });
   } catch (e) {
     console.error('Broadcast error:', e);
@@ -89,8 +89,8 @@ const DeductionConfig = () => {
     <div className="config-card">
       <h2>💰 Absence Deduction Policy</h2>
       <p className="card-description">
-        Har unauthorized absence par kitne rupay salary se katenge?
-        Ye amount monthly summary mein automatically apply hogi.
+        How much amount will be deducted from salary for each unauthorized absence?
+This amount will be automatically applied in the monthly summary.
       </p>
 
       {/* Quick Presets */}
@@ -134,15 +134,15 @@ const DeductionConfig = () => {
             step="50"
             placeholder="e.g. 500"
           />
-          <small>Jo bhi amount set karo — 0 se 50,000 tak</small>
+          <small>You can set any amount — from 0 to 50,000</small>
         </div>
       </div>
 
       {/* Live Preview */}
       <div className="info-box warning" style={{ marginBottom: 16 }}>
-        <strong>⚠️ Preview:</strong> Agar employee ne 3 unauthorized absences li hain,
-        to salary se <strong>Rs. {(parseInt(amount) || 0) * 3}</strong> katenge
-        ({parseInt(amount) || 0} × 3)
+        <strong>⚠️ Preview:</strong> If an employee has 3 unauthorized absences,
+then <strong>Rs. {(parseInt(amount) || 0) * 3}</strong> will be deducted from the salary
+({parseInt(amount) || 0} × 3)
       </div>
 
       {/* Error */}

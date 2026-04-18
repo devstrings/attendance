@@ -13,6 +13,7 @@ const AttendanceView = () => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split("T")[0],
   );
@@ -21,6 +22,9 @@ const AttendanceView = () => {
   const [filterDepartment, setFilterDepartment] = useState("");
   const [showMarkAttendanceModal, setShowMarkAttendanceModal] = useState(false);
   const [totalEmployees, setTotalEmployees] = useState(0);
+  const [weekendDays, setWeekendDays] = useState(["Saturday", "Sunday"]);
+  const [dayOffMessage, setDayOffMessage] = useState('');
+  const [isHolidayDate, setIsHolidayDate] = useState(false);
 
   // ✅ NEW — Correct modal state
   const [showCorrectModal, setShowCorrectModal] = useState(false);
@@ -37,7 +41,35 @@ const AttendanceView = () => {
   }, [searchTerm, filterStatus, filterDepartment, attendanceRecords]);
 
   const fetchData = async () => {
-    setLoading(true);
+  setLoading(true);
+  let currentWeekendDays = ["Saturday", "Sunday"]; // ✅ YAHAN ADD KARO — sabse upar
+  try {
+    const configRes = await adminService.getSystemConfig();
+    if (configRes?.data?.config?.weekendDays) {
+      currentWeekendDays = configRes.data.config.weekendDays;
+      setWeekendDays(configRes.data.config.weekendDays);
+    }
+  } catch (e) {}
+
+    try {
+      const holidayRes = await adminService.getAllHolidays();
+      const holidays = holidayRes?.data?.holidays || [];
+      // Check karo selectedDate holiday hai ya nahi
+      const isHoliday = holidays.some((h) => {
+        const hDate = new Date(h.date).toISOString().split("T")[0];
+        return hDate === selectedDate;
+      });
+      setIsHolidayDate(isHoliday);
+      if (isHoliday) {
+  const holidayName = holidays.find(h => new Date(h.date).toISOString().split("T")[0] === selectedDate)?.name || 'Public Holiday';
+  setDayOffMessage(`🎉 ${holidayName} — This is a public holiday. Office is closed.`);
+  setAttendanceRecords([]);
+  setTotalEmployees(0);
+  setLoading(false);
+  return;
+}
+setDayOffMessage('');
+    } catch (e) {}
     try {
       const attendanceResponse = await adminService.getAllAttendance({
         date: selectedDate,
@@ -77,28 +109,52 @@ const AttendanceView = () => {
           .map((r) => r.employeeId?._id?.toString())
           .filter(Boolean);
 
-        const absentRows = allEmployees
-          .filter(
-            (emp) =>
-              emp.firstName &&
-              emp.lastName &&
-              emp.employeeCode &&
-              !emp.employeeCode.includes("TEST") &&
-              !presentIds.includes(emp._id?.toString()),
-          )
-          .map((emp) => ({
-            id: emp._id,
-            employeeId: emp.employeeCode || "N/A",
-            employeeName: `${emp.firstName || ""} ${emp.lastName || ""}`,
-            department: emp.department || "N/A",
-            status: "absent",
-            clockIn: null,
-            clockOut: null,
-            hoursWorked: 0,
-            notes: "",
-            hasRecord: false,
-            date: selectedDate,
-          }));
+        const dayNames = [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ];
+        const selectedDayName = dayNames[new Date(selectedDate).getDay()];
+        const isWeekend = currentWeekendDays.includes(selectedDayName);
+
+        if (isWeekend) {
+  setDayOffMessage(`🏖️ ${selectedDayName} — Weekend. Office is closed.`);
+  setAttendanceRecords([]);
+  setTotalEmployees(0);
+  setLoading(false);
+  return;
+}
+setDayOffMessage('');
+
+        const absentRows =
+          isWeekend || isHolidayDate
+            ? []
+            : allEmployees
+                .filter(
+                  (emp) =>
+                    emp.firstName &&
+                    emp.lastName &&
+                    emp.employeeCode &&
+                    !emp.employeeCode.includes("TEST") &&
+                    !presentIds.includes(emp._id?.toString()),
+                )
+                .map((emp) => ({
+                  id: emp._id,
+                  employeeId: emp.employeeCode || "N/A",
+                  employeeName: `${emp.firstName || ""} ${emp.lastName || ""}`,
+                  department: emp.department || "N/A",
+                  status: "absent",
+                  clockIn: null,
+                  clockOut: null,
+                  hoursWorked: 0,
+                  notes: "",
+                  hasRecord: false,
+                  date: selectedDate,
+                }));
 
         setAttendanceRecords([...formatted, ...absentRows]);
       } else {
@@ -180,13 +236,13 @@ const AttendanceView = () => {
     holiday: holidayCount,
   };
 
-const handleViewDetails = (record) => {
-  if (record.hasRecord) {
-    navigate(`/admin/attendance-details/${record.id}`);
-  } else {
-    navigate(`/admin/employee-attendance/${record.id}`);
-  }
-};
+  const handleViewDetails = (record) => {
+    if (record.hasRecord) {
+      navigate(`/admin/attendance-details/${record.id}`);
+    } else {
+      navigate(`/admin/employee-attendance/${record.id}`);
+    }
+  };
 
   const handleAttendanceMarked = () => {
     fetchAttendance(); // ✅ sirf refresh
@@ -225,7 +281,12 @@ const handleViewDetails = (record) => {
       <div className="admin-layout">
         <AdminSidebar />
 
-        <div className="admin-content" style={{ padding: "24px" }}>
+       <div
+  className="admin-content responsive-content"
+  style={{
+    margin: window.innerWidth <= 768 ? "10px" : "20px",
+  }}
+>
           {/* Header */}
           <div className="page-header-modern">
             <h1>Attendance View</h1>
@@ -397,9 +458,8 @@ const handleViewDetails = (record) => {
                 ) : (
                   <tr>
                     <td colSpan="9" className="no-data">
-                      No attendance found for{" "}
-                      {new Date(selectedDate).toLocaleDateString()}
-                    </td>
+  {dayOffMessage || `No attendance found for ${new Date(selectedDate).toLocaleDateString()}`}
+</td>
                   </tr>
                 )}
               </tbody>

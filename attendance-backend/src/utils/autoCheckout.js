@@ -5,8 +5,7 @@ const SystemConfig = require('../models/SystemConfig');
 // ─── Helper: Get current time in PKT (UTC+5) ─────────────────────────────────
 const getPKTTime = () => {
   const now = new Date();
-  // PKT = UTC + 5 hours
-  const pktOffset = 5 * 60; // minutes
+  const pktOffset = 5 * 60;
   const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
   const pktMinutes = utcMinutes + pktOffset;
   const pktHour   = Math.floor(pktMinutes / 60) % 24;
@@ -14,7 +13,7 @@ const getPKTTime = () => {
   return { pktHour, pktMinute };
 };
 
-// ─── Core checkout logic (shared between cron & manual) ──────────────────────
+// ─── Core checkout logic ──────────────────────────────────────────────────────
 const performAutoCheckout = async (forcedEndTime = null) => {
   const config = await SystemConfig.findOne({ isActive: true });
 
@@ -26,16 +25,16 @@ const performAutoCheckout = async (forcedEndTime = null) => {
   const endTime = forcedEndTime || config.workingHours?.endTime || '19:00';
   const [endHour, endMinute] = endTime.split(':').map(Number);
 
-// PKT midnight calculate karo
-const pktNow = new Date(Date.now() + 5 * 60 * 60 * 1000);
-const todayPKT = new Date(pktNow.toISOString().split('T')[0] + 'T00:00:00+05:00');
-// DB mein date UTC-5 offset pe store hoti hai, isliye 19:00 UTC = 00:00 PKT
-const todayUTC = new Date(todayPKT.getTime() - 24 * 60 * 60 * 1000);
+  // PKT today date range
+  const pktNow  = new Date(Date.now() + 5 * 60 * 60 * 1000);
+  const todayStr = pktNow.toISOString().split('T')[0];
+  const todayStart = new Date(todayStr + 'T00:00:00+05:00');
+  const todayEnd   = new Date(todayStr + 'T23:59:59+05:00');
 
-const openAttendance = await Attendance.find({
-  date: { $gte: todayUTC },
-  clockOut: null,
-  status: { $in: ['present', 'late'] }
+  const openAttendance = await Attendance.find({
+    date: { $gte: todayStart, $lte: todayEnd },
+    clockOut: null,
+    status: { $in: ['present', 'late'] }
   }).populate('employeeId', 'firstName lastName employeeCode');
 
   if (openAttendance.length === 0) {
@@ -48,11 +47,9 @@ const openAttendance = await Attendance.find({
   let checkedOutCount = 0;
 
   for (const attendance of openAttendance) {
-    // Clock out time = today at configured end time (PKT, stored as local server time)
     const clockOutTime = new Date();
     clockOutTime.setHours(endHour, endMinute, 0, 0);
 
-    // If clockOut time is before clockIn (e.g., server timezone mismatch), skip
     const clockInTime = new Date(attendance.clockIn);
     if (clockOutTime <= clockInTime) {
       console.warn(`⚠️ [Auto Checkout] Skipping ${attendance.employeeId?.employeeCode} — clockOut <= clockIn`);
@@ -63,11 +60,16 @@ const openAttendance = await Attendance.find({
     const breakHours = (config.breakTime || 60) / 60;
     workHours = Math.max(0, workHours - breakHours);
 
-    attendance.clockOut   = clockOutTime;
-    attendance.workHours  = parseFloat(workHours.toFixed(2));
-    attendance.autoCheckedOut = true; // ← new flag for tracking
-    attendance.remarks    = [attendance.remarks, `Auto checkout at ${endTime} PKT`]
-                              .filter(Boolean).join(' | ');
+    const approvedOvertimeHours = attendance.overtimeStatus === 'approved'
+      ? parseFloat(((attendance.overtimeMinutes || 0) / 60).toFixed(2))
+      : 0;
+
+    attendance.clockOut      = clockOutTime;
+    attendance.workHours     = parseFloat((workHours + approvedOvertimeHours).toFixed(2));
+    attendance.overtimeHours = approvedOvertimeHours;
+    attendance.autoCheckedOut = true;
+    attendance.remarks = [attendance.remarks, `Auto checkout at ${endTime} PKT`]
+      .filter(Boolean).join(' | ');
 
     await attendance.save();
     checkedOutCount++;
@@ -88,33 +90,26 @@ const openAttendance = await Attendance.find({
 };
 
 // ─── Cron Job ─────────────────────────────────────────────────────────────────
-// Runs every minute — but only acts once, right after grace period ends
 const autoCheckoutJob = cron.schedule('* * * * *', async () => {
   try {
     const config = await SystemConfig.findOne({ isActive: true });
     if (!config) return;
 
-    const endTime     = config.workingHours?.endTime || '19:00';
+    const endTime = config.workingHours?.endTime || '19:00';
     const [endHour, endMinute] = endTime.split(':').map(Number);
     const graceMinutes = 15;
 
-    // Grace period end (in total minutes)
     const graceEndTotal = endHour * 60 + endMinute + graceMinutes;
     const graceEndHour  = Math.floor(graceEndTotal / 60);
     const graceEndMin   = graceEndTotal % 60;
 
-    // ✅ Use PKT time — NOT new Date() which is UTC on most servers
     const { pktHour, pktMinute } = getPKTTime();
     const nowTotal = pktHour * 60 + pktMinute;
 
-    // Only trigger in the window: graceEnd <= now < graceEnd+2 minutes
-    // This prevents firing every minute all night
     const triggerStart = graceEndTotal;
     const triggerEnd   = graceEndTotal + 2;
 
-    if (nowTotal < triggerStart || nowTotal >= triggerEnd) {
-      return; // Outside trigger window — do nothing
-    }
+    if (nowTotal < triggerStart || nowTotal >= triggerEnd) return;
 
     console.log(
       `🕐 [Auto Checkout] Triggered at PKT ${pktHour}:${String(pktMinute).padStart(2,'0')} ` +

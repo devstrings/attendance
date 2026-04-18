@@ -40,13 +40,33 @@ exports.createCorrectionRequest = async (req, res) => {
     // Get user email
     const user = await User.findById(userId);
 
+    // ✅ currentStatus database se lo — employee pe trust mat karo
+    let actualCurrentStatus = currentStatus;
+    try {
+      const dateStart = new Date(attendanceDate);
+      dateStart.setHours(0, 0, 0, 0);
+      const dateEnd = new Date(attendanceDate);
+      dateEnd.setHours(23, 59, 59, 999);
+      const existingAttendance = await Attendance.findOne({
+        employeeId: employee._id,
+        date: { $gte: dateStart, $lte: dateEnd }
+      });
+      if (existingAttendance) {
+        actualCurrentStatus = existingAttendance.status;
+      } else {
+        actualCurrentStatus = 'absent'; // record nahi = absent
+      }
+    } catch (e) {
+      console.error('⚠️ Could not fetch actual status:', e);
+    }
+
     const correctionRequest = new CorrectionRequest({
       employee: employee._id,
       employeeName: `${employee.firstName} ${employee.lastName}`,
       employeeEmail: user?.email || '',
       attendanceId: attendanceId || null,
       attendanceDate: new Date(attendanceDate),
-      currentStatus,
+      currentStatus: actualCurrentStatus,
       requestedStatus,
       currentClockIn: currentClockIn || '',
       currentClockOut: currentClockOut || '',
@@ -124,7 +144,7 @@ exports.getMyCorrectionRequests = async (req, res) => {
 
     const correctionRequests = await CorrectionRequest.find(query)
       .sort({ createdAt: -1 })
-      .populate('resolvedBy', 'email role');
+      .populate({ path: 'resolvedBy', model: 'User', select: 'email role' });
 
     const stats = await CorrectionRequest.getEmployeeCorrectionStats(employee._id);
 
@@ -278,19 +298,35 @@ exports.approveCorrectionRequest = async (req, res) => {
         }
 
         if (attendance) {
-          // ✅ Status update
+          const SystemConfig = require('../models/SystemConfig');
+          const config = await SystemConfig.findOne({ isActive: true });
+          const breakHours = (config?.breakTime || 60) / 60;
+          const dateStr = new Date(correctionRequest.attendanceDate).toISOString().split('T')[0];
+
+          // Status update
           attendance.status = correctionRequest.requestedStatus;
 
-          // ✅ Clock In update
+          // Clock In update
           if (correctionRequest.requestedClockIn) {
-            const dateStr = new Date(correctionRequest.attendanceDate).toISOString().split('T')[0];
             attendance.clockIn = new Date(`${dateStr}T${correctionRequest.requestedClockIn}:00+05:00`);
           }
 
-          // ✅ Clock Out update
+          // Clock Out update
           if (correctionRequest.requestedClockOut) {
-            const dateStr = new Date(correctionRequest.attendanceDate).toISOString().split('T')[0];
             attendance.clockOut = new Date(`${dateStr}T${correctionRequest.requestedClockOut}:00+05:00`);
+          }
+
+          // ✅ workHours recalculate karo
+          if (attendance.clockIn && attendance.clockOut) {
+            const rawWork = Math.max(
+              0,
+              (new Date(attendance.clockOut) - new Date(attendance.clockIn)) / (1000 * 60 * 60) - breakHours
+            );
+            const approvedOvertimeHours = attendance.overtimeStatus === 'approved'
+              ? parseFloat(((attendance.overtimeMinutes || 0) / 60).toFixed(2))
+              : 0;
+            attendance.workHours = parseFloat((rawWork + approvedOvertimeHours).toFixed(2));
+            attendance.overtimeHours = approvedOvertimeHours;
           }
 
           attendance.correctionReason = `Approved correction request: ${resolution}`;
@@ -332,8 +368,13 @@ exports.approveCorrectionRequest = async (req, res) => {
     }
 
     // ✅ Notify employee
+    // ✅ Notify employee
     try {
-      const employee = await Employee.findById(correctionRequest.employee).populate('userId');
+      const employee = await Employee.findById(correctionRequest.employee).populate({
+        path: 'userId',
+        model: 'User'
+      });
+      console.log('🔔 Notifying employee:', employee?.firstName, '| userId:', employee?.userId?._id);
       if (employee?.userId) {
         const dateStr = new Date(correctionRequest.attendanceDate).toLocaleDateString('en-GB');
         await notificationService.createNotification(
@@ -344,6 +385,7 @@ exports.approveCorrectionRequest = async (req, res) => {
           '/employee/my-requests',
           { correctionRequestId: correctionRequest._id }
         );
+        console.log('✅ Employee notification sent!'); // ← ADDED
       }
 
       // ✅ Notify manager too

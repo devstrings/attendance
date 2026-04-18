@@ -250,7 +250,8 @@ const NotificationCenter = () => {
   const hasQuickActions = (notification) => {
     return (
       (notification.type === "leave_request" || notification.type === "correction_request") &&
-      !notification.isProcessed
+      !notification.isProcessed &&
+      !notification.actionTaken  // backend se processed flag
     );
   };
 

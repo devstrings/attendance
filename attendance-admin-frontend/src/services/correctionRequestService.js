@@ -21,7 +21,12 @@ export const createCorrectionRequest = async (data) => {
 
 export const getMyCorrectionRequests = async (status = null) => {
   try {
-    const response = await axios.get(`${API_URL}/correction-requests/my-requests`, { headers: getAuthHeader(), params: { status } });
+    const params = {};
+    if (status) params.status = status;
+    const response = await axios.get(
+      `${API_URL}/correction-requests/my-requests`,
+      { headers: getAuthHeader(), params }
+    );
     return response.data;
   } catch (error) { throw error.response?.data || error; }
 };

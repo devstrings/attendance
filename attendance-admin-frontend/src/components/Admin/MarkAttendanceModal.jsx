@@ -158,20 +158,28 @@ const MarkAttendanceModal = ({ selectedDate, onClose, onAttendanceMarked }) => {
         return;
       }
       if (attendanceData.status === "absent") {
-        const clockInDateTime = `${selectedDate}T00:00:00.000Z`;
-        const response = await adminAttendanceService.markAttendance({
-          employeeId: selectedEmployee._id,
-          date: selectedDate,
-          clockIn: clockInDateTime,
-          clockOut: null,
-          status: "absent",
-          remarks: attendanceData.remarks,
-        });
-        if (response.success) {
-          alert("✅ Absent marked successfully!");
-          onAttendanceMarked();
-        } else {
-          alert(`❌ ${response.message || "Failed to mark attendance"}`);
+        try {
+          setMarking(true);
+          const clockInDateTime = `${selectedDate}T00:00:00.000Z`;
+          const response = await adminAttendanceService.markAttendance({
+            employeeId: selectedEmployee._id,
+            date: selectedDate,
+            clockIn: clockInDateTime,
+            clockOut: null,
+            status: "absent",
+            remarks: attendanceData.remarks,
+          });
+          if (response.success) {
+            alert("✅ Absent marked successfully!");
+            onAttendanceMarked();
+          } else {
+            alert(`❌ ${response.message || "Failed to mark attendance"}`);
+          }
+        } catch (error) {
+          console.error("❌ Error:", error);
+          alert(error.message || "Failed to mark absent");
+        } finally {
+          setMarking(false);
         }
         return;
       }

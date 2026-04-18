@@ -6,14 +6,27 @@ const SystemConfig = require("../../models/SystemConfig");
 const notificationService = require("./notificationService");
 const emailService = require("./emailService");
 
-// Helper: working days in a month (Mon-Fri)
-function getWorkingDays(year, month) {
+// NAYA — weekends + holidays DB se:
+async function getWorkingDaysWithConfig(startDate, endDate) {
+  const config = await SystemConfig.findOne({ isActive: true });
+  const weekendDays = config?.weekendDays || ['Saturday', 'Sunday'];
+  
+  const holidays = await require('../../models/Holiday').find({
+    date: { $gte: startDate, $lte: endDate }
+  });
+  const holidaySet = new Set(holidays.map(h => new Date(h.date).toDateString()));
+  
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   let count = 0;
-  const date = new Date(year, month - 1, 1);
-  while (date.getMonth() === month - 1) {
-    const day = date.getDay();
-    if (day !== 0 && day !== 6) count++;
-    date.setDate(date.getDate() + 1);
+  const cursor = new Date(startDate);
+  cursor.setHours(0,0,0,0);
+  const end = new Date(endDate);
+  end.setHours(23,59,59,999);
+  
+  while (cursor <= end) {
+    const dayName = dayNames[cursor.getDay()];
+    if (!weekendDays.includes(dayName) && !holidaySet.has(cursor.toDateString())) count++;
+    cursor.setDate(cursor.getDate() + 1);
   }
   return count;
 }
@@ -23,17 +36,33 @@ async function generateMonthlySummaries(month, year) {
   const config = await SystemConfig.findOne();
   const deductionPerAbsence = config?.absenceDeductionAmount || 500;
 
-  const employees = await Employee.find({ role: "employee", isActive: true });
+ const employees = await Employee.find({ isActive: true });
 
   for (const emp of employees) {
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0); // last day of month
-    const totalWorkingDays = getWorkingDays(year, month);
+    const monthStart = new Date(year, month - 1, 1);
+    const now = new Date();
+    const isCurrentMonth = now.getMonth() + 1 === month && now.getFullYear() === year;
+    const monthEnd = isCurrentMonth ? now : new Date(year, month, 0);
+
+    // Joining date logic
+    const joiningDate = emp.joiningDate ? new Date(emp.joiningDate) : null;
+    const startDate = joiningDate && joiningDate > monthStart ? joiningDate : monthStart;
+    const endDate = monthEnd;
+
+    // Working days count — aaj tak ya poora month
+    const totalWorkingDays = await getWorkingDaysWithConfig(startDate, endDate);
+
 
     // Count present days
+    // PKT timezone fix — start at 19:00 UTC prev day, end at 18:59 UTC same day
+    const startUTC = new Date(startDate);
+    startUTC.setHours(0, 0, 0, 0);
+    const endUTC = new Date(endDate);
+    endUTC.setHours(23, 59, 59, 999);
+
     const presentDocs = await Attendance.find({
       employeeId: emp._id,
-      date: { $gte: startDate, $lte: endDate },
+      date: { $gte: startUTC, $lte: endUTC },
       status: "present",
     });
     const totalPresent = presentDocs.length;
@@ -111,7 +140,7 @@ absencesCoveredByOvertime,
 // Send emails + notifications
 async function sendMonthlySummaryEmails(month, year, isLastDay = false) {
   const summaries = await MonthlySummary.find({ month, year })
-    .populate("employeeId", "firstName lastName email salary managerId")
+    .populate("employeeId", "firstName lastName email salary managerId userId")
     .populate("managerId", "name email");
 
   const monthNames = [
@@ -136,41 +165,52 @@ async function sendMonthlySummaryEmails(month, year, isLastDay = false) {
 
     // Email to employee
     await emailService.sendMonthlySummaryEmail({
-      toEmail: emp.email,
-      toName: emp.name,
+      toEmail:     emp.email,
+      toName:      `${emp.firstName} ${emp.lastName}`,
       monthLabel,
       summary,
-      role: "employee",
+      role:        "employee",
+      joiningDate: emp.joiningDate,
     });
 
     // Email to manager
     if (summary.managerId) {
       await emailService.sendMonthlySummaryEmail({
-        toEmail: summary.managerId.email,
-        toName: summary.managerId.name,
+        toEmail:      summary.managerId.email,
+        toName:       summary.managerId.name,
         monthLabel,
         summary,
-        employeeName: emp.name,
-        role: "manager",
+        employeeName: `${emp.firstName} ${emp.lastName}`,
+        role:         "manager",
+        joiningDate:  emp.joiningDate,
       });
     }
 
     // Bell notification — employee
-    await notificationService.createNotification({
-      userId: emp._id,
-      title: `📊 ${monthLabel} Attendance Summary`,
-      message: `Aapki ${monthLabel} ki summary ready hai. Unauthorized absences: ${summary.totalUnauthorizedAbsences}, Deduction: Rs.${summary.totalDeduction}`,
-      type: "monthly_summary",
-    });
+   // Bell notification — employee
+    const now = new Date();
+    const isMonthComplete = now.getMonth() + 1 !== month || now.getFullYear() !== year;
+    const periodMsg = isMonthComplete
+      ? `Full month of ${monthLabel}`
+      : `${monthLabel} so far (1st to ${now.getDate()}th)`;
+
+    await notificationService.createNotification(
+      emp.userId,
+      `📊 ${monthLabel} Attendance Summary Ready`,
+      `Your attendance summary for ${periodMsg} is ready. Working Days: ${summary.totalWorkingDays} | Present: ${summary.totalPresent} | Unauthorized Absences: ${summary.totalUnauthorizedAbsences} | Deduction: Rs.${summary.totalDeduction.toLocaleString()} | Net Salary: Rs.${summary.netSalary.toLocaleString()}. View your detailed salary slip on the dashboard.`,
+      'monthly_summary',
+      '/employee/monthly-summary'
+    );
 
     // Bell notification — manager
     if (summary.managerId) {
-      await notificationService.createNotification({
-        userId: summary.managerId._id,
-        title: `📊 ${emp.name} — ${monthLabel} Summary`,
-        message: `${emp.name} ki ${monthLabel} summary: Absences: ${summary.totalUnauthorizedAbsences}, Deduction: Rs.${summary.totalDeduction}`,
-        type: "monthly_summary",
-      });
+      await notificationService.createNotification(
+        summary.managerId._id,
+        `📊 ${emp.firstName} ${emp.lastName} — ${monthLabel} Summary`,
+        `${emp.firstName} ${emp.lastName} ki ${monthLabel} summary: Absences: ${summary.totalUnauthorizedAbsences}, Deduction: Rs.${summary.totalDeduction}`,
+        'monthly_summary',
+        '/manager/monthly-summary'
+      );
     }
 
     // Update flags

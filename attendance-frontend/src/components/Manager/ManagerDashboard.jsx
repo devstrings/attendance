@@ -417,7 +417,7 @@ const ManagerDashboard = () => {
                     <div style={styles.actionArrow}>→</div>
                   </div>
 
-                  <div
+                  {/* <div
                     style={styles.quickActionItem}
                     onClick={() => navigate("/manager/attendance-history")}
                   >
@@ -435,7 +435,7 @@ const ManagerDashboard = () => {
                       <div style={styles.actionDesc}>View past records</div>
                     </div>
                     <div style={styles.actionArrow}>→</div>
-                  </div>
+                  </div> */}
                 </div>
               </div>
             </div>
