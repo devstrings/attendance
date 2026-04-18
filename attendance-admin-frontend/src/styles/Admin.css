@@ -3537,3 +3537,20 @@ select {
     min-width: 100%;
   }
 }
+/* ===== FINAL FIX ===== */
+.admin-sidebar {
+  width: 250px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+}
+
+.admin-content {
+  margin-left: 250px;   /* 👈 MAIN FIX */
+  padding: 20px 24px;
+}
+
+.admin-layout {
+  display: flex;
+}
