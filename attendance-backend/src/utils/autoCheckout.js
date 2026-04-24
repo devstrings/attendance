@@ -23,7 +23,6 @@ const performAutoCheckout = async (forcedEndTime = null) => {
   }
 
   const endTime = forcedEndTime || config.workingHours?.endTime || '19:00';
-  const [endHour, endMinute] = endTime.split(':').map(Number);
 
   // PKT today date range
   const pktNow  = new Date(Date.now() + 5 * 60 * 60 * 1000);
@@ -47,8 +46,8 @@ const performAutoCheckout = async (forcedEndTime = null) => {
   let checkedOutCount = 0;
 
   for (const attendance of openAttendance) {
-    const clockOutTime = new Date();
-    clockOutTime.setHours(endHour, endMinute, 0, 0);
+    // ✅ PKT explicit clockOut time (office end time)
+    const clockOutTime = new Date(`${todayStr}T${endTime}:00+05:00`);
 
     const clockInTime = new Date(attendance.clockIn);
     if (clockOutTime <= clockInTime) {
@@ -64,9 +63,9 @@ const performAutoCheckout = async (forcedEndTime = null) => {
       ? parseFloat(((attendance.overtimeMinutes || 0) / 60).toFixed(2))
       : 0;
 
-    attendance.clockOut      = clockOutTime;
-    attendance.workHours     = parseFloat((workHours + approvedOvertimeHours).toFixed(2));
-    attendance.overtimeHours = approvedOvertimeHours;
+    attendance.clockOut       = clockOutTime;
+    attendance.workHours      = parseFloat((workHours + approvedOvertimeHours).toFixed(2));
+    attendance.overtimeHours  = approvedOvertimeHours;
     attendance.autoCheckedOut = true;
     attendance.remarks = [attendance.remarks, `Auto checkout at ${endTime} PKT`]
       .filter(Boolean).join(' | ');
@@ -97,8 +96,9 @@ const autoCheckoutJob = cron.schedule('* * * * *', async () => {
 
     const endTime = config.workingHours?.endTime || '19:00';
     const [endHour, endMinute] = endTime.split(':').map(Number);
-    const graceMinutes = 15;
 
+    // ✅ Grace = 10 min — trigger exactly at endTime + 10
+    const graceMinutes  = 10;
     const graceEndTotal = endHour * 60 + endMinute + graceMinutes;
     const graceEndHour  = Math.floor(graceEndTotal / 60);
     const graceEndMin   = graceEndTotal % 60;
@@ -106,14 +106,15 @@ const autoCheckoutJob = cron.schedule('* * * * *', async () => {
     const { pktHour, pktMinute } = getPKTTime();
     const nowTotal = pktHour * 60 + pktMinute;
 
+    // ✅ Sirf 1 minute window — exactly at grace end
     const triggerStart = graceEndTotal;
-    const triggerEnd   = graceEndTotal + 2;
+    const triggerEnd   = graceEndTotal + 1;
 
     if (nowTotal < triggerStart || nowTotal >= triggerEnd) return;
 
     console.log(
       `🕐 [Auto Checkout] Triggered at PKT ${pktHour}:${String(pktMinute).padStart(2,'0')} ` +
-      `(grace end was ${graceEndHour}:${String(graceEndMin).padStart(2,'0')})`
+      `(office end: ${endTime}, grace end: ${graceEndHour}:${String(graceEndMin).padStart(2,'0')})`
     );
 
     await performAutoCheckout(endTime);
@@ -126,7 +127,7 @@ const autoCheckoutJob = cron.schedule('* * * * *', async () => {
   timezone: 'Asia/Karachi'
 });
 
-// ─── Manual Trigger ───────────────────────────────────────────────────────────
+// ─── Manual Trigger (Admin only — testing ke liye) ────────────────────────────
 const runAutoCheckoutManually = async () => {
   console.log('🔧 [Manual Trigger] Running auto checkout...');
   return await performAutoCheckout();

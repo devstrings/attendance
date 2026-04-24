@@ -26,7 +26,7 @@ const MyProfile = () => {
       const token = getToken();
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const res = await fetch(`${API}/employees/my-profile`, { headers });
+      const res = await fetch(`${API}/employee/profile`, { headers });
       if (res.ok) {
         const data = await res.json();
         const emp = data.data?.employee || data.data || data.employee || data;

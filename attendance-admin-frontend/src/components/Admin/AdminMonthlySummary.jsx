@@ -46,22 +46,36 @@ const AdminMonthlySummary = () => {
     } catch (err) { console.error("Employees fetch error:", err); }
   };
 
-  const fetchSummaries = async () => {
-  setLoading(true);
-  try {
-    // Pehle saved summaries try karo
-    const res = await api.get(`/monthly-summary/admin/${month}/${year}`);
-    if (res.data.success && res.data.summaries?.length > 0) {
-      setSummaries(res.data.summaries);
-    } else {
-      // Agar saved nahi — live preview lo
-      const preview = await api.get(`/monthly-summary/admin/preview/${month}/${year}`);
-      if (preview.data.success) setSummaries(preview.data.summaries || []);
-      else setSummaries([]);
+const fetchSummaries = async () => {
+    setLoading(true);
+    try {
+      const now = new Date();
+      const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear();
+
+      if (isCurrentMonth) {
+        // ✅ Current month — hamesha live preview lo (real-time data)
+        const preview = await api.get(`/monthly-summary/admin/preview/${month}/${year}`);
+        if (preview.data.success) setSummaries(preview.data.summaries || []);
+        else setSummaries([]);
+      } else {
+        // ✅ Past months — saved summaries lo (final confirmed data)
+        const res = await api.get(`/monthly-summary/admin/${month}/${year}`);
+        if (res.data.success && res.data.summaries?.length > 0) {
+          setSummaries(res.data.summaries);
+        } else {
+          // Past month ki bhi summary nahi bani — preview dikhao
+          const preview = await api.get(`/monthly-summary/admin/preview/${month}/${year}`);
+          if (preview.data.success) setSummaries(preview.data.summaries || []);
+          else setSummaries([]);
+        }
+      }
+    } catch (err) {
+      console.error("Summaries fetch error:", err);
+      setSummaries([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) { setSummaries([]); }
-  finally { setLoading(false); }
-};
+  };
 
   const handleGenerate = async () => {
     if (!window.confirm(`Generate summary for ${MONTH_NAMES[month - 1]} ${year}?\nThis will calculate deductions and send emails.`)) return;

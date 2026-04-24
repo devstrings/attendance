@@ -9,20 +9,21 @@ const notificationService = require("../utils/notificationService");
  * Get All Attendance Records (with filters)
  */
 const getAllAttendance = async (req, res) => {
+  console.log('📥 getAllAttendance called:', req.query);  // ← yeh add karo
   try {
-    const {
-      page = 1,
-      limit = 10,
-      employeeId = "",
-      managerId = "",
-      date = "",
-      startDate = "",
-      endDate = "",
-      status = "",
-      department = "",
-    } = req.query;
+   const {
+  page = 1,
+  limit = 10000,
+  employeeId = "",
+  managerId = "",
+  date = "",
+  startDate = "",
+  endDate = "",
+  status = "",
+  department = "",
+} = req.query;   
 
-    const query = {};
+const query = {};
 
     if (employeeId) {
       query.employeeId = employeeId;

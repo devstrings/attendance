@@ -510,7 +510,7 @@ const AdminDashboard = () => {
           selectedDate={new Date().toISOString().split("T")[0]}
           onClose={() => setShowMarkAttendanceModal(false)}
           onAttendanceMarked={() => {
-            setShowMarkAttendanceModal(false);
+            
             fetchDashboardData();
           }}
         />

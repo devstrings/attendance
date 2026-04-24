@@ -45,8 +45,8 @@ const NewCorrectionModal = ({ onClose, onSubmitted }) => {
         localStorage.getItem("employee_token") || localStorage.getItem("token");
 
       const response = await fetch(
-        `${API_URL}/employee/my-attendance?startDate=${selectedDate}&endDate=${selectedDate}`,
-        { headers: { Authorization: `Bearer ${token}` } },
+        `${API_URL}/employee/attendance-history?month=${new Date(selectedDate).getMonth() + 1}&year=${new Date(selectedDate).getFullYear()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (response.ok) {
@@ -56,7 +56,9 @@ const NewCorrectionModal = ({ onClose, onSubmitted }) => {
           data.data?.attendance ||
           data.data ||
           [];
-        const record = Array.isArray(records) ? records[0] : null;
+        const record = Array.isArray(records) 
+          ? records.find(r => new Date(r.date).toISOString().split('T')[0] === selectedDate)
+          : null;
 
         if (record) {
           // clockIn time nikaalo (HH:MM format)
@@ -169,10 +171,21 @@ const NewCorrectionModal = ({ onClose, onSubmitted }) => {
               type="date"
               name="attendanceDate"
               value={form.attendanceDate}
-              onChange={handleDateChange}
-              max={new Date().toISOString().split("T")[0]}
+              onChange={(e) => {
+                const d = new Date(e.target.value);
+                const day = d.getDay();
+                if (day === 0 || day === 6) {
+                  alert('⚠️ Weekend pe correction request nahi kar sakte!');
+                  return;
+                }
+                handleDateChange(e);
+              }}
+              max={new Date(Date.now() - 86400000).toISOString().split('T')[0]}
               style={ms.input}
             />
+            <small style={{fontSize:11, color:'#94a3b8', marginTop:4, display:'block'}}>
+              ⚠️ Sirf working days select kar sakte hain (weekends nahi)
+            </small>
             {fetchingAttendance && (
               <span
                 style={{

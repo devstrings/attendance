@@ -17,33 +17,45 @@ const AdminProfile = () => {
 
   const fetchProfileData = async () => {
     try {
-      setTimeout(() => {
-        const storedUser = localStorage.getItem('user') || localStorage.getItem('admin_user');
-        const user = storedUser ? JSON.parse(storedUser) : null;
+      const storedUser = localStorage.getItem('admin_user') || localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
 
-        setAdminData({
-          id: user?.userId || 'ADMIN001',
-          name: user?.name || 'Admin User',
-          email: user?.email || 'admin@devstrings.com',
-          role: 'Administrator',
-          department: 'Management',
-          phone: '+92 300 1234567',
-          address: 'Head Office, Faisalabad, Punjab',
-          joiningDate: '2024-01-01',
-          status: 'active',
-          permissions: [
-            'Manage Users',
-            'Manage Attendance',
-            'View Reports',
-            'System Settings',
-            'Holiday Management',
-            'Department Management'
-          ]
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
+      let realName  = user?.name || user?.email?.split('@')[0] || 'Admin';
+      let realEmail = user?.email || '';
+      let realPhone = user?.phoneNumber || user?.phone || '—';
+
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1'}/admin/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
         });
-        setLoading(false);
-      }, 500);
+        if (res.ok) {
+          const data = await res.json();
+          const u = data.data?.user || data.user || {};
+          realName  = u.name || realName;
+          realEmail = u.email || realEmail;
+          realPhone = u.phoneNumber || u.phone || realPhone;
+        }
+      } catch(e) {}
+
+      setAdminData({
+        id: user?.userId || 'ADMIN001',
+        name: realName,
+        email: realEmail,
+        phone: realPhone,
+        role: 'Administrator',
+        department: 'Management',
+        address: user?.address || '—',
+        joiningDate: '2024-01-01',
+        status: 'active',
+        permissions: [
+          'Manage Users', 'Manage Attendance', 'View Reports',
+          'System Settings', 'Holiday Management', 'Department Management'
+        ]
+      });
     } catch (error) {
       console.error('Error fetching profile:', error);
+    } finally {
       setLoading(false);
     }
   };

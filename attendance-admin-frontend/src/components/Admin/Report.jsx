@@ -179,8 +179,10 @@ const Report = () => {
       }
       const allEmployees = empRes.data.employees;
 
+      // effectiveEnd calculate karo pehle
+      console.log("🔍 API params:", { startDate, endDate, limit: 10000 });
       const attRes = await api.get("/admin/attendance", {
-        params: { startDate, endDate },
+        params: { startDate, endDate, limit: 10000 },
       });
       const attendanceData = attRes.data.success
         ? attRes.data.data.attendance
@@ -204,7 +206,7 @@ const Report = () => {
       // ✅ Aaj ki date tak — time nahi, date
       // ✅ Today = aaj ki date, end of day
       const today = new Date();
-      today.setHours(23, 59, 59, 999);
+today.setHours(0, 0, 0, 0); // ✅ Aaj ka din exclude karo agar abhi kaam chal raha hai
 
       // ✅ Future month = 0 days (abhi koi working day nahi)
       const reportStartDate = new Date(startDate);
@@ -231,7 +233,9 @@ const Report = () => {
         return;
       }
 
-      const effectiveEnd = reportEnd > today ? today : reportEnd;
+      const todayStart = new Date();
+todayStart.setHours(0, 0, 0, 0);
+const effectiveEnd = reportEnd > todayStart ? todayStart : reportEnd;
 
       const stats = allEmployees.map((emp) => {
         // ✅ Joining date ke hisaab se effective start date
@@ -269,8 +273,15 @@ const Report = () => {
           const empId = a.employeeId?._id || a.employeeId;
           return empId?.toString() === emp._id?.toString();
         });
-        console.log(emp.firstName, '| attRecords:', empAtt.length, '| present:', empAtt.filter(a => ['present','half-day','late'].includes(a.status)).length);
-
+        console.log(
+          emp.firstName,
+          "| attRecords:",
+          empAtt.length,
+          "| present:",
+          empAtt.filter((a) =>
+            ["present", "half-day", "late"].includes(a.status),
+          ).length,
+        );
 
         const present = empAtt.filter((a) =>
           ["present", "half-day", "late"].includes(a.status),
@@ -282,9 +293,25 @@ const Report = () => {
 
         const late = empAtt.filter((a) => a.isLate === true).length;
 
-        // ✅ Absent = working days - present - leave
-        // Lekin sirf past days count karo (aaj bhi agar attendance nahi to absent)
-        const absent = Math.max(0, workingDays - present - leave);
+        const actualAbsent = empAtt.filter(
+          (a) => a.status === "absent" && new Date(a.date) <= effectiveEnd,
+        ).length;
+
+        // ✅ NAYA — sirf working days ke records count karo
+        // Sirf working days ke records — leave aur present dono
+const markedDays = empAtt.filter(a => {
+  const attDate = new Date(a.date);
+  attDate.setHours(0, 0, 0, 0);
+  const dateStr = attDate.toDateString();
+  const dayName = attDate.toLocaleDateString("en-US", { weekday: "long" });
+  const isWorkingDay = configWorkingDays.includes(dayName);
+  const isHoliday = rangeHolidayDates.some(h => new Date(h).toDateString() === dateStr);
+  // ✅ empEffectiveStart se count karo
+  return attDate >= empEffectiveStart && attDate <= effectiveEnd && isWorkingDay && !isHoliday;
+}).length;
+        const unmarkedWorkingDays = Math.max(0, workingDays - markedDays);
+
+        const absent = actualAbsent + unmarkedWorkingDays;
 
         const rate =
           workingDays > 0 ? ((present / workingDays) * 100).toFixed(1) : 0;
@@ -296,8 +323,11 @@ const Report = () => {
         }, 0);
 
         // Total days in range (joining se aaj tak)
-const totalCalendarDays = Math.floor((effectiveEnd - empEffectiveStart) / (1000 * 60 * 60 * 24)) + 1;
-const offDays = totalCalendarDays - workingDays; // weekends + holidays
+        const totalCalendarDays =
+          Math.floor(
+            (effectiveEnd - empEffectiveStart) / (1000 * 60 * 60 * 24),
+          ) + 1;
+        const offDays = totalCalendarDays - workingDays; // weekends + holidays
 
         return {
           id: emp._id,
@@ -673,8 +703,10 @@ const offDays = totalCalendarDays - workingDays; // weekends + holidays
                             <strong>{emp.workingDays}</strong>
                           </td>
                           <td style={styles.td}>
-  <span style={{ color: '#8b5cf6', fontWeight: 700 }}>{emp.offDays}</span>
-</td>
+                            <span style={{ color: "#8b5cf6", fontWeight: 700 }}>
+                              {emp.offDays}
+                            </span>
+                          </td>
                           <td style={styles.td}>
                             <span style={styles.presentBadge}>
                               {emp.present}

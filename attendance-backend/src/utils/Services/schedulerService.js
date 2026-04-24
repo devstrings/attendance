@@ -1,38 +1,41 @@
 const cron = require('node-cron');
 const { generateMonthlySummaries, sendMonthlySummaryEmails } = require('./monthlySummaryService');
 
-
 function startScheduler() {
 
-  // Last day of month — 11:00 PM — generate + send email
+  // ✅ Last day of month — 11:00 PM PKT — generate + send email
   cron.schedule('0 23 * * *', async () => {
-    const now      = new Date();
+    const now      = new Date(Date.now() + 5 * 60 * 60 * 1000); // PKT
     const tomorrow = new Date(now);
     tomorrow.setDate(now.getDate() + 1);
 
     if (tomorrow.getDate() === 1) {
       const month = now.getMonth() + 1;
       const year  = now.getFullYear();
-      console.log(`Last day detected — generating summary for ${month}/${year}`);
+      console.log(`📅 Last day detected — generating summary for ${month}/${year}`);
       await generateMonthlySummaries(month, year);
       await sendMonthlySummaryEmails(month, year, true);
     }
+  }, {
+    timezone: 'Asia/Karachi' // ✅ PKT
   });
 
-  // 1st of every month — 9:00 AM — reminder email
+  // ✅ 1st of every month — 9:00 AM PKT — reminder email
   cron.schedule('0 9 1 * *', async () => {
-    const now   = new Date();
+    const now   = new Date(Date.now() + 5 * 60 * 60 * 1000); // PKT
     let month   = now.getMonth();
     let year    = now.getFullYear();
     if (month === 0) { month = 12; year -= 1; }
 
-    console.log(`1st date — sending reminder summary email for ${month}/${year}`);
+    console.log(`📧 1st date — sending reminder summary email for ${month}/${year}`);
     await sendMonthlySummaryEmails(month, year, false);
+  }, {
+    timezone: 'Asia/Karachi' // ✅ PKT
   });
 
-  // Alert day — runs every minute, checks if today+time matches config
+  // ✅ Alert day — har minute check, config se day+time match karo
   cron.schedule('* * * * *', async () => {
-    const now   = new Date();
+    const now   = new Date(Date.now() + 5 * 60 * 60 * 1000); // PKT
     const month = now.getMonth() + 1;
     const year  = now.getFullYear();
 
@@ -55,8 +58,8 @@ function startScheduler() {
 
       if (nowHour !== alertHour || nowMin !== alertMin) return;
 
-      console.log(`Time matched: ${alertHour}:${String(alertMin).padStart(2,'0')} — running alert`);
-      console.log(`Alert day ${alertDay} detected — checking absences for ${month}/${year}`);
+      console.log(`⏰ Time matched: ${alertHour}:${String(alertMin).padStart(2,'0')} PKT — running alert`);
+      console.log(`🔔 Alert day ${alertDay} detected — checking absences for ${month}/${year}`);
 
       const deductionPerAbsence = config?.absenceDeductionAmount || 500;
       const startDate = new Date(year, month - 1, 1);
@@ -103,21 +106,23 @@ function startScheduler() {
 
           await notificationService.createNotification(
             emp.userId,
-            `Attendance Alert — ${monthName} ${year}`,
-            `You have ${absences} unauthorized absence(s) this month, which may result in a salary deduction of Rs. ${deduction.toLocaleString()}. If you have worked overtime, it may offset your deductions. Please ensure your attendance is up to date before month end.`,
+            `⚠️ Attendance Alert — ${monthName} ${year}`,
+            `You have ${absences} unauthorized absence(s) this month, which may result in a salary deduction of Rs. ${deduction.toLocaleString()}. Please ensure your attendance is up to date before month end.`,
             'attendance_alert',
             '/employee/monthly-summary'
           );
 
-          console.log(`Alert sent to ${emp.firstName} ${emp.lastName} — ${absences} absences`);
+          console.log(`🔔 Alert sent to ${emp.firstName} ${emp.lastName} — ${absences} absences`);
         }
       }
     } catch (err) {
-      console.error('Alert day error:', err.message);
+      console.error('❌ Alert day error:', err.message);
     }
+  }, {
+    timezone: 'Asia/Karachi' // ✅ PKT
   });
 
-  console.log('Scheduler started');
+  console.log('✅ Scheduler started (timezone: Asia/Karachi PKT)');
 }
 
 module.exports = { startScheduler };

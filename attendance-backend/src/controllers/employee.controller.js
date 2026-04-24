@@ -8,7 +8,6 @@ const Holiday = require('../models/Holiday');
 const SystemConfig = require('../models/SystemConfig');
 
 // ===== HELPER: Calculate Working Days =====
-// Joining date se aaj tak, weekends aur holidays minus karke
 const calculateWorkingDays = async (joiningDate, endDate, workingDays) => {
   const holidays = await Holiday.find({
     date: { $gte: joiningDate, $lte: endDate }
@@ -32,7 +31,7 @@ const calculateWorkingDays = async (joiningDate, endDate, workingDays) => {
 };
 
 /**
- * Employee Dashboard - FIXED
+ * Employee Dashboard
  */
 const getDashboard = async (req, res) => {
   try {
@@ -45,7 +44,6 @@ const getDashboard = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Employee profile not found.' });
     }
 
-    // System config for working days
     const systemConfig = await SystemConfig.findOne({ isActive: true });
     const configWorkingDays = systemConfig?.workingDays || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -53,26 +51,33 @@ const getDashboard = async (req, res) => {
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
+    const currentMonth = today.getMonth();
+    const currentYear  = today.getFullYear();
+    const monthStart   = new Date(currentYear, currentMonth, 1);
+    monthStart.setHours(0, 0, 0, 0);
+    const monthEnd = new Date(today);
+monthEnd.setHours(23, 59, 59, 999); // aaj tak records fetch karo (today's attendance bhi show karna hai)
+
     // Today's attendance
     const todayAttendance = await Attendance.findOne({
       employeeId: employee._id,
       date: { $gte: today, $lt: tomorrow }
     });
 
-    // ✅ Working Days = joining date se aaj tak, weekends + holidays minus
+    // Joining date
     const joiningDate = employee.joiningDate
       ? new Date(employee.joiningDate)
-      : new Date(today.getFullYear(), today.getMonth(), 1);
+      : new Date(currentYear, currentMonth, 1);
     joiningDate.setHours(0, 0, 0, 0);
 
-    const totalWorkingDays = await calculateWorkingDays(joiningDate, today, configWorkingDays);
+    // Working days — joining date ya month start se aaj tak
+    const effectiveStart = joiningDate > monthStart ? joiningDate : monthStart;
+    // Aaj ka din exclude karo agar attendance nahi maari
+    const countUpTo = new Date(today);
+countUpTo.setHours(23, 59, 59, 999);
+    const totalWorkingDays = await calculateWorkingDays(effectiveStart, countUpTo, configWorkingDays);
 
-    // This month stats
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-    const monthStart = new Date(currentYear, currentMonth, 1);
-    const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-
+    // This month attendance — aaj tak sirf
     const allMonthAttendance = await Attendance.find({
       employeeId: employee._id,
       date: { $gte: monthStart, $lte: monthEnd }
@@ -82,15 +87,13 @@ const getDashboard = async (req, res) => {
       ['present', 'half-day', 'late'].includes(a.status)
     ).length;
 
-    const absentDays = allMonthAttendance.filter(a => a.status === 'absent').length;
-
     const leaveDays = allMonthAttendance.filter(a =>
       ['leave', 'on-leave'].includes(a.status)
     ).length;
 
     const lateDays = allMonthAttendance.filter(a => a.isLate === true).length;
 
-    // ✅ Today's status - present/absent/leave mein se ek
+    // Today's status
     let todayStatus = 'not_marked';
     let todayLateMinutes = 0;
     let isLateToday = false;
@@ -107,22 +110,28 @@ const getDashboard = async (req, res) => {
       todayLateMinutes = todayAttendance.lateMinutes || 0;
     }
 
-    const monthlyStats = {
-      workingDays: totalWorkingDays,  // ✅ Proper working days
-      present: presentDays,
-      absent: absentDays,
-      onLeave: leaveDays,
-      late: lateDays
-    };
 
-    // Pending leaves
+
+
+
+const markedDays = allMonthAttendance.length;
+const unmarkedWorkingDays = Math.max(0, totalWorkingDays - markedDays);
+const actualAbsent = allMonthAttendance.filter(a => a.status === 'absent').length;
+
+const monthlyStats = {
+  workingDays: totalWorkingDays,
+  present: presentDays,
+  absent: actualAbsent + unmarkedWorkingDays,
+  onLeave: leaveDays,
+  late: lateDays
+};
+
     const LeaveRequest = require('../models/LeaveRequest');
     const pendingLeaves = await LeaveRequest.countDocuments({
       employee: employee._id,
       status: 'pending'
     });
 
-    // Recent attendance
     const recentAttendance = await Attendance.find({ employeeId: employee._id })
       .sort({ date: -1 })
       .limit(5)
@@ -133,9 +142,9 @@ const getDashboard = async (req, res) => {
       data: {
         employee,
         todayAttendance,
-        todayStatus,        // ✅ 'present' | 'absent' | 'leave' | 'not_marked'
-        isLateToday,        // ✅ true/false
-        todayLateMinutes,   // ✅ kitne minutes late
+        todayStatus,
+        isLateToday,
+        todayLateMinutes,
         monthlyStats,
         pendingLeaves,
         recentAttendance
@@ -195,10 +204,6 @@ const getMyAttendance = async (req, res) => {
   }
 };
 
-// =====================================================
-// REPLACE getAttendanceHistory in employeeController.js
-// =====================================================
-
 const getAttendanceHistory = async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -208,7 +213,6 @@ const getAttendanceHistory = async (req, res) => {
     if (!employee)
       return res.status(404).json({ success: false, message: 'Employee profile not found.' });
 
-    // ── Date range for selected month ─────────────────────────────────────────
     let startDate, endDate;
     if (month && year) {
       startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
@@ -219,7 +223,6 @@ const getAttendanceHistory = async (req, res) => {
       endDate   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     }
 
-    // ── Attendance records for this month ─────────────────────────────────────
     const attendanceRecords = await Attendance.find({
       employeeId: employee._id,
       date: { $gte: startDate, $lte: endDate }
@@ -227,24 +230,13 @@ const getAttendanceHistory = async (req, res) => {
       .populate('managerId', 'firstName lastName')
       .sort({ date: 1 });
 
-    // ── Working days calculation ───────────────────────────────────────────────
-    // System config fetch (working day names + holidays)
-    const SystemConfig = require('../models/SystemConfig');
-    const Holiday      = require('../models/Holiday');
+    const systemConfigH     = await SystemConfig.findOne({ isActive: true });
+    const configWorkingDays = systemConfigH?.workingDays || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-    const systemConfig      = await SystemConfig.findOne({ isActive: true });
-    const configWorkingDays = systemConfig?.workingDays ||
-      ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-
-    // Holidays in this month range
     const holidays     = await Holiday.find({ date: { $gte: startDate, $lte: endDate } });
     const holidayDates = new Set(holidays.map(h => new Date(h.date).toDateString()));
 
-    // Effective start = max(joiningDate, monthStart)
-    // Effective end   = min(today, monthEnd)  — future days count nahi hone chahiye
-    const joiningDate = employee.joiningDate
-      ? new Date(employee.joiningDate)
-      : startDate;
+    const joiningDate = employee.joiningDate ? new Date(employee.joiningDate) : startDate;
     joiningDate.setHours(0, 0, 0, 0);
 
     const today = new Date();
@@ -253,49 +245,44 @@ const getAttendanceHistory = async (req, res) => {
     const effectiveStart = joiningDate > startDate ? joiningDate : startDate;
     const effectiveEnd   = endDate > today ? today : endDate;
 
-    // Count working days
     let totalWorkingDays = 0;
     const cursor = new Date(effectiveStart);
     cursor.setHours(0, 0, 0, 0);
 
     while (cursor <= effectiveEnd) {
-      const dayName    = cursor.toLocaleDateString('en-US', { weekday: 'long' });
-      const isWorking  = configWorkingDays.includes(dayName);
-      const isHoliday  = holidayDates.has(cursor.toDateString());
+      const dayName   = cursor.toLocaleDateString('en-US', { weekday: 'long' });
+      const isWorking = configWorkingDays.includes(dayName);
+      const isHoliday = holidayDates.has(cursor.toDateString());
       if (isWorking && !isHoliday) totalWorkingDays++;
       cursor.setDate(cursor.getDate() + 1);
     }
 
-    // ── Statistics ────────────────────────────────────────────────────────────
-    const statistics = {
-      totalDays: totalWorkingDays,   // ✅ Working days (join date + holidays considered)
-      present:   attendanceRecords.filter(a => ['present', 'late', 'half-day'].includes(a.status)).length,
-      absent:    attendanceRecords.filter(a => a.status === 'absent').length,
-      late:      attendanceRecords.filter(a => a.isLate).length,
-      halfDay:   attendanceRecords.filter(a => a.status === 'half-day').length,
-      onLeave:   attendanceRecords.filter(a => ['leave', 'on-leave'].includes(a.status)).length,
-      totalWorkHours:     attendanceRecords.reduce((sum, a) => sum + (a.workHours    || 0), 0),
-      totalOvertimeHours: attendanceRecords.reduce((sum, a) => sum + (a.overtimeHours || 0), 0),
-    };
+    const markedDays = attendanceRecords.length;
+const actualAbsent = attendanceRecords.filter(a => a.status === 'absent').length;
+const unmarkedWorkingDays = Math.max(0, totalWorkingDays - markedDays);
+
+const statistics = {
+  totalDays: totalWorkingDays,
+  present: attendanceRecords.filter(a => ['present','late','half-day'].includes(a.status)).length,
+  absent: actualAbsent + unmarkedWorkingDays, // ✅ SAHI
+  late: attendanceRecords.filter(a => a.isLate).length,
+  halfDay: attendanceRecords.filter(a => a.status === 'half-day').length,
+  onLeave: attendanceRecords.filter(a => ['leave','on-leave'].includes(a.status)).length,
+  totalWorkHours: attendanceRecords.reduce((sum, a) => sum + (a.workHours || 0), 0),
+  totalOvertimeHours: attendanceRecords.reduce((sum, a) => sum + (a.overtimeHours || 0), 0),
+};
 
     res.status(200).json({
       success: true,
       data: {
         attendance: attendanceRecords,
         statistics,
-        period: {
-          month: startDate.getMonth() + 1,
-          year:  startDate.getFullYear()
-        }
+        period: { month: startDate.getMonth() + 1, year: startDate.getFullYear() }
       }
     });
   } catch (error) {
     console.error('❌ getAttendanceHistory error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch attendance history.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch attendance history.', error: error.message });
   }
 };
 
@@ -345,7 +332,11 @@ const getMyLeaves = async (req, res) => {
     const count = await Leave.countDocuments(query);
     const currentYear = new Date().getFullYear();
     const yearStart = new Date(currentYear, 0, 1), yearEnd = new Date(currentYear, 11, 31);
-    const leaveStats = { totalApproved: await Leave.aggregate([{ $match: { employeeId: employee._id, status: 'approved', startDate: { $gte: yearStart, $lte: yearEnd } } }, { $group: { _id: null, totalDays: { $sum: '$numberOfDays' } } }]), pending: await Leave.countDocuments({ employeeId: employee._id, status: 'pending' }), rejected: await Leave.countDocuments({ employeeId: employee._id, status: 'rejected' }) };
+    const leaveStats = {
+      totalApproved: await Leave.aggregate([{ $match: { employeeId: employee._id, status: 'approved', startDate: { $gte: yearStart, $lte: yearEnd } } }, { $group: { _id: null, totalDays: { $sum: '$numberOfDays' } } }]),
+      pending: await Leave.countDocuments({ employeeId: employee._id, status: 'pending' }),
+      rejected: await Leave.countDocuments({ employeeId: employee._id, status: 'rejected' })
+    };
     res.status(200).json({ success: true, data: { leaves, totalPages: Math.ceil(count / limit), currentPage: page, totalLeaves: count, statistics: { approvedDaysThisYear: leaveStats.totalApproved[0]?.totalDays || 0, pendingRequests: leaveStats.pending, rejectedRequests: leaveStats.rejected } } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch leave requests.', error: error.message });

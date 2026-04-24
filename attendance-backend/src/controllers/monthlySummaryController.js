@@ -96,6 +96,10 @@ exports.adminPreviewSummaries = async (req, res) => {
    const monthStart = new Date(y, m - 1, 1);
 const endDate = new Date(y, m, 0);
 
+const now = new Date();
+const isCurrentMonth = now.getMonth() + 1 === m && now.getFullYear() === y;
+const effectiveEnd = isCurrentMonth ? now : endDate;
+
 const employees = await Employee.find({ isActive: true });
 const previews = [];
 
@@ -106,18 +110,30 @@ for (const emp of employees) {
   // Working days count (Mon-Fri) — joining date ke baad se
   let totalWorkingDays = 0;
   const d = new Date(startDate);
-  while (d <= endDate) {
-    const day = d.getDay();
-    if (day !== 0 && day !== 6) totalWorkingDays++;
-    d.setDate(d.getDate() + 1);
-  }
+  // Config se weekendDays lo (pehle se config variable exist karta hai):
+const weekendDays = config?.weekendDays || ['Saturday', 'Sunday'];
+const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+// Aur loop replace karo:
+const Holiday = require("../models/Holiday");
+const holidays = await Holiday.find({
+  date: { $gte: startDate, $lte: effectiveEnd }
+});
+const holidaySet = new Set(holidays.map(h => new Date(h.date).toDateString()));
+
+while (d <= effectiveEnd) {
+  const dayName = dayNames[d.getDay()];
+  const isHoliday = holidaySet.has(d.toDateString());
+  if (!weekendDays.includes(dayName) && !isHoliday) totalWorkingDays++;
+  d.setDate(d.getDate() + 1);
+}
       // Present days
       const presentDocs = await Attendance.find({
-        employeeId: emp._id,
-        date: { $gte: startDate, $lte: endDate },
-        status: "present",
-      });
-      const totalPresent = presentDocs.length;
+  employeeId: emp._id,
+  date: { $gte: startDate, $lte: effectiveEnd },
+  status: { $in: ['present', 'half-day', 'late'] },
+});
+const totalPresent = presentDocs.length;
 
       // Approved overtime hours
       const overtimeAttendances = await Attendance.find({
@@ -149,10 +165,15 @@ for (const emp of employees) {
         totalApprovedLeaves += diff;
       }
 
-      const rawAbsences = Math.max(
-        0,
-        totalWorkingDays - totalPresent - totalApprovedLeaves,
-      );
+      // Marked days = present + leave + actual absent records
+const allEmpAtt = await Attendance.find({
+  employeeId: emp._id,
+  date: { $gte: startDate, $lte: effectiveEnd },
+});
+const markedDays = allEmpAtt.length;
+const unmarkedDays = Math.max(0, totalWorkingDays - markedDays);
+const actualAbsentRecords = allEmpAtt.filter(a => a.status === 'absent').length;
+const rawAbsences = actualAbsentRecords + unmarkedDays;
       const totalUnauthorizedAbsences = Math.max(
         0,
         rawAbsences - absencesCoveredByOvertime,

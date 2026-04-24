@@ -19,11 +19,16 @@ const AdminNavbar = () => {
     }, 1000);
 
     // User fetch from localStorage
-    const storedUser = localStorage.getItem('user');
+    const storedUser = localStorage.getItem('admin_user') || localStorage.getItem('user');
     if (storedUser) {
       const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser); // ✅ user set
-      setAdminName(parsedUser.name || 'Admin User');
+      setUser(parsedUser);
+      setAdminName(
+        parsedUser.name ||
+        (parsedUser.firstName && parsedUser.lastName ? `${parsedUser.firstName} ${parsedUser.lastName}` : null) ||
+        parsedUser.email?.split('@')[0] ||
+        'Admin'
+      );
     }
 
     return () => clearInterval(timer);
