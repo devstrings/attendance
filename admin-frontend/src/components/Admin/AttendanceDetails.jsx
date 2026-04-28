@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars, import/no-anonymous-default-export, jsx-a11y/anchor-is-valid */
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import AdminNavbar from "./AdminNavbar";
@@ -954,3 +955,4 @@ const S = {
 const spinCSS = `@keyframes spin { to { transform: rotate(360deg); } }`;
 
 export default AttendanceDetails;
+

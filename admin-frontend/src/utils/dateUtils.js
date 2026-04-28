@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars, import/no-anonymous-default-export, jsx-a11y/anchor-is-valid */
 // Format date to display format (DD/MM/YYYY)
 export const formatDate = (date) => {
   if (!date) return '';

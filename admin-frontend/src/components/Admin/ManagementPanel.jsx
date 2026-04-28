@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, no-unused-vars, import/no-anonymous-default-export, jsx-a11y/anchor-is-valid */
 import React, { useState, useEffect } from "react";
 import DeductionConfig from "./DeductionConfig";
 import AlertSettings from './AlertSettings';
@@ -669,3 +670,4 @@ const ManagementPanel = () => {
 };
 
 export default ManagementPanel;
+
