@@ -233,9 +233,9 @@ today.setHours(0, 0, 0, 0); // ✅ Aaj ka din exclude karo agar abhi kaam chal r
         return;
       }
 
-      const todayStart = new Date();
-todayStart.setHours(0, 0, 0, 0);
-const effectiveEnd = reportEnd > todayStart ? todayStart : reportEnd;
+    const todayEnd = new Date();
+todayEnd.setHours(23, 59, 59, 999);
+const effectiveEnd = reportEnd > todayEnd ? todayEnd : reportEnd;
 
       const stats = allEmployees.map((emp) => {
         // ✅ Joining date ke hisaab se effective start date
@@ -270,9 +270,9 @@ const effectiveEnd = reportEnd > todayStart ? todayStart : reportEnd;
         );
 
         const empAtt = attendanceData.filter((a) => {
-          const empId = a.employeeId?._id || a.employeeId;
-          return empId?.toString() === emp._id?.toString();
-        });
+  const empId = a.employeeId?._id?.toString() || a.employeeId?.toString();
+  return empId === emp._id?.toString();
+});
         console.log(
           emp.firstName,
           "| attRecords:",
@@ -283,19 +283,19 @@ const effectiveEnd = reportEnd > todayStart ? todayStart : reportEnd;
           ).length,
         );
 
-        const present = empAtt.filter((a) =>
-          ["present", "half-day", "late"].includes(a.status),
-        ).length;
+       const present = empAtt.filter((a) =>
+  ["present", "half-day", "late"].includes(a.status) &&
+  new Date(a.date) <= effectiveEnd
+).length;
 
-        const leave = empAtt.filter((a) =>
-          ["leave", "on-leave"].includes(a.status),
-        ).length;
+const leave = empAtt.filter((a) =>
+  ["leave", "on-leave"].includes(a.status) &&
+  new Date(a.date) <= effectiveEnd
+).length;
 
-        const late = empAtt.filter((a) => a.isLate === true).length;
-
-        const actualAbsent = empAtt.filter(
-          (a) => a.status === "absent" && new Date(a.date) <= effectiveEnd,
-        ).length;
+const late = empAtt.filter((a) => 
+  a.isLate === true && new Date(a.date) <= effectiveEnd
+).length;
 
         // ✅ NAYA — sirf working days ke records count karo
         // Sirf working days ke records — leave aur present dono
@@ -306,12 +306,14 @@ const markedDays = empAtt.filter(a => {
   const dayName = attDate.toLocaleDateString("en-US", { weekday: "long" });
   const isWorkingDay = configWorkingDays.includes(dayName);
   const isHoliday = rangeHolidayDates.some(h => new Date(h).toDateString() === dateStr);
-  // ✅ empEffectiveStart se count karo
   return attDate >= empEffectiveStart && attDate <= effectiveEnd && isWorkingDay && !isHoliday;
 }).length;
-        const unmarkedWorkingDays = Math.max(0, workingDays - markedDays);
 
-        const absent = actualAbsent + unmarkedWorkingDays;
+const unmarkedWorkingDays = Math.max(0, workingDays - markedDays);
+const actualAbsent = empAtt.filter(a => 
+  a.status === "absent" && new Date(a.date) <= effectiveEnd
+).length;
+const absent = actualAbsent + unmarkedWorkingDays;
 
         const rate =
           workingDays > 0 ? ((present / workingDays) * 100).toFixed(1) : 0;

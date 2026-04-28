@@ -117,11 +117,12 @@ countUpTo.setHours(23, 59, 59, 999);
 const markedDays = allMonthAttendance.length;
 const unmarkedWorkingDays = Math.max(0, totalWorkingDays - markedDays);
 const actualAbsent = allMonthAttendance.filter(a => a.status === 'absent').length;
+const totalAbsent = actualAbsent + unmarkedWorkingDays;
 
 const monthlyStats = {
   workingDays: totalWorkingDays,
   present: presentDays,
-  absent: actualAbsent + unmarkedWorkingDays,
+  absent: totalAbsent,
   onLeave: leaveDays,
   late: lateDays
 };

@@ -98,7 +98,9 @@ const endDate = new Date(y, m, 0);
 
 const now = new Date();
 const isCurrentMonth = now.getMonth() + 1 === m && now.getFullYear() === y;
-const effectiveEnd = isCurrentMonth ? now : endDate;
+const todayEnd = new Date(now);
+todayEnd.setHours(23, 59, 59, 999);
+const effectiveEnd = isCurrentMonth ? todayEnd : endDate;
 
 const employees = await Employee.find({ isActive: true });
 const previews = [];
