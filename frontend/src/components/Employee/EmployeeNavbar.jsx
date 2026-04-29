@@ -9,27 +9,56 @@ const EmployeeNavbar = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showDropdown, setShowDropdown] = useState(false);
   const [employeeName, setEmployeeName] = useState("Employee User");
-
+  const [profilePic, setProfilePic] = useState(null);
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
     const storedUser =
-      localStorage.getItem("employee_user") ||
-      localStorage.getItem("user");
+      localStorage.getItem("employee_user") || localStorage.getItem("user");
 
     if (storedUser) {
       try {
         const user = JSON.parse(storedUser);
-        setEmployeeName(
+        // profile se name fetch karo agar localStorage mein nahi
+        const name =
           user.name ||
-          (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : null) ||
+          (user.firstName && user.lastName
+            ? `${user.firstName} ${user.lastName}`
+            : null) ||
           user.firstName ||
-          "Employee User"
-        );
+          user.profile?.firstName
+            ? `${user.profile?.firstName || ""} ${user.profile?.lastName || ""}`.trim()
+            : null;
+
+        if (name && name.trim()) {
+          setEmployeeName(name.trim());
+        } else {
+          // API se fetch karo
+          const token =
+            localStorage.getItem("employee_token") ||
+            localStorage.getItem("token");
+          if (token) {
+            fetch("http://localhost:5000/api/v1/employee/profile", {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+              .then((r) => r.json())
+              .then((data) => {
+                const emp = data.data?.employee || data.data || {};
+                const realName =
+                  `${emp.firstName || ""} ${emp.lastName || ""}`.trim();
+                if (realName) setEmployeeName(realName);
+              })
+              .catch(() => {});
+          }
+        }
       } catch (e) {
         console.error("Error parsing user data:", e);
       }
     }
+
+    // ✅ Profile pic load karo
+    const pic = localStorage.getItem("employee_profile_pic");
+    if (pic) setProfilePic(pic);
 
     return () => clearInterval(timer);
   }, []);
@@ -61,7 +90,9 @@ const EmployeeNavbar = () => {
 
   // ✅ My Requests page pe jao aur correction tab directly open karo
   const handleCorrectionRequest = () => {
-    navigate("/employee/my-requests", { state: { activeTab: "correction", openModal: true } });
+    navigate("/employee/my-requests", {
+      state: { activeTab: "correction", openModal: true },
+    });
   };
 
   return (
@@ -69,7 +100,10 @@ const EmployeeNavbar = () => {
       <TokenExpiryWatcher role="employee" />
       <nav className="employee-navbar">
         <div className="navbar-left">
-          <div className="navbar-logo" onClick={() => navigate("/employee/dashboard")}>
+          <div
+            className="navbar-logo"
+            onClick={() => navigate("/employee/dashboard")}
+          >
             <span className="logo-icon">📊</span>
             <span className="logo-text">Attendance System</span>
           </div>
@@ -92,39 +126,79 @@ const EmployeeNavbar = () => {
             <NotificationCenter userType="employee" />
           </div>
 
-          <div className="user-profile" onClick={() => setShowDropdown(!showDropdown)}>
-            <div className="profile-avatar">
-              {employeeName.charAt(0).toUpperCase()}
+          <div
+            className="user-profile"
+            onClick={() => setShowDropdown(!showDropdown)}
+          >
+            <div
+              className="profile-avatar"
+              style={{ overflow: "hidden", padding: 0 }}
+            >
+              {profilePic ? (
+                <img
+                  src={profilePic}
+                  alt="pic"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    borderRadius: "50%",
+                  }}
+                />
+              ) : (
+                employeeName.charAt(0).toUpperCase()
+              )}
             </div>
             <span className="profile-name">{employeeName}</span>
             <span className="dropdown-arrow">▼</span>
 
             {showDropdown && (
               <div className="profile-dropdown">
-                <div className="dropdown-item" onClick={() => navigate("/employee/dashboard")}>
+                <div
+                  className="dropdown-item"
+                  onClick={() => navigate("/employee/dashboard")}
+                >
                   <span>🏠</span> Dashboard
                 </div>
-                <div className="dropdown-item" onClick={() => navigate("/employee/profile")}>
+                <div
+                  className="dropdown-item"
+                  onClick={() => navigate("/employee/profile")}
+                >
                   <span>👤</span> My Profile
                 </div>
-                <div className="dropdown-item" onClick={() => navigate("/employee/my-attendance")}>
+                <div
+                  className="dropdown-item"
+                  onClick={() => navigate("/employee/my-attendance")}
+                >
                   <span>📝</span> My Attendance
                 </div>
                 <div className="dropdown-divider"></div>
                 <div className="dropdown-section-title">
                   <span>📋 Requests & Leave</span>
                 </div>
-                <div className="dropdown-item" onClick={() => navigate("/employee/request-leave")}>
+                <div
+                  className="dropdown-item"
+                  onClick={() => navigate("/employee/request-leave")}
+                >
                   <span>🏖️</span> Request Leave
                 </div>
                 {/* ✅ Report Issue ki jagah Correction Request */}
-                <div className="dropdown-item" onClick={handleCorrectionRequest}>
+                <div
+                  className="dropdown-item"
+                  onClick={handleCorrectionRequest}
+                >
                   <span>✏️</span> Correction Request
                 </div>
-                <div className="dropdown-item" onClick={() => navigate("/employee/my-requests")}>
+                <div
+                  className="dropdown-item"
+                  onClick={() => navigate("/employee/my-requests")}
+                >
                   <span>📋</span> My Requests
                 </div>
-                <div className="dropdown-item" onClick={() => navigate("/employee/overtime-requests")}>
+                <div
+                  className="dropdown-item"
+                  onClick={() => navigate("/employee/overtime-requests")}
+                >
                   <span>⏰</span> Overtime Request
                 </div>
                 <div className="dropdown-divider"></div>

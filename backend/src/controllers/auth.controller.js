@@ -4,7 +4,7 @@ const Manager = require('../models/Manager');
 const { generateToken } = require('../utils/jwtHandler');
 const { hashPassword, comparePassword } = require('../utils/passwordHandler');
 const { generateOTP, verifyOTP } = require('../utils/otpHandler');
-const { sendEmail } = require('../utils/emailService');
+const { sendOTPEmail } = require('../utils/emailService');
 const { validateEmail, validatePassword } = require('../utils/validators');
 
 /**
@@ -145,7 +145,6 @@ const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
-    // Validate email
     if (!email || !validateEmail(email)) {
       return res.status(400).json({
         success: false,
@@ -153,44 +152,44 @@ const forgotPassword = async (req, res) => {
       });
     }
 
-    // Find user
     const user = await User.findOne({ email: email.toLowerCase() });
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User with this email does not exist.'
+        message: 'This email is not registered in our system.'
       });
     }
 
-    // Generate OTP
     const otp = generateOTP();
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Save OTP to user
     user.otp = otp;
     user.otpExpires = otpExpiry;
     await user.save();
 
-    // Send OTP via email
-    await sendEmail({
-      to: user.email,
-      subject: 'Password Reset OTP',
-      html: `
-        <h2>Password Reset Request</h2>
-        <p>Your OTP for password reset is: <strong>${otp}</strong></p>
-        <p>This OTP will expire in 10 minutes.</p>
-        <p>If you didn't request this, please ignore this email.</p>
-      `
-    });
+    // ✅ sendOTPEmail use karo (better template + name bhi pass hoga)
+    try {
+      await sendOTPEmail({
+        to: user.email,
+        otp: otp,
+        name: user.name || user.email  // name field jo bhi ho User model mein
+      });
+    } catch (emailError) {
+      console.error('❌ Email sending failed:', emailError.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP email.',
+        error: emailError.message  // ab actual reason frontend/terminal mein dikhega
+      });
+    }
 
     res.status(200).json({
       success: true,
       message: 'OTP sent to your email.',
-      data: {
-        email: user.email
-      }
+      data: { email: user.email }
     });
+
   } catch (error) {
     console.error('Forgot password error:', error);
     res.status(500).json({

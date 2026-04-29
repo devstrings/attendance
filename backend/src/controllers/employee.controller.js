@@ -114,9 +114,19 @@ countUpTo.setHours(23, 59, 59, 999);
 
 
 
-const markedDays = allMonthAttendance.length;
-const unmarkedWorkingDays = Math.max(0, totalWorkingDays - markedDays);
+// Sirf working days ke records count karo (leave bhi working day pe hoti hai)
+const holidays = await Holiday.find({ date: { $gte: effectiveStart, $lte: countUpTo } });
+const holidaySet = new Set(holidays.map(h => new Date(h.date).toDateString()));
+
+const markedWorkingDays = allMonthAttendance.filter(a => {
+  const attDate = new Date(a.date);
+  attDate.setHours(0, 0, 0, 0);
+  const dayName = attDate.toLocaleDateString('en-US', { weekday: 'long' });
+  return configWorkingDays.includes(dayName) && !holidaySet.has(attDate.toDateString());
+}).length;
+
 const actualAbsent = allMonthAttendance.filter(a => a.status === 'absent').length;
+const unmarkedWorkingDays = Math.max(0, totalWorkingDays - markedWorkingDays);
 const totalAbsent = actualAbsent + unmarkedWorkingDays;
 
 const monthlyStats = {

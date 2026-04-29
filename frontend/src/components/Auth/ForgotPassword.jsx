@@ -1,9 +1,22 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import '../../styles/Auth.css';
+
+// URL se role detect karo:
+// /employee/forgot-password → employee
+// /admin/forgot-password    → admin
+// /manager/forgot-password  → manager
+const getRoleFromPath = (pathname) => {
+  if (pathname.includes('/admin')) return 'admin';
+  if (pathname.includes('/manager')) return 'manager';
+  return 'employee';
+};
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const role = getRoleFromPath(location.pathname);
+
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,39 +34,46 @@ const ForgotPassword = () => {
     return true;
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError('');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
 
-  if (!validateEmail()) return;
+    if (!validateEmail()) return;
 
-  setLoading(true);
+    setLoading(true);
 
-  try {
-    const response = await fetch('http://localhost:5000/api/v1/auth/forgot-password', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email })
-    });
+    try {
+      const response = await fetch('http://localhost:5000/api/v1/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to send reset email');
+      if (response.status === 404) {
+        // Email registered nahi hai
+        setError('This email is not registered in our system.');
+        setLoading(false);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send reset email');
+      }
+
+      // Save to session
+      sessionStorage.setItem('reset_email', email);
+      sessionStorage.setItem('reset_role', role);
+
+      setEmailSent(true);
+    } catch (err) {
+      console.error('Forgot password error:', err);
+      setError(err.message || 'Failed to send reset email. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    setEmailSent(true);
-sessionStorage.setItem('reset_email', email);      // ← ye add karo
-sessionStorage.setItem('reset_role', 'employee');
-    setLoading(false);
-  } catch (error) {
-    console.error('Forgot password error:', error);
-    setError(error.message || 'Failed to send reset email. Please try again.');
-    setLoading(false);
-  }
-};
+  };
 
   const handleResendEmail = () => {
     setEmailSent(false);
@@ -79,23 +99,17 @@ sessionStorage.setItem('reset_role', 'employee');
           <div className="auth-actions">
             <button
               className="btn-submit"
-              onClick={() => navigate('/employee/verify-otp')}
+              onClick={() => navigate(`/${role}/verify-otp`)}
             >
               Enter OTP Code
             </button>
-            <button
-              className="btn-secondary"
-              onClick={handleResendEmail}
-            >
+            <button className="btn-secondary" onClick={handleResendEmail}>
               Resend Email
             </button>
           </div>
 
           <div className="auth-footer">
-            <button
-              className="link-button"
-              onClick={() => navigate('/employee/login')}
-            >
+            <button className="link-button" onClick={() => navigate(`/${role}/login`)}>
               ← Back to Login
             </button>
           </div>
@@ -112,7 +126,7 @@ sessionStorage.setItem('reset_role', 'employee');
             <span className="logo-icon">🔒</span>
           </div>
           <h1>Forgot Password?</h1>
-          <p>Enter your email to reset your password</p>
+          <p>Enter your registered email to reset your password</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
@@ -136,23 +150,16 @@ sessionStorage.setItem('reset_role', 'employee');
           </div>
 
           <div className="info-message">
-            <p>We'll send you an OTP (One-Time Password) to verify your identity.</p>
+            <p>We'll send an OTP to your registered email address only.</p>
           </div>
 
-          <button
-            type="submit"
-            className="btn-submit"
-            disabled={loading}
-          >
+          <button type="submit" className="btn-submit" disabled={loading}>
             {loading ? 'Sending...' : 'Send Reset Code'}
           </button>
         </form>
 
         <div className="auth-footer">
-          <button
-            className="link-button"
-            onClick={() => navigate('/login')}
-          >
+          <button className="link-button" onClick={() => navigate(`/${role}/login`)}>
             ← Back to Login
           </button>
         </div>

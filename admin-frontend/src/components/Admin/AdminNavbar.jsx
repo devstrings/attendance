@@ -10,28 +10,44 @@ const AdminNavbar = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showDropdown, setShowDropdown] = useState(false);
   const [adminName, setAdminName] = useState('Admin User');
-  const [user, setUser] = useState(null); // ✅ user state add ki
+const [user, setUser] = useState(null);
+const [profilePic, setProfilePic] = useState(null);
 
   useEffect(() => {
-    // Time update
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
 
-    // User fetch from localStorage
-    const storedUser = localStorage.getItem('admin_user') || localStorage.getItem('user');
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
-      setAdminName(
-        parsedUser.name ||
-        (parsedUser.firstName && parsedUser.lastName ? `${parsedUser.firstName} ${parsedUser.lastName}` : null) ||
-        parsedUser.email?.split('@')[0] ||
-        'Admin'
-      );
-    }
+    // ✅ Naam aur pic load karo — function banao taake reuse ho sake
+    const loadUserData = () => {
+      const storedUser = localStorage.getItem('admin_user') || localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          setAdminName(
+            parsedUser.name ||
+            (parsedUser.firstName && parsedUser.lastName
+              ? `${parsedUser.firstName} ${parsedUser.lastName}`
+              : null) ||
+            parsedUser.email?.split('@')[0] ||
+            'Admin'
+          );
+        } catch(e) {}
+      }
+      const pic = localStorage.getItem("admin_profile_pic");
+      setProfilePic(pic || null);
+    };
 
-    return () => clearInterval(timer);
+    loadUserData();
+
+    // ✅ localStorage changes sun-o — dusri tab ya settings update se sync ho
+    window.addEventListener('storage', loadUserData);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('storage', loadUserData);
+    };
   }, []);
 
   const formatTime = (date) => {
@@ -95,9 +111,13 @@ const AdminNavbar = () => {
 </div>
 
         <div className="user-profile" onClick={toggleDropdown}>
-          <div className="profile-avatar">
-            {adminName.charAt(0).toUpperCase()}
-          </div>
+          <div className="profile-avatar" style={{ overflow: 'hidden', padding: 0 }}>
+  {profilePic
+    ? <img src={profilePic} alt="pic"
+        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+    : adminName.charAt(0).toUpperCase()
+  }
+</div>
           <span className="profile-name">{adminName}</span>
           <span className="dropdown-arrow">▼</span>
 

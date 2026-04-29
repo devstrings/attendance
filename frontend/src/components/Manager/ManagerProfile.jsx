@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps, no-unused-vars, import/no-anonymous-default-export, jsx-a11y/anchor-is-valid */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ManagerNavbar from './ManagerNavbar';
 import ManagerSidebar from './ManagerSidebar';
@@ -11,8 +11,9 @@ const ManagerProfile = () => {
   const navigate = useNavigate();
   const [managerData, setManagerData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profilePic, setProfilePic] = useState(null);
+  const fileInputRef = useRef(null);
 
-  // Change Password State
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [pwErrors, setPwErrors] = useState({});
   const [pwLoading, setPwLoading] = useState(false);
@@ -20,7 +21,11 @@ const ManagerProfile = () => {
 
   const getToken = () => localStorage.getItem('manager_token') || localStorage.getItem('token');
 
-  useEffect(() => { fetchProfileData(); }, []);
+  useEffect(() => {
+    fetchProfileData();
+    const pic = localStorage.getItem('manager_profile_pic');
+    if (pic) setProfilePic(pic);
+  }, []);
 
   const fetchProfileData = async () => {
     try {
@@ -28,21 +33,10 @@ const ManagerProfile = () => {
       const token = getToken();
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      // Try manager profile endpoint
       const res = await fetch(`${API}/managers/my-profile`, { headers });
       if (res.ok) {
         const data = await res.json();
         const mgr = data.data?.manager || data.data || data.manager || data;
-
-        // Fetch team stats
-        let teamStats = { employeeCount: 0, totalPresent: 0, totalAbsent: 0 };
-        try {
-          const statsRes = await fetch(`${API}/managers/team-stats`, { headers });
-          if (statsRes.ok) {
-            const sd = await statsRes.json();
-            teamStats = sd.data || sd.stats || teamStats;
-          }
-        } catch (e) {}
 
         setManagerData({
           id: mgr.managerCode || mgr.employeeCode || mgr._id || '—',
@@ -54,12 +48,8 @@ const ManagerProfile = () => {
           position: mgr.position || mgr.designation || mgr.jobTitle || 'Team Manager',
           joiningDate: mgr.joiningDate || mgr.hireDate || mgr.startDate || null,
           status: mgr.status || mgr.employmentStatus || 'active',
-          employeeCount: teamStats.employeeCount || teamStats.totalEmployees || mgr.employeeCount || 0,
-          totalPresent: teamStats.totalPresent || teamStats.present || 0,
-          totalAbsent: teamStats.totalAbsent || teamStats.absent || 0,
         });
       } else {
-        // Fallback: /auth/me
         const meRes = await fetch(`${API}/auth/me`, { headers });
         if (meRes.ok) {
           const md = await meRes.json();
@@ -74,10 +64,8 @@ const ManagerProfile = () => {
             position: u.position || u.designation || 'Team Manager',
             joiningDate: u.joiningDate || u.createdAt || null,
             status: u.status || 'active',
-            employeeCount: 0, totalPresent: 0, totalAbsent: 0,
           });
         } else {
-          // localStorage fallback
           const stored = localStorage.getItem('manager_user') || localStorage.getItem('user');
           const u = stored ? JSON.parse(stored) : {};
           setManagerData({
@@ -90,7 +78,6 @@ const ManagerProfile = () => {
             position: u.position || 'Team Manager',
             joiningDate: u.joiningDate || null,
             status: u.status || 'active',
-            employeeCount: 0, totalPresent: 0, totalAbsent: 0,
           });
         }
       }
@@ -101,11 +88,30 @@ const ManagerProfile = () => {
       setManagerData({
         id: '—', name: u.name || 'Manager User', email: u.email || '—',
         phone: '—', address: '—', department: '—', position: 'Team Manager',
-        joiningDate: null, status: 'active', employeeCount: 0, totalPresent: 0, totalAbsent: 0,
+        joiningDate: null, status: 'active',
       });
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ Photo handlers
+  const handlePicChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { alert('2MB se kam honi chahiye'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target.result;
+      setProfilePic(base64);
+      localStorage.setItem('manager_profile_pic', base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePic = () => {
+    setProfilePic(null);
+    localStorage.removeItem('manager_profile_pic');
   };
 
   const handlePwChange = (e) => {
@@ -130,13 +136,14 @@ const ManagerProfile = () => {
     setPwLoading(true);
     try {
       const res = await fetch(`${API}/auth/change-password`, {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-body: JSON.stringify({ 
-  oldPassword: passwordForm.currentPassword, 
-  password: passwordForm.newPassword,
-  confirmPassword: passwordForm.confirmPassword
-})      });
+        body: JSON.stringify({
+          oldPassword: passwordForm.currentPassword,
+          password: passwordForm.newPassword,
+          confirmPassword: passwordForm.confirmPassword
+        })
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         alert('✅ Password changed successfully!');
@@ -184,13 +191,35 @@ body: JSON.stringify({
           </div>
 
           <div style={S.card}>
-            {/* Avatar + Name */}
+            {/* ✅ Avatar ki jagah photo */}
             <div style={S.profileTop}>
-              <div style={S.avatarXl}>{(managerData.name || 'M').charAt(0).toUpperCase()}</div>
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                {profilePic ? (
+                  <img src={profilePic} alt="Profile"
+                    style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', border: '3px solid #667eea', cursor: 'pointer' }}
+                    onClick={() => fileInputRef.current.click()}
+                  />
+                ) : (
+                  <div style={{ ...S.avatarXl, cursor: 'pointer' }} onClick={() => fileInputRef.current.click()}>
+                    {(managerData.name || 'M').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div onClick={() => fileInputRef.current.click()}
+                  style={{ position: 'absolute', bottom: 4, right: 4, background: '#667eea', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 13, boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}>
+                  📷
+                </div>
+                <input type="file" ref={fileInputRef} accept="image/*" style={{ display: 'none' }} onChange={handlePicChange} />
+              </div>
               <div>
                 <h2 style={S.empName}>{managerData.name}</h2>
                 <p style={S.empPosition}>{managerData.position}</p>
                 <span style={S.activeBadge}>✅ {managerData.status}</span>
+                {profilePic && (
+                  <button onClick={handleRemovePic}
+                    style={{ marginTop: 6, display: 'block', background: 'none', border: '1px solid #ef4444', color: '#ef4444', borderRadius: 6, padding: '3px 10px', fontSize: 12, cursor: 'pointer' }}>
+                    🗑️ Remove Photo
+                  </button>
+                )}
               </div>
             </div>
 
@@ -238,10 +267,6 @@ body: JSON.stringify({
                   <div style={S.infoValue}>{managerData.position}</div>
                 </div>
                 <div style={S.infoItem}>
-                  <div style={S.infoLabel}>Employees Under</div>
-                  <div style={S.infoValue}>{managerData.employeeCount} employees</div>
-                </div>
-                <div style={S.infoItem}>
                   <div style={S.infoLabel}>Joining Date</div>
                   <div style={S.infoValue}>
                     {managerData.joiningDate ? new Date(managerData.joiningDate).toLocaleDateString('en-GB') : '—'}
@@ -250,27 +275,6 @@ body: JSON.stringify({
                 <div style={S.infoItem}>
                   <div style={S.infoLabel}>Status</div>
                   <div style={S.infoValue}><span style={S.activeBadge}>✅ {managerData.status}</span></div>
-                </div>
-              </div>
-            </div>
-
-            <div style={S.divider} />
-
-            {/* Team Summary */}
-            <div style={S.section}>
-              <h3 style={S.sectionTitle}>📊 Team Summary (This Month)</h3>
-              <div style={S.statsGrid}>
-                <div style={{ ...S.statCard, borderTopColor: '#667eea' }}>
-                  <div style={S.statLabel}>Team Size</div>
-                  <div style={{ ...S.statValue, color: '#667eea' }}>{managerData.employeeCount}</div>
-                </div>
-                <div style={{ ...S.statCard, borderTopColor: '#10b981' }}>
-                  <div style={S.statLabel}>Present Today</div>
-                  <div style={{ ...S.statValue, color: '#10b981' }}>{managerData.totalPresent}</div>
-                </div>
-                <div style={{ ...S.statCard, borderTopColor: '#ef4444' }}>
-                  <div style={S.statLabel}>Absent Today</div>
-                  <div style={{ ...S.statValue, color: '#ef4444' }}>{managerData.totalAbsent}</div>
                 </div>
               </div>
             </div>
@@ -287,8 +291,8 @@ body: JSON.stringify({
                 <div style={S.pwGrid}>
                   {[
                     { key: 'current', name: 'currentPassword', label: 'Current Password *', placeholder: 'Enter current password' },
-                    { key: 'new',     name: 'newPassword',     label: 'New Password *',     placeholder: 'Min 6 characters' },
-                    { key: 'confirm', name: 'confirmPassword', label: 'Confirm Password *',  placeholder: 'Confirm new password' },
+                    { key: 'new', name: 'newPassword', label: 'New Password *', placeholder: 'Min 6 characters' },
+                    { key: 'confirm', name: 'confirmPassword', label: 'Confirm Password *', placeholder: 'Confirm new password' },
                   ].map(({ key, name, label, placeholder }) => (
                     <div key={key} style={S.formGroup}>
                       <label style={S.label}>{label}</label>
@@ -339,7 +343,6 @@ body: JSON.stringify({
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
             <button style={S.btnPrimary} onClick={() => navigate('/manager/my-employees')}>👥 View My Team</button>
             <button style={S.btnSecondary} onClick={() => navigate('/manager/dashboard')}>🏠 Go to Dashboard</button>
@@ -374,10 +377,6 @@ const S = {
   infoLabel:    { fontSize: 11, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' },
   infoValue:    { fontSize: 15, fontWeight: 600, color: '#111827' },
   idBadge:      { display: 'inline-block', padding: '3px 10px', background: '#ede9fe', color: '#7c3aed', borderRadius: 20, fontSize: 13, fontWeight: 700 },
-  statsGrid:    { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16 },
-  statCard:     { background: '#f9fafb', borderRadius: 12, padding: '16px 20px', textAlign: 'center', borderTop: '4px solid', border: '1px solid #e5e7eb' },
-  statLabel:    { fontSize: 11, color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 },
-  statValue:    { fontSize: 32, fontWeight: 800 },
   pwGrid:       { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20, marginBottom: 20 },
   formGroup:    { display: 'flex', flexDirection: 'column', gap: 6 },
   label:        { fontSize: 13, fontWeight: 600, color: '#374151' },
@@ -385,7 +384,7 @@ const S = {
   input:        { width: '100%', padding: '11px 44px 11px 14px', border: '2px solid', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' },
   eyeBtn:       { position: 'absolute', right: 10, background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 },
   errorText:    { fontSize: 12, color: '#ef4444', marginTop: 2 },
-  pwRequirements:{ background: '#f9fafb', borderRadius: 10, padding: '14px 18px', marginBottom: 20, border: '1px solid #e5e7eb' },
+  pwRequirements: { background: '#f9fafb', borderRadius: 10, padding: '14px 18px', marginBottom: 20, border: '1px solid #e5e7eb' },
   reqTitle:     { fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 },
   reqList:      { display: 'flex', gap: 20, flexWrap: 'wrap' },
   pwActions:    { display: 'flex', gap: 12, justifyContent: 'flex-end' },

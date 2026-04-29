@@ -142,7 +142,44 @@ const Login = ({ userType }) => {
       const userKey = `${userRole}_user`;
       
       localStorage.setItem(tokenKey, token);
-      localStorage.setItem(userKey, JSON.stringify(user));
+
+// ✅ Admin ke liye real name fetch karo
+if (userRole === 'admin') {
+  try {
+    const profileRes = await fetch('http://localhost:5000/api/v1/admin/profile', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (profileRes.ok) {
+      const profileData = await profileRes.json();
+      const u = profileData.data?.user || {};
+      user.name = u.name || user.email?.split('@')[0];
+    }
+  } catch(e) {}
+} else if (userRole === 'employee') {
+  try {
+    const profileRes = await fetch('http://localhost:5000/api/v1/employee/profile', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (profileRes.ok) {
+      const profileData = await profileRes.json();
+      const emp = profileData.data?.employee || {};
+      user.name = `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || user.email?.split('@')[0];
+    }
+  } catch(e) {}
+} else if (userRole === 'manager') {
+  try {
+    const profileRes = await fetch('http://localhost:5000/api/v1/manager/profile', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (profileRes.ok) {
+      const profileData = await profileRes.json();
+      const mgr = profileData.data?.manager || profileData.data || {};
+      user.name = `${mgr.firstName || ''} ${mgr.lastName || ''}`.trim() || user.email?.split('@')[0];
+    }
+  } catch(e) {}
+}
+
+localStorage.setItem(userKey, JSON.stringify(user));
 
       console.log('✅ Login successful!');
       console.log(`💾 Credentials saved: ${tokenKey}, ${userKey}`);

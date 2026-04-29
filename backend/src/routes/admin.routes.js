@@ -4,6 +4,8 @@ const adminController = require('../controllers/admin.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { isAdmin } = require('../middleware/role.middleware');
 const adminValidators = require('../middleware/validators/admin.validator');
+const authController = require('../controllers/auth.controller');
+
 
 // ✅ PUBLIC ROUTE - System Config (accessible to all authenticated users)
 router.get('/system-config/public', authenticate, adminController.getSystemConfig);
@@ -18,6 +20,8 @@ router.get('/dashboard', adminController.getDashboard);
 // Admin Profile Update
 router.get('/profile', adminController.getAdminProfile);
 router.put('/profile', adminController.updateAdminProfile);
+router.put('/change-password', authController.changePassword);
+
 
 // User Management
 router.get('/user/:userId/:userType', adminValidators.getUserDetails, adminController.getUserDetails);

@@ -114,32 +114,46 @@ const ProfileSettings = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handlePasswordSubmit = async (e) => {
-    e.preventDefault();
+ const handlePasswordSubmit = async (e) => {
+  e.preventDefault();
+  if (!validatePasswordForm()) return;
+  setLoading(true);
 
-    if (!validatePasswordForm()) return;
-
-    setLoading(true);
-
-    try {
-      // API call karenge password change karne ke liye
-      // await changePasswordAPI(passwordForm);
-      
-      setTimeout(() => {
-        alert('Password changed successfully!');
-        setPasswordForm({
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: ''
-        });
-        setLoading(false);
-      }, 1000);
-    } catch (error) {
-      console.error('Error changing password:', error);
-      alert('Failed to change password. Please check your current password.');
+  try {
+    const token = localStorage.getItem("employee_token");
+    if (!token) {
+      alert("Session expired. Please login again.");
       setLoading(false);
+      return;
     }
-  };
+
+    const response = await fetch("http://localhost:5000/api/v1/auth/change-password", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        oldPassword: passwordForm.currentPassword,
+        password: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword,
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert("✅ Password changed successfully!");
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } else {
+      alert(data.message || "Failed to change password");
+    }
+  } catch (error) {
+    alert(error.message || "Failed to change password");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="employee-container">

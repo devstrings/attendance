@@ -300,7 +300,7 @@ const late = empAtt.filter((a) =>
 
         // ✅ NAYA — sirf working days ke records count karo
         // Sirf working days ke records — leave aur present dono
-const markedDays = empAtt.filter(a => {
+const markedWorkingDays = empAtt.filter(a => {
   const attDate = new Date(a.date);
   attDate.setHours(0, 0, 0, 0);
   const dateStr = attDate.toDateString();
@@ -310,10 +310,10 @@ const markedDays = empAtt.filter(a => {
   return attDate >= empEffectiveStart && attDate <= effectiveEnd && isWorkingDay && !isHoliday;
 }).length;
 
-const unmarkedWorkingDays = Math.max(0, workingDays - markedDays);
-const actualAbsent = empAtt.filter(a => 
+const actualAbsent = empAtt.filter(a =>
   a.status === "absent" && new Date(a.date) <= effectiveEnd
 ).length;
+const unmarkedWorkingDays = Math.max(0, workingDays - markedWorkingDays);
 const absent = actualAbsent + unmarkedWorkingDays;
 
         const rate =

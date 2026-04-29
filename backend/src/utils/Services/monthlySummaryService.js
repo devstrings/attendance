@@ -162,6 +162,7 @@ async function sendMonthlySummaryEmails(month, year, isLastDay = false) {
   for (const summary of summaries) {
     const emp = summary.employeeId;
     if (!emp) continue;
+    if (!emp.email) { console.warn(`⚠️ Skipping ${emp.firstName} - no email`); continue; }
 
     // Email to employee
     await emailService.sendMonthlySummaryEmail({

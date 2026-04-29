@@ -1,12 +1,15 @@
 /* eslint-disable react-hooks/exhaustive-deps, no-unused-vars, import/no-anonymous-default-export, jsx-a11y/anchor-is-valid */
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminNavbar from "./AdminNavbar";
 import AdminSidebar from "./AdminSidebar";
 import adminService from "../../services/adminService";
 import api from "../../services/api";
 import "../../styles/Admin.css";
 
+
 const Settings = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("profile");
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -116,6 +119,8 @@ const Settings = () => {
           );
         }
         showSuccess("✅ Profile updated successfully!");
+        window.dispatchEvent(new Event('storage'));
+
       } else {
         showError(response.data?.message || "Failed to update profile");
       }
@@ -148,31 +153,46 @@ const Settings = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handlePasswordSubmit = async (e) => {
-    e.preventDefault();
-    if (!validatePasswordForm()) return;
-    setLoading(true);
-    try {
-      const response = await api.put("/admin/change-password", {
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
-      });
-      if (response.data?.success) {
-        showSuccess("✅ Password changed successfully!");
-        setPasswordForm({
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: "",
-        });
-      } else {
-        showError(response.data?.message || "Failed to change password");
-      }
-    } catch (error) {
-      showError(error.response?.data?.message || "Incorrect current password");
-    } finally {
+ const handlePasswordSubmit = async (e) => {
+  e.preventDefault();
+  if (!validatePasswordForm()) return;
+  setLoading(true);
+  try {
+    // ✅ admin_token use karo
+    const token = localStorage.getItem("admin_token");
+    if (!token) {
+      showError("Session expired. Please login again.");
       setLoading(false);
+      return;
     }
-  };
+
+    const response = await fetch("http://localhost:5000/api/v1/auth/change-password", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        oldPassword: passwordForm.currentPassword,
+        password: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword,
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      showSuccess("✅ Password changed successfully!");
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } else {
+      showError(data.message || "Failed to change password");
+    }
+  } catch (error) {
+    showError(error.message || "Failed to change password");
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ── System Settings handlers ─────────────────────────────────────────────────
   const handleSystemChange = (e) => {
@@ -217,23 +237,25 @@ const Settings = () => {
           {successMsg && <div style={banner("success")}>{successMsg}</div>}
           {errorMsg && <div style={banner("error")}>{errorMsg}</div>}
 
-          <div className="tabs-container">
-            <div className="tabs">
-              {[
-                { key: "profile", label: "👤 Profile" },
-                { key: "password", label: "🔒 Password" },
-                { key: "system", label: "⚙️ System" },
-              ].map((t) => (
-                <button
-                  key={t.key}
-                  className={`tab ${activeTab === t.key ? "active" : ""}`}
-                  onClick={() => setActiveTab(t.key)}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div style={breadcrumbContainer}>
+  {[
+    { key: "profile", label: "👤 Profile" },
+    { key: "password", label: "🔒 Password" },
+    { key: "system", label: "⚙️ System" },
+  ].map((t, index, arr) => (
+    <React.Fragment key={t.key}>
+      <button
+        onClick={() => setActiveTab(t.key)}
+        style={breadcrumbBtn(activeTab === t.key)}
+      >
+        {t.label}
+      </button>
+      {index < arr.length - 1 && (
+        <span style={arrowStyle}>›</span>
+      )}
+    </React.Fragment>
+  ))}
+</div>
 
           <div className="settings-content">
             {/* ── PROFILE TAB ── */}
@@ -348,95 +370,33 @@ const Settings = () => {
             )}
 
             {/* ── SYSTEM TAB ── */}
-            {activeTab === "system" && (
-              <div className="form-container">
-                <h2>System Settings</h2>
-                <form onSubmit={handleSystemSubmit} className="settings-form">
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label>Company Name *</label>
-                      <input
-                        type="text"
-                        name="companyName"
-                        value={systemSettings.companyName}
-                        onChange={handleSystemChange}
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Working Hours Start *</label>
-                      <input
-                        type="time"
-                        name="workingHoursStart"
-                        value={systemSettings.workingHoursStart}
-                        onChange={handleSystemChange}
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Working Hours End *</label>
-                      <input
-                        type="time"
-                        name="workingHoursEnd"
-                        value={systemSettings.workingHoursEnd}
-                        onChange={handleSystemChange}
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Overtime Rate (multiplier)</label>
-                      <input
-                        type="number"
-                        name="overtimeRate"
-                        value={systemSettings.overtimeRate}
-                        onChange={handleSystemChange}
-                        step="0.1"
-                        min="1"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Late Marking Grace (minutes)</label>
-                      <input
-                        type="number"
-                        name="lateMarkingMinutes"
-                        value={systemSettings.lateMarkingMinutes}
-                        onChange={handleSystemChange}
-                        min="0"
-                      />
-                    </div>
-                    <div className="form-group checkbox-group">
-                      <label>
-                        <input
-                          type="checkbox"
-                          name="emailNotifications"
-                          checked={systemSettings.emailNotifications}
-                          onChange={handleSystemChange}
-                        />
-                        <span> Enable Email Notifications</span>
-                      </label>
-                    </div>
-                    <div className="form-group checkbox-group">
-                      <label>
-                        <input
-                          type="checkbox"
-                          name="smsNotifications"
-                          checked={systemSettings.smsNotifications}
-                          onChange={handleSystemChange}
-                        />
-                        <span> Enable SMS Notifications</span>
-                      </label>
-                    </div>
-                  </div>
-                  <button
-                    type="submit"
-                    className="btn-primary"
-                    disabled={loading}
-                  >
-                    {loading ? "Saving..." : "Save Settings"}
-                  </button>
-                </form>
-              </div>
-            )}
+           {/* ── SYSTEM TAB ── */}
+{activeTab === "system" && (
+  <div className="form-container" style={{ textAlign: "center", padding: "60px 40px" }}>
+    <div style={{ fontSize: "56px", marginBottom: "16px" }}>⚙️</div>
+    <h2 style={{ color: "#1f2937", marginBottom: "8px" }}>System Settings</h2>
+    <p style={{ color: "#6b7280", marginBottom: "32px", fontSize: "15px" }}>
+      Working hours, holidays, leave policy aur deduction settings<br />
+      Management Panel se configure hoti hain.
+    </p>
+    <button
+      onClick={() => navigate("/admin/management-panel")}
+      className="btn-primary"
+      style={{
+        padding: "14px 36px",
+        fontSize: "15px",
+        background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+        border: "none",
+        borderRadius: "10px",
+        color: "white",
+        cursor: "pointer",
+        fontWeight: "600"
+      }}
+    >
+      ⚙️ Go to Management Panel
+    </button>
+  </div>
+)}
           </div>
         </div>
       </div>
@@ -455,6 +415,36 @@ const banner = (type) => ({
   color: type === "success" ? "#065f46" : "#991b1b",
   border: `1px solid ${type === "success" ? "#a7f3d0" : "#fecaca"}`,
 });
+const breadcrumbContainer = {
+  display: "flex",
+  justifyContent: "flex-end",
+  alignItems: "center",
+  gap: "4px",
+  padding: "12px 20px",
+  background: "#f9fafb",
+  borderRadius: "12px",
+  marginBottom: "20px",
+  border: "1px solid #e5e7eb",
+};
+
+const breadcrumbBtn = (isActive) => ({
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  fontSize: "14px",
+  fontWeight: isActive ? "700" : "400",
+  color: isActive ? "#4f46e5" : "#6b7280",
+  padding: "4px 8px",
+  borderRadius: "6px",
+  transition: "all 0.2s",
+});
+
+const arrowStyle = {
+  color: "#9ca3af",
+  fontSize: "18px",
+  fontWeight: "300",
+  lineHeight: 1,
+};
 
 export default Settings;
 
