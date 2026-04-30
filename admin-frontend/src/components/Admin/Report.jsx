@@ -270,9 +270,18 @@ const effectiveEnd = reportEnd > todayEnd ? todayEnd : reportEnd;
           workingDays,
         );
 
-        const empAtt = attendanceData.filter((a) => {
+ const empAtt = attendanceData.filter((a) => {
   const empId = a.employeeId?._id?.toString() || a.employeeId?.toString();
-  return empId === emp._id?.toString();
+  if (empId !== emp._id?.toString()) return false;
+  // PKT month check
+  const attDate = new Date(a.date);
+  const pktDate = new Date(attDate.getTime() + 5 * 60 * 60 * 1000);
+  const pktMonth = pktDate.getUTCMonth() + 1;
+  const pktYear = pktDate.getUTCFullYear();
+  if (reportType === "monthly") {
+    return pktMonth === selectedMonth && pktYear === selectedYear;
+  }
+  return true;
 });
         console.log(
           emp.firstName,

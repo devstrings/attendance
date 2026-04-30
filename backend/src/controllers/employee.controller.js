@@ -77,24 +77,17 @@ monthEnd.setHours(23, 59, 59, 999); // aaj tak records fetch karo (today's atten
 countUpTo.setHours(23, 59, 59, 999);
     const totalWorkingDays = await calculateWorkingDays(effectiveStart, countUpTo, configWorkingDays);
 
-// PKT month range — sab formats cover karo
-const monthStartPKT = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
-const monthEndPKT = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+// March 31 19:00 UTC = April 1 00:00 PKT
+// April 30 18:59 UTC = April 30 23:59 PKT
+const monthStartPKT = new Date(currentYear + '-' + String(currentMonth + 1).padStart(2,'0') + '-01T00:00:00+05:00');
+const monthEndPKT = new Date(currentYear + '-' + String(currentMonth + 1).padStart(2,'0') + '-' + String(new Date(currentYear, currentMonth + 1, 0).getDate()).padStart(2,'0') + 'T23:59:59+05:00');
 
 const allMonthAttendance = await Attendance.find({
   employeeId: employee._id,
-  $expr: {
-    $and: [
-      { $gte: [{ $month: { date: "$date", timezone: "Asia/Karachi" } }, currentMonth + 1] },
-      { $lte: [{ $month: { date: "$date", timezone: "Asia/Karachi" } }, currentMonth + 1] },
-      { $eq: [{ $year: { date: "$date", timezone: "Asia/Karachi" } }, currentYear] }
-    ]
-  }
+  date: { $gte: monthStartPKT, $lte: monthEndPKT }
 });
-const uniqueDates = new Set(
-  allMonthAttendance.map(a => new Date(a.date).toDateString())
-);
-console.log('Unique dates:', uniqueDates.size, [...uniqueDates]);
+
+
 
 
 
