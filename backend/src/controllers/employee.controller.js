@@ -77,15 +77,30 @@ monthEnd.setHours(23, 59, 59, 999); // aaj tak records fetch karo (today's atten
 countUpTo.setHours(23, 59, 59, 999);
     const totalWorkingDays = await calculateWorkingDays(effectiveStart, countUpTo, configWorkingDays);
 
-    // This month attendance — aaj tak sirf
-    const allMonthAttendance = await Attendance.find({
-      employeeId: employee._id,
-      date: { $gte: monthStart, $lte: monthEnd }
-    });
+// PKT month range — sab formats cover karo
+const monthStartPKT = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+const monthEndPKT = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
 
-    const presentDays = allMonthAttendance.filter(a =>
-      ['present', 'half-day', 'late'].includes(a.status)
-    ).length;
+const allMonthAttendance = await Attendance.find({
+  employeeId: employee._id,
+  $expr: {
+    $and: [
+      { $gte: [{ $month: { date: "$date", timezone: "Asia/Karachi" } }, currentMonth + 1] },
+      { $lte: [{ $month: { date: "$date", timezone: "Asia/Karachi" } }, currentMonth + 1] },
+      { $eq: [{ $year: { date: "$date", timezone: "Asia/Karachi" } }, currentYear] }
+    ]
+  }
+});
+const uniqueDates = new Set(
+  allMonthAttendance.map(a => new Date(a.date).toDateString())
+);
+console.log('Unique dates:', uniqueDates.size, [...uniqueDates]);
+
+
+
+const presentDays = allMonthAttendance.filter(a =>
+  ['present', 'half-day', 'late'].includes(a.status) || a.isLate === true
+).length; 
 
     const leaveDays = allMonthAttendance.filter(a =>
       ['leave', 'on-leave'].includes(a.status)
@@ -122,7 +137,8 @@ const markedWorkingDays = allMonthAttendance.filter(a => {
   const attDate = new Date(a.date);
   attDate.setHours(0, 0, 0, 0);
   const dayName = attDate.toLocaleDateString('en-US', { weekday: 'long' });
-  return configWorkingDays.includes(dayName) && !holidaySet.has(attDate.toDateString());
+  // ✅ Joining date ke baad wale records hi count karo
+  return attDate >= effectiveStart && configWorkingDays.includes(dayName) && !holidaySet.has(attDate.toDateString());
 }).length;
 
 const actualAbsent = allMonthAttendance.filter(a => a.status === 'absent').length;
@@ -268,9 +284,14 @@ const getAttendanceHistory = async (req, res) => {
       cursor.setDate(cursor.getDate() + 1);
     }
 
-    const markedDays = attendanceRecords.length;
+    const markedWorkingDays = attendanceRecords.filter(a => {
+  const attDate = new Date(a.date);
+  attDate.setHours(0, 0, 0, 0);
+  const dayName = attDate.toLocaleDateString('en-US', { weekday: 'long' });
+  return configWorkingDays.includes(dayName) && !holidayDates.has(attDate.toDateString());
+}).length;
 const actualAbsent = attendanceRecords.filter(a => a.status === 'absent').length;
-const unmarkedWorkingDays = Math.max(0, totalWorkingDays - markedDays);
+const unmarkedWorkingDays = Math.max(0, totalWorkingDays - markedWorkingDays);
 
 const statistics = {
   totalDays: totalWorkingDays,

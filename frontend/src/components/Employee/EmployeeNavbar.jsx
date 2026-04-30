@@ -10,6 +10,7 @@ const EmployeeNavbar = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [employeeName, setEmployeeName] = useState("Employee User");
   const [profilePic, setProfilePic] = useState(null);
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
@@ -19,7 +20,8 @@ const EmployeeNavbar = () => {
     if (storedUser) {
       try {
         const user = JSON.parse(storedUser);
-        // profile se name fetch karo agar localStorage mein nahi
+
+        // Name logic
         const name =
           user.name ||
           (user.firstName && user.lastName
@@ -33,7 +35,6 @@ const EmployeeNavbar = () => {
         if (name && name.trim()) {
           setEmployeeName(name.trim());
         } else {
-          // API se fetch karo
           const token =
             localStorage.getItem("employee_token") ||
             localStorage.getItem("token");
@@ -51,14 +52,18 @@ const EmployeeNavbar = () => {
               .catch(() => {});
           }
         }
+
+        // ✅ User-specific pic load karo
+        const email = user.email || "employee";
+        const pic =
+          localStorage.getItem(`employee_profile_pic_${email}`) ||
+          localStorage.getItem("employee_profile_pic");
+        if (pic) setProfilePic(pic);
+
       } catch (e) {
         console.error("Error parsing user data:", e);
       }
     }
-
-    // ✅ Profile pic load karo
-    const pic = localStorage.getItem("employee_profile_pic");
-    if (pic) setProfilePic(pic);
 
     return () => clearInterval(timer);
   }, []);
@@ -88,7 +93,6 @@ const EmployeeNavbar = () => {
     navigate("/");
   };
 
-  // ✅ My Requests page pe jao aur correction tab directly open karo
   const handleCorrectionRequest = () => {
     navigate("/employee/my-requests", {
       state: { activeTab: "correction", openModal: true },
@@ -182,7 +186,6 @@ const EmployeeNavbar = () => {
                 >
                   <span>🏖️</span> Request Leave
                 </div>
-                {/* ✅ Report Issue ki jagah Correction Request */}
                 <div
                   className="dropdown-item"
                   onClick={handleCorrectionRequest}

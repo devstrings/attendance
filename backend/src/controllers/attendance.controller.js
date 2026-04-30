@@ -43,20 +43,16 @@ const query = {};
     }
 
     if (startDate && endDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      query.date = { $gte: start, $lte: end };
-    } else if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      query.date = { $gte: start };
-    } else if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      query.date = { $lte: end };
-    }
+  const start = new Date(startDate + "T00:00:00+05:00"); // PKT
+  const end = new Date(endDate + "T23:59:59+05:00");     // PKT
+  query.date = { $gte: start, $lte: end };
+} else if (startDate) {
+  const start = new Date(startDate + "T00:00:00+05:00");
+  query.date = { $gte: start };
+} else if (endDate) {
+  const end = new Date(endDate + "T23:59:59+05:00");
+  query.date = { $lte: end };
+}
 
     if (status) {
       query.status = status;

@@ -71,7 +71,9 @@ const AdminProfile = () => {
     reader.onload = (ev) => {
       const base64 = ev.target.result;
       setProfilePic(base64);
-      localStorage.setItem('admin_profile_pic', base64);
+      const email = adminData?.email || 'admin';
+localStorage.setItem(`admin_profile_pic_${email}`, base64);
+localStorage.setItem('admin_profile_pic', base64); // navbar ke liye bhi
     };
     reader.readAsDataURL(file);
   };
@@ -80,6 +82,9 @@ const AdminProfile = () => {
     setProfilePic(null);
     localStorage.removeItem('admin_profile_pic');
   };
+  const email = adminData?.email || 'admin';
+localStorage.removeItem(`admin_profile_pic_${email}`);
+localStorage.removeItem('admin_profile_pic');
 
   if (loading) {
     return (

@@ -12,38 +12,42 @@ const ManagerNavbar = () => {
   const [profilePic, setProfilePic] = useState(null);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
     const storedUser = localStorage.getItem('manager_user');
     if (storedUser) {
       try {
         const user = JSON.parse(storedUser);
         setManagerName(user.name || user.firstName || 'Manager User');
-      } catch (error) {
-        console.error('Error parsing user data:', error);
+
+        // ✅ User-specific pic load karo
+        const email = user.email || 'manager';
+        const pic =
+          localStorage.getItem(`manager_profile_pic_${email}`) ||
+          localStorage.getItem('manager_profile_pic');
+        if (pic) {
+          localStorage.setItem('manager_profile_pic', pic); // navbar sync
+          setProfilePic(pic);
+        } else {
+          setProfilePic(null);
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e);
       }
     }
-
-    // ✅ Profile pic load karo
-    const pic = localStorage.getItem('manager_profile_pic');
-    if (pic) setProfilePic(pic);
 
     return () => clearInterval(timer);
   }, []);
 
-  const formatTime = (date) => {
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+  const formatTime = (date) =>
+    date.toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
     });
-  };
 
-  const formatDate = (date) => {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  const formatDate = (date) =>
+    date.toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     });
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('manager_token');
@@ -51,12 +55,7 @@ const ManagerNavbar = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     sessionStorage.clear();
-    console.log('🚪 Manager logged out');
     navigate('/', { replace: true });
-  };
-
-  const toggleDropdown = () => {
-    setShowDropdown(!showDropdown);
   };
 
   return (
@@ -87,12 +86,16 @@ const ManagerNavbar = () => {
             <NotificationCenter userType="manager" />
           </div>
 
-          <div className="user-profile" onClick={toggleDropdown}>
-            {/* ✅ Avatar ki jagah photo */}
+          <div className="user-profile" onClick={() => setShowDropdown(!showDropdown)}>
             <div className="profile-avatar" style={{ overflow: 'hidden', padding: 0 }}>
               {profilePic ? (
-                <img src={profilePic} alt="pic"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                <img
+                  src={profilePic}
+                  alt="pic"
+                  style={{
+                    width: '100%', height: '100%',
+                    objectFit: 'cover', borderRadius: '50%',
+                  }}
                 />
               ) : (
                 managerName.charAt(0).toUpperCase()

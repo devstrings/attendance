@@ -723,29 +723,36 @@ const AdminDashboard = () => {
 };
 
 const styles = {
-  content: { padding: "24px", background: "#f9fafb", minHeight: "100vh" },
-  header: {
-    background: "white",
-    borderRadius: "16px",
-    padding: "24px",
-    marginBottom: "24px",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: "20px",
-  },
-  welcomeSection: { flex: 1, minWidth: "300px" },
-  title: {
-    fontSize: "28px",
-    fontWeight: "700",
-    color: "#111827",
-    margin: "0 0 8px 0",
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-  },
+  // ✅ NAYA
+content: { padding: "16px", background: "#f9fafb", minHeight: "100vh", boxSizing: "border-box", overflowX: "hidden" },
+  // ✅ NAYA
+header: {
+  background: "white",
+  borderRadius: "16px",
+  padding: "16px",
+  marginBottom: "20px",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: "12px",
+  boxSizing: "border-box",
+},
+  welcomeSection: { flex: 1, minWidth: "0", maxWidth: "100%" },
+
+ // ✅ NAYA
+title: {
+  fontSize: "clamp(18px, 4vw, 28px)",
+  fontWeight: "700",
+  color: "#111827",
+  margin: "0 0 8px 0",
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  wordBreak: "break-word",
+  overflowWrap: "break-word",
+},
   emoji: { fontSize: "32px" },
   subtitle: { fontSize: "14px", color: "#6b7280", margin: 0 },
   headerActions: {
@@ -781,12 +788,13 @@ const styles = {
     alignItems: "center",
     gap: "8px",
   },
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "20px",
-    marginBottom: "24px",
-  },
+  // ✅ NAYA
+statsGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "16px",
+  marginBottom: "24px",
+},
   statCard: {
     background: "white",
     borderRadius: "12px",
@@ -827,10 +835,10 @@ const styles = {
     fontWeight: "600",
   },
   widgetsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))",
-    gap: "24px",
-  },
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  gap: "16px",
+},
   widget: {
     background: "white",
     borderRadius: "16px",

@@ -54,5 +54,10 @@ process.on('SIGINT', () => {
     process.exit(0);
   });
 });
+app.get('/test-dates', async (req, res) => {
+  const Attendance = require('./src/models/Attendance');
+  const records = await Attendance.find({}).limit(5).sort({date: -1});
+  res.json(records.map(r => ({ date: r.date, employeeId: r.employeeId })));
+});
 
 module.exports = server; 

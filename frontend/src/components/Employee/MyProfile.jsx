@@ -171,6 +171,7 @@ const MyProfile = () => {
       const base64 = ev.target.result;
       setProfilePic(base64);
       localStorage.setItem("employee_profile_pic", base64);
+      localStorage.setItem('employee_profile_pic', base64);
     };
     reader.readAsDataURL(file);
   };

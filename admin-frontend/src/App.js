@@ -2,6 +2,8 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 
+import { SidebarProvider } from './context/SidebarContext';
+
 
 import AdminMonthlySummary from './components/Admin/AdminMonthlySummary';
 
@@ -75,6 +77,7 @@ function App() {
   return (
     <ErrorBoundary>
       <NotificationProvider>
+        <SidebarProvider>          {/* ← ADD */}
         <div className="App">
           <Routes>
 
@@ -129,6 +132,7 @@ function App() {
 
           </Routes>
         </div>
+        </SidebarProvider>
       </NotificationProvider>
     </ErrorBoundary>
   );

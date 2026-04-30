@@ -96,18 +96,20 @@ const ManagerProfile = () => {
   };
 
   // ✅ Photo handlers
-  const handlePicChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { alert('2MB se kam honi chahiye'); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const base64 = ev.target.result;
-      setProfilePic(base64);
-      localStorage.setItem('manager_profile_pic', base64);
-    };
-    reader.readAsDataURL(file);
+ const handlePicChange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { alert('2MB se kam honi chahiye'); return; }
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const base64 = ev.target.result;
+    setProfilePic(base64);
+    const email = managerData?.email || 'manager';
+    localStorage.setItem(`manager_profile_pic_${email}`, base64);
+    localStorage.setItem('manager_profile_pic', base64); // ✅ navbar sync
   };
+  reader.readAsDataURL(file);
+};
 
   const handleRemovePic = () => {
     setProfilePic(null);

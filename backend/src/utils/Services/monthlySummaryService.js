@@ -63,7 +63,7 @@ async function generateMonthlySummaries(month, year) {
     const presentDocs = await Attendance.find({
       employeeId: emp._id,
       date: { $gte: startUTC, $lte: endUTC },
-      status: "present",
+      status: { $in: ["present", "half-day", "late"] },
     });
     const totalPresent = presentDocs.length;
 
