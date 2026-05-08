@@ -147,7 +147,14 @@ app.post(
 const { startScheduler } = require('./utils/Services/schedulerService');
 startScheduler();
 console.log('✅ Monthly summary scheduler running');
-
+// ================================
+// TEST ROUTE — DATES CHECK
+// ================================
+app.get('/test-dates', async (req, res) => {
+  const Attendance = require('./models/Attendance');
+  const records = await Attendance.find({}).limit(5).sort({ date: -1 });
+  res.json(records.map(r => ({ date: r.date, status: r.status })));
+});
 // ================================
 // 404 HANDLER
 // ================================

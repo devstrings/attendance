@@ -71,7 +71,7 @@ function startScheduler() {
         const presentCount = await Attendance.countDocuments({
           employeeId: emp._id,
           date: { $gte: startDate, $lte: endDate },
-          status: 'present'
+          status: { $in: ['present', 'half-day', 'late'] }
         });
 
         const approvedLeaves = await LeaveRequest.find({

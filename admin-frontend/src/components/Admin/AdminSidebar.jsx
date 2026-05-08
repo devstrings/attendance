@@ -1,78 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import '../../styles/Admin.css';
+import { useSidebar } from '../../context/SidebarContext';
 
 const AdminSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [openSubmenu, setOpenSubmenu] = useState(null);
+  const { collapsed, mobileOpen, closeMobile } = useSidebar();
+  const [openSubmenu, setOpenSubmenu] = React.useState(null);
 
   const menuItems = [
+    { title: 'Dashboard', icon: '🏠', path: '/admin/dashboard' },
+    { title: 'Reports', icon: '📈', path: '/admin/reports' },
     {
-      title: 'Dashboard',
-      icon: '🏠',
-      path: '/admin/dashboard',
-      color: 'blue'
-    },
-    {
-      title: 'Reports',
-      icon: '📈',
-      path: '/admin/reports',
-      color: 'green'
-    },
-    {
-      title: 'Employees',
-      icon: '👥',
-      path: '/admin/employees',
-      color: 'purple',
+      title: 'Employees', icon: '👥', path: '/admin/employees',
       submenu: [
         { title: 'Employee List', icon: '📋', path: '/admin/employees' },
         { title: 'Create Employee', icon: '➕', path: '/admin/create-employee' }
       ]
     },
     {
-      title: 'Management',
-      icon: '👔',
-      path: '/admin/managers',
-      color: 'orange',
+      title: 'Management', icon: '👔', path: '/admin/managers',
       submenu: [
         { title: 'Manager List', icon: '📋', path: '/admin/managers' },
         { title: 'Create Manager', icon: '➕', path: '/admin/create-manager' }
       ]
     },
-    {
-      title: 'Attendance',
-      icon: '📅',
-      path: '/admin/attendance-view',
-      color: 'teal'
-    },
-    // ✅ NEW — Overtime Management
-    {
-  title: 'Overtime & Corrections',
-  icon: '⏱️',
-  path: '/admin/overtime',
-  color: 'yellow'
-},
-    {
-      title: 'Management Panel',
-      icon: '⚙️',
-      path: '/admin/management-panel',
-      color: 'red'
-    }
+    { title: 'Attendance', icon: '📅', path: '/admin/attendance-view' },
+    { title: 'Overtime & Corrections', icon: '⏱️', path: '/admin/overtime' },
+    { title: 'Management Panel', icon: '⚙️', path: '/admin/management-panel' }
   ];
 
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth > 768) setMobileOpen(false);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    setMobileOpen(false);
+    closeMobile();
   }, [location.pathname]);
 
   const isActive = (path) => location.pathname === path;
@@ -83,39 +43,17 @@ const AdminSidebar = () => {
 
   const handleNavigation = (path) => {
     navigate(path);
-    if (window.innerWidth <= 768) setMobileOpen(false);
-  };
-
-  const toggleSidebar = () => {
-    if (window.innerWidth <= 768) {
-      setMobileOpen(!mobileOpen);
-    } else {
-      setCollapsed(!collapsed);
-    }
+    closeMobile();
   };
 
   return (
     <>
       <div
         className={`sidebar-overlay ${mobileOpen ? 'active' : ''}`}
-        onClick={() => setMobileOpen(false)}
+        onClick={closeMobile}
       />
-      
-      <aside className={`admin-sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
-        <button className="sidebar-toggle-btn" onClick={toggleSidebar} aria-label="Toggle Sidebar">
-          <span className="toggle-icon">
-            {collapsed ? (
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M12 4l-8 8 8 8V4z"/>
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M8 4l8 8-8 8V4z"/>
-              </svg>
-            )}
-          </span>
-        </button>
 
+      <aside className={`admin-sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-menu">
           {menuItems.map((item, index) => (
             <div key={index} className="menu-item-wrapper">

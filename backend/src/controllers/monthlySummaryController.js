@@ -76,7 +76,7 @@ exports.adminGetAllSummaries = async (req, res) => {
     const summaries = await MonthlySummary.find({
       month: parseInt(month),
       year: parseInt(year),
-    }).populate("employeeId", "name email salary");
+    }).populate("employeeId", "firstName lastName email salary employeeCode department")
     res.json({ success: true, summaries });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -172,9 +172,16 @@ const allEmpAtt = await Attendance.find({
   employeeId: emp._id,
   date: { $gte: startDate, $lte: effectiveEnd },
 });
-const markedDays = allEmpAtt.length;
-const unmarkedDays = Math.max(0, totalWorkingDays - markedDays);
+
+const markedWorkingDays = allEmpAtt.filter(a => {
+  const attDate = new Date(a.date);
+  attDate.setHours(0, 0, 0, 0);
+  const dayName = dayNames[attDate.getDay()];
+  return !weekendDays.includes(dayName) && !holidaySet.has(attDate.toDateString());
+}).length;
+
 const actualAbsentRecords = allEmpAtt.filter(a => a.status === 'absent').length;
+const unmarkedDays = Math.max(0, totalWorkingDays - markedWorkingDays);
 const rawAbsences = actualAbsentRecords + unmarkedDays;
       const totalUnauthorizedAbsences = Math.max(
         0,

@@ -270,9 +270,18 @@ const effectiveEnd = reportEnd > todayEnd ? todayEnd : reportEnd;
           workingDays,
         );
 
-        const empAtt = attendanceData.filter((a) => {
+ const empAtt = attendanceData.filter((a) => {
   const empId = a.employeeId?._id?.toString() || a.employeeId?.toString();
-  return empId === emp._id?.toString();
+  if (empId !== emp._id?.toString()) return false;
+  // PKT month check
+  const attDate = new Date(a.date);
+  const pktDate = new Date(attDate.getTime() + 5 * 60 * 60 * 1000);
+  const pktMonth = pktDate.getUTCMonth() + 1;
+  const pktYear = pktDate.getUTCFullYear();
+  if (reportType === "monthly") {
+    return pktMonth === selectedMonth && pktYear === selectedYear;
+  }
+  return true;
 });
         console.log(
           emp.firstName,
@@ -300,7 +309,7 @@ const late = empAtt.filter((a) =>
 
         // ✅ NAYA — sirf working days ke records count karo
         // Sirf working days ke records — leave aur present dono
-const markedDays = empAtt.filter(a => {
+const markedWorkingDays = empAtt.filter(a => {
   const attDate = new Date(a.date);
   attDate.setHours(0, 0, 0, 0);
   const dateStr = attDate.toDateString();
@@ -310,10 +319,10 @@ const markedDays = empAtt.filter(a => {
   return attDate >= empEffectiveStart && attDate <= effectiveEnd && isWorkingDay && !isHoliday;
 }).length;
 
-const unmarkedWorkingDays = Math.max(0, workingDays - markedDays);
-const actualAbsent = empAtt.filter(a => 
+const actualAbsent = empAtt.filter(a =>
   a.status === "absent" && new Date(a.date) <= effectiveEnd
 ).length;
+const unmarkedWorkingDays = Math.max(0, workingDays - markedWorkingDays);
 const absent = actualAbsent + unmarkedWorkingDays;
 
         const rate =

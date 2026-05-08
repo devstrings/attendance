@@ -77,15 +77,23 @@ monthEnd.setHours(23, 59, 59, 999); // aaj tak records fetch karo (today's atten
 countUpTo.setHours(23, 59, 59, 999);
     const totalWorkingDays = await calculateWorkingDays(effectiveStart, countUpTo, configWorkingDays);
 
-    // This month attendance — aaj tak sirf
-    const allMonthAttendance = await Attendance.find({
-      employeeId: employee._id,
-      date: { $gte: monthStart, $lte: monthEnd }
-    });
+// March 31 19:00 UTC = April 1 00:00 PKT
+// April 30 18:59 UTC = April 30 23:59 PKT
+const monthStartPKT = new Date(currentYear + '-' + String(currentMonth + 1).padStart(2,'0') + '-01T00:00:00+05:00');
+const monthEndPKT = new Date(currentYear + '-' + String(currentMonth + 1).padStart(2,'0') + '-' + String(new Date(currentYear, currentMonth + 1, 0).getDate()).padStart(2,'0') + 'T23:59:59+05:00');
 
-    const presentDays = allMonthAttendance.filter(a =>
-      ['present', 'half-day', 'late'].includes(a.status)
-    ).length;
+const allMonthAttendance = await Attendance.find({
+  employeeId: employee._id,
+  date: { $gte: monthStartPKT, $lte: monthEndPKT }
+});
+
+
+
+
+
+const presentDays = allMonthAttendance.filter(a =>
+  ['present', 'half-day', 'late'].includes(a.status) || a.isLate === true
+).length; 
 
     const leaveDays = allMonthAttendance.filter(a =>
       ['leave', 'on-leave'].includes(a.status)
@@ -114,9 +122,20 @@ countUpTo.setHours(23, 59, 59, 999);
 
 
 
-const markedDays = allMonthAttendance.length;
-const unmarkedWorkingDays = Math.max(0, totalWorkingDays - markedDays);
+// Sirf working days ke records count karo (leave bhi working day pe hoti hai)
+const holidays = await Holiday.find({ date: { $gte: effectiveStart, $lte: countUpTo } });
+const holidaySet = new Set(holidays.map(h => new Date(h.date).toDateString()));
+
+const markedWorkingDays = allMonthAttendance.filter(a => {
+  const attDate = new Date(a.date);
+  attDate.setHours(0, 0, 0, 0);
+  const dayName = attDate.toLocaleDateString('en-US', { weekday: 'long' });
+  // ✅ Joining date ke baad wale records hi count karo
+  return attDate >= effectiveStart && configWorkingDays.includes(dayName) && !holidaySet.has(attDate.toDateString());
+}).length;
+
 const actualAbsent = allMonthAttendance.filter(a => a.status === 'absent').length;
+const unmarkedWorkingDays = Math.max(0, totalWorkingDays - markedWorkingDays);
 const totalAbsent = actualAbsent + unmarkedWorkingDays;
 
 const monthlyStats = {
@@ -258,9 +277,14 @@ const getAttendanceHistory = async (req, res) => {
       cursor.setDate(cursor.getDate() + 1);
     }
 
-    const markedDays = attendanceRecords.length;
+    const markedWorkingDays = attendanceRecords.filter(a => {
+  const attDate = new Date(a.date);
+  attDate.setHours(0, 0, 0, 0);
+  const dayName = attDate.toLocaleDateString('en-US', { weekday: 'long' });
+  return configWorkingDays.includes(dayName) && !holidayDates.has(attDate.toDateString());
+}).length;
 const actualAbsent = attendanceRecords.filter(a => a.status === 'absent').length;
-const unmarkedWorkingDays = Math.max(0, totalWorkingDays - markedDays);
+const unmarkedWorkingDays = Math.max(0, totalWorkingDays - markedWorkingDays);
 
 const statistics = {
   totalDays: totalWorkingDays,

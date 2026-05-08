@@ -63,7 +63,7 @@ async function generateMonthlySummaries(month, year) {
     const presentDocs = await Attendance.find({
       employeeId: emp._id,
       date: { $gte: startUTC, $lte: endUTC },
-      status: "present",
+      status: { $in: ["present", "half-day", "late"] },
     });
     const totalPresent = presentDocs.length;
 
@@ -162,6 +162,7 @@ async function sendMonthlySummaryEmails(month, year, isLastDay = false) {
   for (const summary of summaries) {
     const emp = summary.employeeId;
     if (!emp) continue;
+    if (!emp.email) { console.warn(`⚠️ Skipping ${emp.firstName} - no email`); continue; }
 
     // Email to employee
     await emailService.sendMonthlySummaryEmail({
