@@ -1,0 +1,146 @@
+{
+  "info": {
+    "_postman_id": "f2e84b4f-4f5b-4a4e-8e9f-3f42cc7b6d52",
+    "name": "Attendance System API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Collection generated from backend routes for the Attendance System project."
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api/v1" },
+    { "key": "token", "value": "" },
+    { "key": "attendanceId", "value": "" },
+    { "key": "requestId", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "userType", "value": "employee" },
+    { "key": "salaryId", "value": "" },
+    { "key": "notificationId", "value": "" },
+    { "key": "holidayId", "value": "" },
+    { "key": "configId", "value": "" },
+    { "key": "month", "value": "4" },
+    { "key": "year", "value": "2026" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        { "name": "Me", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/auth/me" } },
+        { "name": "Forgot Password", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\"\n}" }, "url": "{{baseUrl}}/auth/forgot-password" } },
+        { "name": "Verify OTP", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\",\n  \"otp\": \"123456\"\n}" }, "url": "{{baseUrl}}/auth/verify-otp" } },
+        { "name": "Reset Password", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@example.com\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"Password123!\"\n}" }, "url": "{{baseUrl}}/auth/reset-password" } },
+        { "name": "Change Password", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"currentPassword\": \"Password123!\",\n  \"newPassword\": \"Password456!\"\n}" }, "url": "{{baseUrl}}/auth/change-password" } },
+        { "name": "Logout", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "POST", "url": "{{baseUrl}}/auth/logout" } }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        { "name": "API Health", "request": { "method": "GET", "url": "{{baseUrl}}/health" } }
+      ]
+    },
+    {
+      "name": "Attendance",
+      "item": [
+        { "name": "Clock In", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "POST", "url": "{{baseUrl}}/attendance/clock-in" } },
+        { "name": "Clock Out", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "POST", "url": "{{baseUrl}}/attendance/clock-out" } },
+        { "name": "Today Status", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/attendance/today/status" } },
+        { "name": "All Attendance", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/attendance" } },
+        { "name": "Attendance By Id", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/attendance/{{attendanceId}}" } },
+        { "name": "Update Attendance", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"status\": \"present\"\n}" }, "url": "{{baseUrl}}/attendance/{{attendanceId}}" } },
+        { "name": "Delete Attendance", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "DELETE", "url": "{{baseUrl}}/attendance/{{attendanceId}}" } }
+      ]
+    },
+    {
+      "name": "Leave Requests",
+      "item": [
+        { "name": "Policy", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/leave-requests/policy" } },
+        { "name": "Create Request", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"leaveType\": \"annual\",\n  \"startDate\": \"2026-05-01\",\n  \"endDate\": \"2026-05-03\",\n  \"reason\": \"Personal\"\n}" }, "url": "{{baseUrl}}/leave-requests" } },
+        { "name": "My Requests", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/leave-requests/my-requests" } },
+        { "name": "Approve", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "PATCH", "url": "{{baseUrl}}/leave-requests/{{requestId}}/approve" } },
+        { "name": "Reject", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "PATCH", "url": "{{baseUrl}}/leave-requests/{{requestId}}/reject" } }
+      ]
+    },
+    {
+      "name": "Correction Requests",
+      "item": [
+        { "name": "Create", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"attendanceId\": \"{{attendanceId}}\",\n  \"reason\": \"Clock-in was missed\"\n}" }, "url": "{{baseUrl}}/correction-requests" } },
+        { "name": "My Requests", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/correction-requests/my-requests" } },
+        { "name": "All Requests", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/correction-requests" } },
+        { "name": "Approve", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "PATCH", "url": "{{baseUrl}}/correction-requests/{{requestId}}/approve" } },
+        { "name": "Reject", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "PATCH", "url": "{{baseUrl}}/correction-requests/{{requestId}}/reject" } }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        { "name": "My Notifications", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/notifications/my-notifications" } },
+        { "name": "Unread Count", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/notifications/unread-count" } },
+        { "name": "Mark Read", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "PATCH", "url": "{{baseUrl}}/notifications/{{notificationId}}/read" } },
+        { "name": "Mark All Read", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "PATCH", "url": "{{baseUrl}}/notifications/mark-all-read" } }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        { "name": "Dashboard", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/admin/dashboard" } },
+        { "name": "Create Employee", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"Password123!\"\n}" }, "url": "{{baseUrl}}/admin/create-employee" } },
+        { "name": "Create Manager", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith\",\n  \"email\": \"jane.smith@example.com\",\n  \"password\": \"Password123!\"\n}" }, "url": "{{baseUrl}}/admin/create-manager" } },
+        { "name": "Managers", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/admin/managers" } },
+        { "name": "Employees", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/admin/employees" } },
+        { "name": "Get User", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/admin/user/{{userId}}/{{userType}}" } }
+      ]
+    },
+    {
+      "name": "Manager",
+      "item": [
+        { "name": "Dashboard", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/manager/dashboard" } },
+        { "name": "My Employees", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/manager/my-employees" } },
+        { "name": "Mark Attendance", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"\",\n  \"date\": \"2026-04-28\",\n  \"status\": \"present\"\n}" }, "url": "{{baseUrl}}/manager/mark-attendance" } }
+      ]
+    },
+    {
+      "name": "Employee",
+      "item": [
+        { "name": "Dashboard", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/employee/dashboard" } },
+        { "name": "Profile", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/employee/profile" } },
+        { "name": "My Attendance", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/employee/my-attendance" } },
+        { "name": "Attendance History", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/employee/attendance-history" } }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        { "name": "Daily Attendance", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/report/daily-attendance" } },
+        { "name": "Monthly Attendance", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/report/monthly-attendance" } },
+        { "name": "Overtime", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/report/overtime" } }
+      ]
+    },
+    {
+      "name": "Monthly Summary",
+      "item": [
+        { "name": "My Summaries", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/monthly-summary/my" } },
+        { "name": "My Summary By Month", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/monthly-summary/my/{{month}}/{{year}}" } },
+        { "name": "Admin Trigger", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "POST", "url": "{{baseUrl}}/monthly-summary/admin/trigger" } }
+      ]
+    },
+    {
+      "name": "SMTP",
+      "item": [
+        { "name": "Get SMTP Settings", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/smtp" } },
+        { "name": "Save SMTP Settings", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"host\": \"smtp.gmail.com\",\n  \"port\": 587,\n  \"secure\": false,\n  \"user\": \"your-email@gmail.com\",\n  \"pass\": \"app-password\"\n}" }, "url": "{{baseUrl}}/smtp" } },
+        { "name": "SMTP Status", "request": { "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }] }, "method": "GET", "url": "{{baseUrl}}/smtp/status" } }
+      ]
+    }
+  ]
+}
