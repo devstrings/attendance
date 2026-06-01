@@ -44,7 +44,8 @@ function startScheduler() {
       const Attendance          = require('../../models/Attendance');
       const LeaveRequest        = require('../../models/LeaveRequest');
       const SystemConfig        = require('../../models/SystemConfig');
-      const notificationService = require('./notificationService');
+      const notificationService = require('../notificationService');
+
 
       const config    = await SystemConfig.findOne();
       const alertDay  = config?.alertDay  || 26;
