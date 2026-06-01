@@ -9,6 +9,7 @@ const config = require('../config/config');
 
 // Routes
 const registerRoutes = require('./routes');
+const seederRoutes = require("./routes/seeder.routes");
 
 // Utils & Middleware
 const { authenticate } = require('./middleware/auth.middleware');
@@ -103,6 +104,7 @@ app.get(`${API_PREFIX}/health`, (req, res) => {
 // ================================
 console.log(`📡 Registering routes with prefix: ${API_PREFIX}`);
 registerRoutes(app, API_PREFIX);
+app.use("/seeder", seederRoutes);
 
 // ================================
 // ADMIN – MANUAL AUTO CHECKOUT
