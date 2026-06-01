@@ -33,6 +33,22 @@ const MyProfile = () => {
   useEffect(() => {
     fetchProfileData();
     const pic = localStorage.getItem("employee_profile_pic");
+    const fetchPic = async () => {
+  try {
+    const token = getToken();
+    const res = await fetch(`${API}/admin/profile-picture`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.profilePicture) {
+        setProfilePic(data.profilePicture);
+        localStorage.setItem("employee_profile_pic", data.profilePicture);
+      }
+    }
+  } catch (e) {}
+};
+fetchPic();
     if (pic) setProfilePic(pic);
   }, []);
 
@@ -159,22 +175,30 @@ const MyProfile = () => {
       setLoading(false);
     }
   };
-  const handlePicChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert("2MB se kam honi chahiye");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const base64 = ev.target.result;
-      setProfilePic(base64);
-      localStorage.setItem("employee_profile_pic", base64);
-      localStorage.setItem('employee_profile_pic', base64);
-    };
-    reader.readAsDataURL(file);
+ const handlePicChange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { alert("2MB se kam honi chahiye"); return; }
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const base64 = ev.target.result;
+    setProfilePic(base64);
+    localStorage.setItem("employee_profile_pic", base64);
+
+    try {
+      const token = getToken();
+      await fetch(
+        `${API}/admin/profile-picture`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profilePicture: base64 }),
+        }
+      );
+    } catch (err) {}
   };
+  reader.readAsDataURL(file);
+};
 
   const handleRemovePic = () => {
     setProfilePic(null);

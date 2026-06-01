@@ -48,6 +48,7 @@ address: {
   passwordResetExpires: Date,
   otp: String,
   otpExpires: Date,
+  profilePicture: { type: String, default: null },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

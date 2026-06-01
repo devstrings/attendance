@@ -20,6 +20,8 @@ router.get('/dashboard', adminController.getDashboard);
 // Admin Profile Update
 router.get('/profile', adminController.getAdminProfile);
 router.put('/profile', adminController.updateAdminProfile);
+router.get('/profile-picture', adminController.getProfilePicture);
+router.put('/profile-picture', adminController.updateProfilePicture);
 router.put('/change-password', authController.changePassword);
 
 

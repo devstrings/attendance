@@ -14,9 +14,26 @@ const AdminProfile = () => {
 
   useEffect(() => {
     fetchProfileData();
-    // localStorage se saved pic load karo
     const savedPic = localStorage.getItem('admin_profile_pic');
     if (savedPic) setProfilePic(savedPic);
+
+    const fetchPic = async () => {
+      try {
+        const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
+        const res = await fetch(
+          `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1'}/admin/profile-picture`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profilePicture) {
+            setProfilePic(data.profilePicture);
+            localStorage.setItem('admin_profile_pic', data.profilePicture);
+          }
+        }
+      } catch (e) {}
+    };
+    fetchPic();
   }, []);
 
   const fetchProfileData = async () => {
@@ -29,17 +46,18 @@ const AdminProfile = () => {
       let realPhone = user?.phoneNumber || user?.phone || '—';
 
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1'}/admin/profile`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await fetch(
+          `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1'}/admin/profile`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
         if (res.ok) {
           const data = await res.json();
           const u = data.data?.user || data.user || {};
-          realName  = u.name || realName;
+          realName  = (u.name && u.name !== 'admin') ? u.name : realName;
           realEmail = u.email || realEmail;
           realPhone = u.phoneNumber || u.phone || realPhone;
         }
-      } catch(e) {}
+      } catch (e) {}
 
       setAdminData({
         id: user?.userId || 'ADMIN001',
@@ -59,8 +77,7 @@ const AdminProfile = () => {
     }
   };
 
-  // ── Profile pic upload handler ──
-  const handlePicChange = (e) => {
+  const handlePicChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
@@ -68,23 +85,51 @@ const AdminProfile = () => {
       return;
     }
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const base64 = ev.target.result;
       setProfilePic(base64);
       const email = adminData?.email || 'admin';
-localStorage.setItem(`admin_profile_pic_${email}`, base64);
-localStorage.setItem('admin_profile_pic', base64); // navbar ke liye bhi
+      localStorage.setItem(`admin_profile_pic_${email}`, base64);
+      localStorage.setItem('admin_profile_pic', base64);
+
+      try {
+        const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
+        await fetch(
+          `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1'}/admin/profile-picture`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ profilePicture: base64 }),
+          }
+        );
+      } catch (err) {
+        console.warn('Backend save failed:', err);
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleRemovePic = () => {
+  const handleRemovePic = async () => {
     setProfilePic(null);
     localStorage.removeItem('admin_profile_pic');
+    try {
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
+      await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1'}/admin/profile-picture`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ profilePicture: null }),
+        }
+      );
+    } catch (err) {}
   };
-  const email = adminData?.email || 'admin';
-localStorage.removeItem(`admin_profile_pic_${email}`);
-localStorage.removeItem('admin_profile_pic');
 
   if (loading) {
     return (
@@ -94,6 +139,20 @@ localStorage.removeItem('admin_profile_pic');
           <AdminSidebar />
           <div className="admin-content">
             <div className="loader">Loading profile...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!adminData) {
+    return (
+      <div className="admin-container">
+        <AdminNavbar />
+        <div className="admin-layout">
+          <AdminSidebar />
+          <div className="admin-content">
+            <div className="loader">Profile load nahi hua. Refresh karo.</div>
           </div>
         </div>
       </div>
@@ -114,9 +173,9 @@ localStorage.removeItem('admin_profile_pic');
           </div>
 
           <div className="profile-container">
-            {/* ── Header Section ── */}
+            {/* Header Section */}
             <div className="profile-header-section">
-              
+
               {/* Profile Picture */}
               <div style={{ position: 'relative', display: 'inline-block' }}>
                 {profilePic ? (
@@ -136,11 +195,10 @@ localStorage.removeItem('admin_profile_pic');
                     style={{ cursor: 'pointer' }}
                     onClick={() => fileInputRef.current.click()}
                   >
-                    {adminData.name.charAt(0).toUpperCase()}
+                    {(adminData?.name || 'A').charAt(0).toUpperCase()}
                   </div>
                 )}
 
-                {/* Camera icon overlay */}
                 <div
                   onClick={() => fileInputRef.current.click()}
                   style={{
@@ -186,7 +244,7 @@ localStorage.removeItem('admin_profile_pic');
               </div>
             </div>
 
-            {/* ── Personal Info ── */}
+            {/* Personal Info */}
             <div className="profile-sections">
               <div className="profile-section">
                 <h3>Personal Information</h3>
@@ -214,7 +272,7 @@ localStorage.removeItem('admin_profile_pic');
                 </div>
               </div>
 
-              {/* ── Role Details ── */}
+              {/* Role Details */}
               <div className="profile-section">
                 <h3>Role Details</h3>
                 <div className="info-grid">
@@ -240,7 +298,7 @@ localStorage.removeItem('admin_profile_pic');
               </div>
             </div>
 
-            {/* ── Actions ── */}
+            {/* Actions */}
             <div className="profile-actions">
               <button className="btn-primary" onClick={() => navigate('/admin/dashboard')}>
                 🏠 Go to Dashboard

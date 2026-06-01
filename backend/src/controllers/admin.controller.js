@@ -1571,8 +1571,30 @@ const updateAdminProfile = async (req, res) => {
     });
   }
 };
+const updateProfilePicture = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { profilePicture } = req.body;
+    await User.findByIdAndUpdate(userId, { profilePicture });
+    res.json({ success: true, message: 'Profile picture updated' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const getProfilePicture = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const user = await User.findById(userId).select('profilePicture');
+    res.json({ success: true, profilePicture: user?.profilePicture || null });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 
 module.exports = {
+  updateProfilePicture,
+getProfilePicture,
   getDashboard,
   createManager,
   createEmployee,

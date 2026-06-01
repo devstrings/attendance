@@ -24,6 +24,23 @@ const ManagerProfile = () => {
   useEffect(() => {
     fetchProfileData();
     const pic = localStorage.getItem('manager_profile_pic');
+    const fetchPic = async () => {
+  try {
+    const token = localStorage.getItem('manager_token') || localStorage.getItem('token');
+    const res = await fetch(
+      `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1'}/admin/profile-picture`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data.profilePicture) {
+        setProfilePic(data.profilePicture);
+        localStorage.setItem('manager_profile_pic', data.profilePicture);
+      }
+    }
+  } catch (e) {}
+};
+fetchPic();
     if (pic) setProfilePic(pic);
   }, []);
 
@@ -95,18 +112,29 @@ const ManagerProfile = () => {
     }
   };
 
-  // ✅ Photo handlers
- const handlePicChange = (e) => {
+const handlePicChange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   if (file.size > 2 * 1024 * 1024) { alert('2MB se kam honi chahiye'); return; }
   const reader = new FileReader();
-  reader.onload = (ev) => {
+  reader.onload = async (ev) => {
     const base64 = ev.target.result;
     setProfilePic(base64);
     const email = managerData?.email || 'manager';
     localStorage.setItem(`manager_profile_pic_${email}`, base64);
-    localStorage.setItem('manager_profile_pic', base64); // ✅ navbar sync
+    localStorage.setItem('manager_profile_pic', base64);
+
+    try {
+      const token = localStorage.getItem('manager_token') || localStorage.getItem('token');
+      await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1'}/admin/profile-picture`,
+        {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profilePicture: base64 }),
+        }
+      );
+    } catch (err) {}
   };
   reader.readAsDataURL(file);
 };
