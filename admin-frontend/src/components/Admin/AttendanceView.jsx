@@ -6,7 +6,7 @@ import AdminSidebar from "./AdminSidebar";
 import adminService from "../../services/adminService";
 import adminAttendanceService from "../../services/adminAttendanceService";
 import MarkAttendanceModal from "./MarkAttendanceModal";
-import AdminCorrectAttendanceModal from "./AdminCorrectAttendanceModal"; // ✅ NEW
+import AdminCorrectAttendanceModal from "./AdminCorrectAttendanceModal";
 import "../../styles/Admin.css";
 
 const AttendanceView = () => {
@@ -16,7 +16,7 @@ const AttendanceView = () => {
   const [loading, setLoading] = useState(true);
 
   const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0],
+    new Date().toISOString().split("T")[0]
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -24,53 +24,56 @@ const AttendanceView = () => {
   const [showMarkAttendanceModal, setShowMarkAttendanceModal] = useState(false);
   const [totalEmployees, setTotalEmployees] = useState(0);
   const [weekendDays, setWeekendDays] = useState(["Saturday", "Sunday"]);
-  const [dayOffMessage, setDayOffMessage] = useState('');
+  const [dayOffMessage, setDayOffMessage] = useState("");
   const [isHolidayDate, setIsHolidayDate] = useState(false);
 
-  // ✅ NEW — Correct modal state
   const [showCorrectModal, setShowCorrectModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line
   }, [selectedDate]);
 
   useEffect(() => {
     filterRecords();
-    // eslint-disable-next-line
   }, [searchTerm, filterStatus, filterDepartment, attendanceRecords]);
 
   const fetchData = async () => {
-  setLoading(true);
-  let currentWeekendDays = ["Saturday", "Sunday"]; // ✅ YAHAN ADD KARO — sabse upar
-  try {
-    const configRes = await adminService.getSystemConfig();
-    if (configRes?.data?.config?.weekendDays) {
-      currentWeekendDays = configRes.data.config.weekendDays;
-      setWeekendDays(configRes.data.config.weekendDays);
-    }
-  } catch (e) {}
+    setLoading(true);
+    let currentWeekendDays = ["Saturday", "Sunday"];
+    try {
+      const configRes = await adminService.getSystemConfig();
+      if (configRes?.data?.config?.weekendDays) {
+        currentWeekendDays = configRes.data.config.weekendDays;
+        setWeekendDays(configRes.data.config.weekendDays);
+      }
+    } catch (e) {}
 
     try {
       const holidayRes = await adminService.getAllHolidays();
       const holidays = holidayRes?.data?.holidays || [];
-      // Check karo selectedDate holiday hai ya nahi
       const isHoliday = holidays.some((h) => {
         const hDate = new Date(h.date).toISOString().split("T")[0];
         return hDate === selectedDate;
       });
       setIsHolidayDate(isHoliday);
       if (isHoliday) {
-  const holidayName = holidays.find(h => new Date(h.date).toISOString().split("T")[0] === selectedDate)?.name || 'Public Holiday';
-  setDayOffMessage(`🎉 ${holidayName} — This is a public holiday. Office is closed.`);
-  setAttendanceRecords([]);
-  setTotalEmployees(0);
-  setLoading(false);
-  return;
-}
-setDayOffMessage('');
+        const holidayName =
+          holidays.find(
+            (h) =>
+              new Date(h.date).toISOString().split("T")[0] === selectedDate
+          )?.name || "Public Holiday";
+        setDayOffMessage(
+          `🎉 ${holidayName} — This is a public holiday. Office is closed.`
+        );
+        setAttendanceRecords([]);
+        setTotalEmployees(0);
+        setLoading(false);
+        return;
+      }
+      setDayOffMessage("");
     } catch (e) {}
+
     try {
       const attendanceResponse = await adminService.getAllAttendance({
         date: selectedDate,
@@ -103,7 +106,7 @@ setDayOffMessage('');
           hoursWorked: record.workHours || 0,
           notes: record.remarks || "",
           hasRecord: true,
-          date: selectedDate, // ✅ date pass karo modal ke liye
+          date: selectedDate,
         }));
 
         const presentIds = attendanceResponse.data.attendance
@@ -111,25 +114,21 @@ setDayOffMessage('');
           .filter(Boolean);
 
         const dayNames = [
-          "Sunday",
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
+          "Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday",
         ];
         const selectedDayName = dayNames[new Date(selectedDate).getDay()];
         const isWeekend = currentWeekendDays.includes(selectedDayName);
 
         if (isWeekend) {
-  setDayOffMessage(`🏖️ ${selectedDayName} — Weekend. Office is closed.`);
-  setAttendanceRecords([]);
-  setTotalEmployees(0);
-  setLoading(false);
-  return;
-}
-setDayOffMessage('');
+          setDayOffMessage(
+            `🏖️ ${selectedDayName} — Weekend. Office is closed.`
+          );
+          setAttendanceRecords([]);
+          setTotalEmployees(0);
+          setLoading(false);
+          return;
+        }
+        setDayOffMessage("");
 
         const absentRows =
           isWeekend || isHolidayDate
@@ -141,7 +140,7 @@ setDayOffMessage('');
                     emp.lastName &&
                     emp.employeeCode &&
                     !emp.employeeCode.includes("TEST") &&
-                    !presentIds.includes(emp._id?.toString()),
+                    !presentIds.includes(emp._id?.toString())
                 )
                 .map((emp) => ({
                   id: emp._id,
@@ -168,7 +167,7 @@ setDayOffMessage('');
             emp.firstName &&
             emp.lastName &&
             emp.employeeCode &&
-            !emp.employeeCode.includes("TEST"),
+            !emp.employeeCode.includes("TEST")
         );
         setTotalEmployees(realEmployees.length);
       } else {
@@ -192,16 +191,15 @@ setDayOffMessage('');
     if (searchTerm) {
       filtered = filtered.filter(
         (record) =>
-          record.employeeName
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          record.employeeId.includes(searchTerm),
+          record.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          record.employeeId.includes(searchTerm)
       );
     }
     if (filterStatus) {
       if (filterStatus === "leave" || filterStatus === "on-leave") {
         filtered = filtered.filter(
-          (record) => record.status === "leave" || record.status === "on-leave",
+          (record) =>
+            record.status === "leave" || record.status === "on-leave"
         );
       } else {
         filtered = filtered.filter((record) => record.status === filterStatus);
@@ -209,32 +207,10 @@ setDayOffMessage('');
     }
     if (filterDepartment) {
       filtered = filtered.filter(
-        (record) => record.department === filterDepartment,
+        (record) => record.department === filterDepartment
       );
     }
     setFilteredRecords(filtered);
-  };
-
-  const presentCount = filteredRecords.filter(
-    (r) => r.status === "present",
-  ).length;
-  const leaveCount = filteredRecords.filter(
-    (r) => r.status === "leave" || r.status === "on-leave",
-  ).length;
-  const holidayCount = filteredRecords.filter(
-    (r) => r.status === "holiday",
-  ).length;
-  const absentCount = Math.max(
-    0,
-    totalEmployees - presentCount - leaveCount - holidayCount,
-  );
-
-  const stats = {
-    total: totalEmployees,
-    present: presentCount,
-    absent: absentCount,
-    leave: leaveCount,
-    holiday: holidayCount,
   };
 
   const handleViewDetails = (record) => {
@@ -246,16 +222,14 @@ setDayOffMessage('');
   };
 
   const handleAttendanceMarked = () => {
-    fetchAttendance(); // ✅ sirf refresh
+    fetchAttendance();
   };
 
-  // ✅ NEW — Correct button click handler
   const handleCorrectClick = (record) => {
     setSelectedRecord(record);
     setShowCorrectModal(true);
   };
 
-  // ✅ NEW — After correction done
   const handleCorrected = () => {
     setShowCorrectModal(false);
     setSelectedRecord(null);
@@ -282,105 +256,172 @@ setDayOffMessage('');
       <div className="admin-layout">
         <AdminSidebar />
 
-       <div
-  className="admin-content responsive-content"
-  style={{
-    margin: window.innerWidth <= 768 ? "10px" : "20px",
-  }}
->
-          {/* Header */}
-          <div className="page-header-modern">
-            <h1>Attendance View</h1>
-            <div
+        <div
+          className="admin-content responsive-content"
+          style={{
+            margin: window.innerWidth <= 768 ? "10px" : "20px",
+          }}
+        >
+          {/* ✅ Single Header Bar — Title + Date + Search + Filter + Buttons */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              flexWrap: "wrap",
+              marginBottom: "20px",
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              padding: "14px 20px",
+              borderRadius: "14px",
+              boxShadow: "0 4px 15px rgba(102,126,234,0.3)",
+            }}
+          >
+            {/* Title */}
+            <h1
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "16px",
-                flexWrap: "wrap",
+                color: "white",
+                fontSize: "17px",
+                fontWeight: "700",
+                margin: 0,
+                whiteSpace: "nowrap",
               }}
             >
-              <div className="date-selector-modern">
-                <label>Select Date</label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  max={new Date().toISOString().split("T")[0]}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  onClick={(e) => e.target.showPicker?.()}
-                />
-              </div>
-              <button
-                onClick={() => setShowMarkAttendanceModal(true)}
+  📋
+</h1>
+
+            <div
+              style={{
+                width: "1px",
+                height: "30px",
+                background: "rgba(255,255,255,0.3)",
+              }}
+            />
+
+            {/* Date Picker */}
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <label
                 style={{
-                  background:
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                  color: "white",
-                  padding: "12px 24px",
-                  borderRadius: "10px",
-                  border: "none",
-                  fontSize: "15px",
+                  color: "rgba(255,255,255,0.9)",
+                  fontSize: "12px",
                   fontWeight: "600",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  boxShadow: "0 4px 12px rgba(102, 126, 234, 0.3)",
-                  transition: "all 0.3s",
+                  whiteSpace: "nowrap",
                 }}
               >
-                <span style={{ fontSize: "18px" }}>✓</span>
-                Mark Attendance
-              </button>
+                📅 Date:
+              </label>
+              <input
+                type="date"
+                value={selectedDate}
+                max={new Date().toISOString().split("T")[0]}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                onClick={(e) => e.target.showPicker?.()}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255,255,255,0.4)",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  background: "rgba(255,255,255,0.15)",
+                  color: "white",
+                  cursor: "pointer",
+                  outline: "none",
+                  colorScheme: "dark",
+                }}
+              />
             </div>
-          </div>
 
-          {/* Stats */}
-          <div className="stats-grid-modern">
-            <div className="stat-card-modern stat-1">
-              <div className="stat-label-modern">Total</div>
-              <div className="stat-value-modern">{stats.total}</div>
-            </div>
-            <div className="stat-card-modern stat-2">
-              <div className="stat-label-modern">Present</div>
-              <div className="stat-value-modern">{stats.present}</div>
-            </div>
-            <div className="stat-card-modern stat-3">
-              <div className="stat-label-modern">Absent</div>
-              <div className="stat-value-modern">{stats.absent}</div>
-            </div>
-            <div className="stat-card-modern stat-4">
-              <div className="stat-label-modern">Leave</div>
-              <div className="stat-value-modern">{stats.leave}</div>
-            </div>
-          </div>
+            <div
+              style={{
+                width: "1px",
+                height: "30px",
+                background: "rgba(255,255,255,0.3)",
+              }}
+            />
 
-          {/* Filters */}
-          <div className="filters-modern">
+            {/* Search */}
             <input
               type="text"
-              placeholder="Search by name or ID..."
+              placeholder="🔍 Search name or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255,255,255,0.4)",
+                fontSize: "13px",
+                background: "rgba(255,255,255,0.15)",
+                color: "white",
+                outline: "none",
+                minWidth: "160px",
+                flex: "1",
+              }}
             />
+
+            {/* Status Filter */}
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
+              style={{
+                padding: "6px 10px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255,255,255,0.4)",
+                fontSize: "13px",
+                fontWeight: "600",
+                background: "rgba(255,255,255,0.15)",
+                color: "white",
+                cursor: "pointer",
+                outline: "none",
+              }}
             >
-              <option value="">All Status</option>
-              <option value="present">Present</option>
-              <option value="absent">Absent</option>
-              <option value="leave">Leave</option>
-              <option value="holiday">Holiday</option>
+              <option value="" style={{ color: "#333", background: "white" }}>All Status</option>
+              <option value="present" style={{ color: "#333", background: "white" }}>Present</option>
+              <option value="absent" style={{ color: "#333", background: "white" }}>Absent</option>
+              <option value="leave" style={{ color: "#333", background: "white" }}>Leave</option>
+              <option value="holiday" style={{ color: "#333", background: "white" }}>Holiday</option>
             </select>
+
+            {/* Clear Button */}
             <button
-              className="btn-secondary"
               onClick={() => {
                 setSearchTerm("");
                 setFilterDepartment("");
                 setFilterStatus("");
               }}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255,255,255,0.5)",
+                background: "transparent",
+                color: "white",
+                fontSize: "13px",
+                fontWeight: "600",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
             >
-              Clear Filters
+              ✕ Clear
+            </button>
+
+            {/* Mark Attendance Button */}
+            <button
+              onClick={() => setShowMarkAttendanceModal(true)}
+              style={{
+                padding: "7px 16px",
+                borderRadius: "8px",
+                border: "none",
+                background: "white",
+                color: "#667eea",
+                fontSize: "13px",
+                fontWeight: "700",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              ✓ Mark Attendance
             </button>
           </div>
 
@@ -409,7 +450,12 @@ setDayOffMessage('');
                       <td>{record.department}</td>
                       <td>
                         <span
-                          className={`status-badge ${record.status === "leave" || record.status === "on-leave" ? "leave" : record.status}`}
+                          className={`status-badge ${
+                            record.status === "leave" ||
+                            record.status === "on-leave"
+                              ? "leave"
+                              : record.status
+                          }`}
                         >
                           {record.status === "leave" ||
                           record.status === "on-leave"
@@ -422,7 +468,6 @@ setDayOffMessage('');
                       <td>{record.hoursWorked} hrs</td>
                       <td>{record.notes || "-"}</td>
                       <td>
-                        {/* ✅ View button */}
                         <button
                           className="btn-icon view"
                           onClick={() => handleViewDetails(record)}
@@ -431,7 +476,6 @@ setDayOffMessage('');
                           👁
                         </button>
 
-                        {/* ✅ NEW — Correct button (sirf absent records pe) */}
                         {record.status === "absent" && record.hasRecord && (
                           <button
                             onClick={() => handleCorrectClick(record)}
@@ -459,8 +503,11 @@ setDayOffMessage('');
                 ) : (
                   <tr>
                     <td colSpan="9" className="no-data">
-  {dayOffMessage || `No attendance found for ${new Date(selectedDate).toLocaleDateString()}`}
-</td>
+                      {dayOffMessage ||
+                        `No attendance found for ${new Date(
+                          selectedDate
+                        ).toLocaleDateString()}`}
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -468,8 +515,7 @@ setDayOffMessage('');
           </div>
 
           <div className="table-footer-modern">
-            Showing {filteredRecords.length} records out of {stats.total} total
-            employees
+            Showing {filteredRecords.length} records out of {totalEmployees} total employees
           </div>
         </div>
       </div>
@@ -483,7 +529,7 @@ setDayOffMessage('');
         />
       )}
 
-      {/* ✅ NEW — Correct Attendance Modal */}
+      {/* Correct Attendance Modal */}
       {showCorrectModal && selectedRecord && (
         <AdminCorrectAttendanceModal
           record={selectedRecord}
@@ -499,4 +545,3 @@ setDayOffMessage('');
 };
 
 export default AttendanceView;
-
