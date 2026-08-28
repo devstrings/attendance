@@ -14,6 +14,12 @@ const correctionRequestSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false,
+    default: null
+  },
   attendanceId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Attendance'
@@ -114,6 +120,7 @@ const correctionRequestSchema = new mongoose.Schema({
 correctionRequestSchema.index({ employee: 1, status: 1, createdAt: -1 });
 correctionRequestSchema.index({ attendanceDate: 1, status: 1 });
 correctionRequestSchema.index({ status: 1, priority: 1 });
+correctionRequestSchema.index({ companyId: 1 });   // ✅ NEW
 
 // Virtual for formatted attendance date
 correctionRequestSchema.virtual('formattedAttendanceDate').get(function() {

@@ -3,10 +3,11 @@ const router = express.Router();
 const managerController = require('../controllers/manager.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { isManagerOrAdmin } = require('../middleware/role.middleware');
+const { attachTenant } = require('../middleware/tenant.middleware');
 
 
 // ✅ ALL ROUTES REQUIRE AUTHENTICATION + MANAGER ROLE
-router.use(authenticate, isManagerOrAdmin);
+router.use(authenticate, attachTenant, isManagerOrAdmin);
 // ===== DASHBOARD =====
 router.get('/dashboard', managerController.getDashboard);
 

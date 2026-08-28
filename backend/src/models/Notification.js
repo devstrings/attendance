@@ -7,6 +7,13 @@ const notificationSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  // ✅ NEW — Multi-tenant isolation
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false,
+    default: null
+  },
   title: {
     type: String,
     required: true,
@@ -66,6 +73,7 @@ const notificationSchema = new mongoose.Schema({
 // Indexes for better performance
 notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ type: 1, createdAt: -1 });
+notificationSchema.index({ companyId: 1 });   // ✅ NEW
 
 // Method to mark as read
 notificationSchema.methods.markAsRead = async function() {

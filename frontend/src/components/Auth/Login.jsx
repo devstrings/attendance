@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import '../../styles/Auth.css';
+
 
 const Login = ({ userType }) => {
   const navigate = useNavigate();
+  const { companyCode: companyCodeFromUrl } = useParams();
   
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
+    companyCode: companyCodeFromUrl ? companyCodeFromUrl.toUpperCase() : ''
   });
   const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState({});
@@ -144,13 +147,22 @@ const Login = ({ userType }) => {
       localStorage.setItem(tokenKey, token);
       localStorage.setItem(userKey, JSON.stringify(user));
 
+      // ✅ NEW — company slug save karo URL prefix ke liye
+      const companySlug = data.data.company?.slug;
+      if (companySlug) {
+        localStorage.setItem(`${userRole}_company_slug`, companySlug);
+      } else {
+        localStorage.removeItem(`${userRole}_company_slug`);
+      }
+
       console.log('✅ Login successful!');
       console.log(`💾 Credentials saved: ${tokenKey}, ${userKey}`);
       console.log('🔄 Redirecting to dashboard...');
 
-      // ✅ Redirect to dashboard after successful login
+      // ✅ NEW — hard redirect (page reload) taake naya basename apply ho
+      const urlPrefix = companySlug ? `/${companySlug}` : '';
       setTimeout(() => {
-        navigate(`/${userRole}/dashboard`, { replace: true });
+        window.location.href = `${urlPrefix}/${userRole}/dashboard`;
       }, 100);
       
     } catch (error) {
@@ -242,6 +254,29 @@ const Login = ({ userType }) => {
         )}
 
         <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>
+              Company Code <span style={{ color: '#9ca3af', fontWeight: '400' }}>(leave blank if not applicable)</span>
+            </label>
+            <input
+              type="text"
+              name="companyCode"
+              value={formData.companyCode}
+              onChange={handleChange}
+              placeholder="e.g. DEVSTRINGS"
+              disabled={loading}
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                fontSize: '14px',
+                boxSizing: 'border-box',
+                textTransform: 'uppercase'
+              }}
+            />
+          </div>
+
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#333' }}>
               Email Address

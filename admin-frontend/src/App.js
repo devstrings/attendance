@@ -93,6 +93,12 @@ function App() {
                 <Login userType="admin" />
               </LoginRoute>
             } />
+            {/* ✅ NEW — company-prefixed login URL, e.g. /devstrings/admin/login */}
+            <Route path="/:companyCode/admin/login" element={
+              <LoginRoute>
+                <Login userType="admin" />
+              </LoginRoute>
+            } />
 
            <Route path="/forgot-password" element={<ForgotPassword />} />
 <Route path="/admin/forgot-password" element={<ForgotPassword />} />

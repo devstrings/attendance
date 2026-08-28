@@ -50,7 +50,8 @@ const authenticate = async (req, res, next) => {
       _id: user._id,           // ✅ CRITICAL: Add _id field
       userId: user._id,        // Keep this for backward compatibility
       email: user.email,
-      role: user.role
+      role: user.role,
+      companyId: user.companyId   // ✅ NEW
     };
 
     next();
@@ -92,7 +93,8 @@ const optionalAuth = async (req, res, next) => {
           _id: user._id,
           userId: user._id,
           email: user.email,
-          role: user.role
+          role: user.role,
+          companyId: user.companyId   // ✅ NEW
         };
       }
     }

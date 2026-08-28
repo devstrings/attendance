@@ -7,6 +7,12 @@ const managerSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+   companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false,
+    default: null
+  },
   firstName: {
     type: String,
     required: true,
@@ -81,6 +87,7 @@ const managerSchema = new mongoose.Schema({
 
 // Remove CNIC unique index
 managerSchema.index({ cnic: 1 }, { unique: false, sparse: true });
+managerSchema.index({ companyId: 1 });   // ✅ NEW
 
 // Virtual for full name
 managerSchema.virtual('fullName').get(function() {

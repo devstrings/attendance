@@ -4,11 +4,12 @@ const managerRoutes = require('./manager.routes');
 const employeeRoutes = require('./employee.routes');
 const attendanceRoutes = require('./attendance.routes');
 const leaveRequestRoutes = require('./leaveRequest.routes');
-const correctionRequestRoutes = require('./correctionRequest.routes'); // ✅ ADDED
+const correctionRequestRoutes = require('./correctionRequest.routes');
 const notificationRoutes = require('./notification.routes');
 const salaryRoutes = require('./salary.routes');
 const reportRoutes = require('./report.routes');
-const monthlySummaryRoutes = require('./monthlySummary.routes'); // ✅ NEW
+const monthlySummaryRoutes = require('./monthlySummary.routes');
+const superAdminRoutes = require('./superAdmin.routes');   // ✅ NEW
 
 module.exports = function (app, apiPrefix) {
   console.log('📡 Registering routes with prefix:', apiPrefix);
@@ -19,14 +20,15 @@ module.exports = function (app, apiPrefix) {
   app.use(`${apiPrefix}/employee`, employeeRoutes);
   app.use(`${apiPrefix}/attendance`, attendanceRoutes);
   app.use(`${apiPrefix}/leave-requests`, leaveRequestRoutes);
-  app.use(`${apiPrefix}/correction-requests`, correctionRequestRoutes); // ✅ ADDED
+  app.use(`${apiPrefix}/correction-requests`, correctionRequestRoutes);
   app.use(`${apiPrefix}/notifications`, notificationRoutes);
   app.use(`${apiPrefix}/salary`, salaryRoutes);
   app.use(`${apiPrefix}/report`, reportRoutes);
-  app.use(`${apiPrefix}/monthly-summary`, monthlySummaryRoutes); // ✅ NEW
-  
+  app.use(`${apiPrefix}/monthly-summary`, monthlySummaryRoutes);
+  app.use(`${apiPrefix}/super-admin`, superAdminRoutes);   // ✅ NEW
+
   console.log('✅ All routes registered');
   console.log('✅ Leave requests route: ' + apiPrefix + '/leave-requests');
   console.log('✅ Correction requests route: ' + apiPrefix + '/correction-requests');
-  console.log('✅ Monthly summary route: ' + apiPrefix + '/monthly-summary'); // ✅ NEW
+  console.log('✅ Monthly summary route: ' + apiPrefix + '/monthly-summary');
 };

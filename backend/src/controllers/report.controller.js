@@ -35,6 +35,13 @@ const getDailyAttendanceReport = async (req, res) => {
       query.status = status;
     }
 
+    // ✅ NEW — company scoping
+    let companyEmployeeIds = null;
+    if (req.companyId) {
+      companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employeeId = { $in: companyEmployeeIds };
+    }
+
     // Department filter
     if (department) {
       const employees = await Employee.find({ department, isActive: true }).select('_id');
@@ -105,6 +112,12 @@ const getMonthlyAttendanceReport = async (req, res) => {
       date: { $gte: monthStart, $lte: monthEnd }
     };
 
+    // ✅ NEW — company scoping (fallback jab department filter na diya ho)
+    if (req.companyId && !department) {
+      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employeeId = { $in: companyEmployeeIds };
+    }
+
     // Employee filter
     if (employeeId) {
       query.employeeId = employeeId;
@@ -112,7 +125,11 @@ const getMonthlyAttendanceReport = async (req, res) => {
 
     // Department filter
     if (department) {
-      const employees = await Employee.find({ department, isActive: true }).select('_id');
+      const employees = await Employee.find({ 
+        department, 
+        isActive: true,
+        ...(req.companyId ? { companyId: req.companyId } : {})
+      }).select('_id');
       const employeeIds = employees.map(emp => emp._id);
       query.employeeId = { $in: employeeIds };
     }
@@ -211,6 +228,11 @@ const getEmployeeAttendanceSummary = async (req, res) => {
       });
     }
 
+    // ✅ NEW — company access check
+    if (req.companyId && employee.companyId && employee.companyId.toString() !== req.companyId.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
+    }
+
     const attendanceRecords = await Attendance.find({
       employeeId,
       date: {
@@ -291,14 +313,19 @@ const getDepartmentWiseReport = async (req, res) => {
     const monthEnd = new Date(parseInt(year), parseInt(month), 0);
 
     // Get all departments
-    const departments = await Employee.distinct('department', { isActive: true });
+    // Get all departments
+    const departments = await Employee.distinct('department', { 
+      isActive: true,
+      ...(req.companyId ? { companyId: req.companyId } : {})   // ✅ NEW
+    });
 
     const departmentReports = [];
 
     for (const department of departments) {
       const employees = await Employee.find({ 
         department, 
-        isActive: true 
+        isActive: true,
+        ...(req.companyId ? { companyId: req.companyId } : {})   // ✅ NEW
       }).select('_id');
 
       const employeeIds = employees.map(emp => emp._id);
@@ -376,6 +403,12 @@ const getLeaveReport = async (req, res) => {
       endDate: { $gte: new Date(startDate) }
     };
 
+    // ✅ NEW — company scoping (fallback jab department filter na diya ho)
+    if (req.companyId && !department) {
+      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employeeId = { $in: companyEmployeeIds };
+    }
+
     // Status filter
     if (status) {
       query.status = status;
@@ -388,7 +421,12 @@ const getLeaveReport = async (req, res) => {
 
     // Department filter
     if (department) {
-      const employees = await Employee.find({ department, isActive: true }).select('_id');
+      const employees = await Employee.find({ 
+        department, 
+        isActive: true,
+        ...(req.companyId ? { companyId: req.companyId } : {})
+      }).select('_id');
+
       const employeeIds = employees.map(emp => emp._id);
       query.employeeId = { $in: employeeIds };
     }
@@ -463,6 +501,12 @@ const getSalaryReport = async (req, res) => {
       year: parseInt(year)
     };
 
+    // ✅ NEW — company scoping (fallback jab department filter na diya ho)
+    if (req.companyId && !department) {
+      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employeeId = { $in: companyEmployeeIds };
+    }
+
     // Payment status filter
     if (paymentStatus) {
       query.paymentStatus = paymentStatus;
@@ -470,7 +514,11 @@ const getSalaryReport = async (req, res) => {
 
     // Department filter
     if (department) {
-      const employees = await Employee.find({ department, isActive: true }).select('_id');
+      const employees = await Employee.find({ 
+        department, 
+        isActive: true,
+        ...(req.companyId ? { companyId: req.companyId } : {})
+      }).select('_id');
       const employeeIds = employees.map(emp => emp._id);
       query.employeeId = { $in: employeeIds };
     }
@@ -541,9 +589,19 @@ const getLateArrivalReport = async (req, res) => {
       isLate: true
     };
 
+    // ✅ NEW — company scoping (fallback jab department filter na diya ho)
+    if (req.companyId && !department) {
+      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employeeId = { $in: companyEmployeeIds };
+    }
+
     // Department filter
     if (department) {
-      const employees = await Employee.find({ department, isActive: true }).select('_id');
+      const employees = await Employee.find({ 
+        department, 
+        isActive: true,
+        ...(req.companyId ? { companyId: req.companyId } : {})
+      }).select('_id');
       const employeeIds = employees.map(emp => emp._id);
       query.employeeId = { $in: employeeIds };
     }
@@ -619,9 +677,19 @@ const getOvertimeReport = async (req, res) => {
       overtimeHours: { $gt: 0 }
     };
 
+    // ✅ NEW — company scoping (fallback jab department filter na diya ho)
+    if (req.companyId && !department) {
+      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employeeId = { $in: companyEmployeeIds };
+    }
+
     // Department filter
     if (department) {
-      const employees = await Employee.find({ department, isActive: true }).select('_id');
+      const employees = await Employee.find({ 
+        department, 
+        isActive: true,
+        ...(req.companyId ? { companyId: req.companyId } : {})
+      }).select('_id');
       const employeeIds = employees.map(emp => emp._id);
       query.employeeId = { $in: employeeIds };
     }
@@ -693,6 +761,12 @@ const getComprehensiveMonthlyReport = async (req, res) => {
     const monthStart = new Date(parseInt(year), parseInt(month) - 1, 1);
     const monthEnd = new Date(parseInt(year), parseInt(month), 0);
 
+    // ✅ NEW — company scoping
+    const companyFilter = req.companyId ? { companyId: req.companyId } : {};
+    const companyEmployeeIds = req.companyId
+      ? await Employee.find({ companyId: req.companyId }).distinct('_id')
+      : null;
+
     // Get all data
     const [
       attendanceRecords,
@@ -703,24 +777,28 @@ const getComprehensiveMonthlyReport = async (req, res) => {
       holidays
     ] = await Promise.all([
       Attendance.find({
-        date: { $gte: monthStart, $lte: monthEnd }
+        date: { $gte: monthStart, $lte: monthEnd },
+        ...(companyEmployeeIds ? { employeeId: { $in: companyEmployeeIds } } : {})
       }).populate('employeeId', 'firstName lastName employeeCode department'),
       Leave.find({
         startDate: { $lte: monthEnd },
         endDate: { $gte: monthStart },
-        status: 'approved'
+        status: 'approved',
+        ...companyFilter
       }),
       Salary.find({
         month: parseInt(month),
-        year: parseInt(year)
+        year: parseInt(year),
+        ...companyFilter
       }),
-      Employee.find({ isActive: true }),
+      Employee.find({ isActive: true, ...companyFilter }),
       MonthlyConfig.findOne({
         month: parseInt(month),
         year: parseInt(year)
       }),
       Holiday.find({
-        date: { $gte: monthStart, $lte: monthEnd }
+        date: { $gte: monthStart, $lte: monthEnd },
+        ...companyFilter
       })
     ]);
 
@@ -795,7 +873,10 @@ const getManagerPerformanceReport = async (req, res) => {
     const monthStart = new Date(parseInt(year), parseInt(month) - 1, 1);
     const monthEnd = new Date(parseInt(year), parseInt(month), 0);
 
-    const managers = await Manager.find({ isActive: true })
+    const managers = await Manager.find({ 
+      isActive: true,
+      ...(req.companyId ? { companyId: req.companyId } : {})   // ✅ NEW
+    })
       .populate('employeesUnder', 'firstName lastName employeeCode');
 
     const managerReports = [];

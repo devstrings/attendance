@@ -4,8 +4,9 @@ const salaryController = require('../controllers/salary.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { isAdmin } = require('../middleware/role.middleware');
 const salaryValidators = require('../middleware/validators/salary.validator'); // ✅ NEW
+const { attachTenant } = require('../middleware/tenant.middleware');
 
-router.use(authenticate);
+router.use(authenticate, attachTenant);
 
 router.get('/', salaryValidators.getSalaries, salaryController.getAllSalaries);
 router.get('/:salaryId', salaryController.getSalaryById);

@@ -22,6 +22,13 @@ const getAllSalaries = async (req, res) => {
 
     const query = {};
 
+    // ✅ NEW — company scoping
+    if (req.companyId) {
+      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employeeId = { $in: companyEmployeeIds };
+    }
+
+
     // Employee filter
     if (employeeId) {
       query.employeeId = employeeId;
@@ -44,7 +51,11 @@ const getAllSalaries = async (req, res) => {
 
     // Department filter (requires population)
     if (department) {
-      const employees = await Employee.find({ department, isActive: true }).select('_id');
+      const employees = await Employee.find({ 
+        department, 
+        isActive: true,
+        ...(req.companyId ? { companyId: req.companyId } : {})   // ✅ NEW
+      }).select('_id');
       const employeeIds = employees.map(emp => emp._id);
       query.employeeId = { $in: employeeIds };
     }
@@ -109,6 +120,11 @@ const getSalaryById = async (req, res) => {
         success: false,
         message: 'Salary record not found.'
       });
+    }
+
+    // ✅ NEW — company access check
+    if (req.companyId && salary.companyId && salary.companyId.toString() !== req.companyId.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
     res.status(200).json({
@@ -253,6 +269,7 @@ const generateSalary = async (req, res) => {
     // Create salary record
     const salary = new Salary({
       employeeId,
+      companyId: req.companyId,   // ✅ NEW
       month: parseInt(month),
       year: parseInt(year),
       basicSalary,
@@ -375,6 +392,11 @@ const updateSalary = async (req, res) => {
       });
     }
 
+    // ✅ NEW — company access check
+    if (req.companyId && salary.companyId && salary.companyId.toString() !== req.companyId.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
+    }
+
     // Cannot update if already paid
     if (salary.paymentStatus === 'paid') {
       return res.status(400).json({
@@ -441,6 +463,11 @@ const updatePaymentStatus = async (req, res) => {
         success: false,
         message: 'Salary record not found.'
       });
+    }
+
+    // ✅ NEW — company access check
+    if (req.companyId && salary.companyId && salary.companyId.toString() !== req.companyId.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
     // Update payment status
@@ -531,6 +558,11 @@ const deleteSalary = async (req, res) => {
       });
     }
 
+    // ✅ NEW — company access check
+    if (req.companyId && salary.companyId && salary.companyId.toString() !== req.companyId.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
+    }
+
     // Cannot delete if already paid
     if (salary.paymentStatus === 'paid') {
       return res.status(400).json({
@@ -580,14 +612,17 @@ const bulkGenerateSalaries = async (req, res) => {
     }
 
     // If no specific employees, get all active employees
+   // If no specific employees, get all active employees
     let employees;
+    const companyFilter = req.companyId ? { companyId: req.companyId } : {};   // ✅ NEW
     if (employeeIds && employeeIds.length > 0) {
       employees = await Employee.find({ 
         _id: { $in: employeeIds },
-        isActive: true 
+        isActive: true,
+        ...companyFilter   // ✅ NEW
       }).populate('userId', 'email');
     } else {
-      employees = await Employee.find({ isActive: true }).populate('userId', 'email');
+      employees = await Employee.find({ isActive: true, ...companyFilter }).populate('userId', 'email');
     }
 
     const results = {
@@ -677,6 +712,7 @@ const bulkGenerateSalaries = async (req, res) => {
 
         const salary = new Salary({
           employeeId: employee._id,
+          companyId: req.companyId,   // ✅ NEW
           month: parseInt(month),
           year: parseInt(year),
           basicSalary,
@@ -760,7 +796,8 @@ const getSalarySummary = async (req, res) => {
 
     const salaries = await Salary.find({
       month: parseInt(month),
-      year: parseInt(year)
+      year: parseInt(year),
+      ...(req.companyId ? { companyId: req.companyId } : {})   // ✅ NEW
     }).populate('employeeId', 'firstName lastName department');
 
     const summary = {

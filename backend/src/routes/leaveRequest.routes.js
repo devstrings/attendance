@@ -3,9 +3,10 @@ const router = express.Router();
 const leaveRequestController = require('../controllers/leaveRequest.controller'); // ✅ Make sure controller name is correct
 const { authenticate } = require('../middleware/auth.middleware');
 const { isAdmin, isManagerOrAdmin } = require('../middleware/role.middleware');
+const { attachTenant } = require('../middleware/tenant.middleware');
 
 // ===== MIDDLEWARE =====
-router.use(authenticate); // All routes need authentication
+router.use(authenticate, attachTenant);
 
 // ===== EMPLOYEE ROUTES =====
 router.get('/policy', leaveRequestController.getLeavePolicy); // ✅ CRITICAL

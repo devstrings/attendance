@@ -3,9 +3,10 @@ const router = express.Router();
 const employeeController = require('../controllers/employee.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { isEmployeeOrAbove } = require('../middleware/role.middleware');
+const { attachTenant } = require('../middleware/tenant.middleware');
 
 // All employee routes require authentication
-router.use(authenticate, isEmployeeOrAbove);
+router.use(authenticate, attachTenant, isEmployeeOrAbove);
 
 /**
  * @route   GET /api/employee/dashboard

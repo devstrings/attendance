@@ -28,9 +28,16 @@ const holidaySchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  createdBy: {
+ createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  },
+  // ✅ NEW — Multi-tenant isolation
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false,
+    default: null
   }
 }, {
   timestamps: true
@@ -39,5 +46,6 @@ const holidaySchema = new mongoose.Schema({
 // Index for faster queries
 holidaySchema.index({ year: 1, month: 1 });
 holidaySchema.index({ date: 1 });
+holidaySchema.index({ companyId: 1 });   // ✅ NEW
 
 module.exports = mongoose.model('Holiday', holidaySchema);

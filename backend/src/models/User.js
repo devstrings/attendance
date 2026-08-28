@@ -30,9 +30,17 @@ address: {
   },
   role: {
     type: String,
-    enum: ['admin', 'manager', 'employee'],
+    enum: ['superadmin', 'admin', 'manager', 'employee'],   // ✅ 'superadmin' added
     required: true
   },
+    // ✅ NEW — Multi-tenant support
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false,   // purane users ke liye null rahega, purana data valid rahega
+    default: null
+  },
+  
   isActive: {
     type: Boolean,
     default: true
@@ -106,5 +114,6 @@ userSchema.methods.toJSON = function() {
   delete obj.passwordResetExpires;
   return obj;
 };
+userSchema.index({ email: 1, companyId: 1 }, { unique: true });
 
 module.exports = mongoose.model('User', userSchema);

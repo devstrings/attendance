@@ -13,6 +13,12 @@ const employeeSchema = new mongoose.Schema({
     ref: 'Manager',
     required: false // Optional - employee can exist without manager temporarily
   },
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false,
+    default: null
+  },
   firstName: {
     type: String,
     required: true,
@@ -129,6 +135,7 @@ employeeSchema.virtual('fullName').get(function() {
 employeeSchema.index({ employeeCode: 1 });
 employeeSchema.index({ department: 1 });
 employeeSchema.index({ managerId: 1 });
+employeeSchema.index({ companyId: 1 });   // ✅ NEW
 employeeSchema.index({ userId: 1 });
 
 // ✅ Enable virtuals in JSON/Object

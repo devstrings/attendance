@@ -11,6 +11,12 @@ const leaveSchema = new mongoose.Schema({
     ref: 'Manager',
     required: true
   },
+   companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false,
+    default: null
+  },
   leaveType: {
     type: String,
     enum: ['sick', 'casual', 'annual', 'unpaid', 'emergency', 'maternity', 'paternity'],
@@ -65,5 +71,6 @@ const leaveSchema = new mongoose.Schema({
 // Index for faster queries
 leaveSchema.index({ employeeId: 1, startDate: 1 });
 leaveSchema.index({ managerId: 1, status: 1 });
+leaveSchema.index({ companyId: 1 });   // ✅ NEW
 
 module.exports = mongoose.model('Leave', leaveSchema);

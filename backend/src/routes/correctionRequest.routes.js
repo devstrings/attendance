@@ -3,12 +3,14 @@ const router = express.Router();
 const correctionRequestController = require('../controllers/correctionRequest.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { authorizeRoles } = require('../middleware/role.middleware');
+const { attachTenant } = require('../middleware/tenant.middleware'); // ✅ NEW
 
 // ==================== EMPLOYEE ROUTES ====================
 
 // Create correction request (Employee only)
 router.post('/',
   authenticate,
+  attachTenant,
   authorizeRoles('employee'),
   correctionRequestController.createCorrectionRequest
 );
@@ -16,6 +18,7 @@ router.post('/',
 // Get my correction requests (Employee only)
 router.get('/my-requests',
   authenticate,
+  attachTenant,
   authorizeRoles('employee'),
   correctionRequestController.getMyCorrectionRequests
 );
@@ -25,6 +28,7 @@ router.get('/my-requests',
 // Get overdue requests — MUST be before /:requestId
 router.get('/admin/overdue',
   authenticate,
+  attachTenant,
   authorizeRoles('admin', 'manager'),
   correctionRequestController.getOverdueRequests
 );
@@ -32,6 +36,7 @@ router.get('/admin/overdue',
 // Get all correction requests (Admin & Manager)
 router.get('/',
   authenticate,
+  attachTenant,
   authorizeRoles('admin', 'manager'),
   correctionRequestController.getAllCorrectionRequests
 );
@@ -39,6 +44,7 @@ router.get('/',
 // Get correction request by ID
 router.get('/:requestId',
   authenticate,
+  attachTenant,
   authorizeRoles('admin', 'manager', 'employee'),
   correctionRequestController.getCorrectionRequestById
 );
@@ -46,6 +52,7 @@ router.get('/:requestId',
 // Approve correction request (Admin & Manager)
 router.patch('/:requestId/approve',
   authenticate,
+  attachTenant,
   authorizeRoles('admin', 'manager'),
   correctionRequestController.approveCorrectionRequest
 );
@@ -53,6 +60,7 @@ router.patch('/:requestId/approve',
 // Reject correction request (Admin & Manager)
 router.patch('/:requestId/reject',
   authenticate,
+  attachTenant,
   authorizeRoles('admin', 'manager'),
   correctionRequestController.rejectCorrectionRequest
 );
@@ -60,6 +68,7 @@ router.patch('/:requestId/reject',
 // Update priority (Admin & Manager)
 router.patch('/:requestId/priority',
   authenticate,
+  attachTenant,
   authorizeRoles('admin', 'manager'),
   correctionRequestController.updatePriority
 );

@@ -5,16 +5,22 @@ const { authenticate } = require('../middleware/auth.middleware');
 const { isAdmin } = require('../middleware/role.middleware');
 const adminValidators = require('../middleware/validators/admin.validator');
 const authController = require('../controllers/auth.controller');
+const { attachTenant } = require('../middleware/tenant.middleware');   // ✅ NEW
+
 
 
 // ✅ PUBLIC ROUTE - System Config (accessible to all authenticated users)
 router.get('/system-config/public', authenticate, adminController.getSystemConfig);
 
-// ✅ ADMIN ONLY ROUTES
-router.use(authenticate, isAdmin);
+router.use(authenticate, attachTenant, isAdmin);   // ✅ attachTenant added
+
+
+
+
 
 // Dashboard
 router.get('/dashboard', adminController.getDashboard);
+
 
 
 // Admin Profile Update

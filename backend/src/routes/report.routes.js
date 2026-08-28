@@ -3,9 +3,9 @@ const router = express.Router();
 const reportController = require('../controllers/report.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { isManagerOrAdmin } = require('../middleware/role.middleware');
+const { attachTenant } = require('../middleware/tenant.middleware');
 
-// All report routes require authentication and manager/admin role
-router.use(authenticate, isManagerOrAdmin);
+router.use(authenticate, attachTenant, isManagerOrAdmin);
 
 /**
  * @route   GET /api/report/daily-attendance

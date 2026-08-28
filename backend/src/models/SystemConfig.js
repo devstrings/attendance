@@ -19,7 +19,8 @@ alertTime: { type: String, default: '10:00' },
 isActive: { type: Boolean, default: true },
   effectiveFrom: { type: Date, default: Date.now },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', default: null }
 }, { timestamps: true });
 
 module.exports = mongoose.model('SystemConfig', systemConfigSchema);

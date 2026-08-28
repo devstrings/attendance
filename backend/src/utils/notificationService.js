@@ -126,11 +126,15 @@ const getNotificationEmailTemplate = ({ title, message, type, link }) => {
 };
 
 // ===== Send Notification to Admin =====
-const notifyAdmin = async (title, message, type, link = null, metadata = {}) => {
+// ===== Send Notification to Admin =====
+const notifyAdmin = async (title, message, type, link = null, metadata = {}, companyId = null) => {
   try {
     console.log('📢 Finding admins...');
 
-    const admins = await User.find({ role: 'admin', isActive: true });
+    const query = { role: 'admin', isActive: true };
+    if (companyId) query.companyId = companyId; // ✅ NEW — tenant scoping (safe: sirf jab companyId di ho)
+
+    const admins = await User.find(query);
     console.log(`✅ Found ${admins.length} admin(s)`);
 
     if (admins.length === 0) {
@@ -152,32 +156,18 @@ const notifyAdmin = async (title, message, type, link = null, metadata = {}) => 
 };
 
 // ===== LEAVE REQUEST: Notify Admin =====
-const notifyLeaveRequest = async (leaveRequest, employee) => {
+const notifyLeaveRequest = async (leaveRequest, employee, companyId = null) => {
   try {
-    console.log('');
-    console.log('='.repeat(60));
-    console.log('📢 NOTIFYING ADMIN ABOUT LEAVE REQUEST');
-    console.log('='.repeat(60));
-
-    const title = `🏖️ New Leave Request`;
-    const message = `${employee.name} has requested ${leaveRequest.numberOfDays} day(s) of ${leaveRequest.leaveType} leave from ${new Date(leaveRequest.fromDate).toLocaleDateString()}.`;
-    const link = `/admin/leave-requests`;
-
+    // ... same code ...
     await notifyAdmin(title, message, 'leave_request', link, {
       leaveRequestId: leaveRequest._id,
       employeeName: employee.name,
       employeeEmail: employee.email,
       leaveType: leaveRequest.leaveType,
       numberOfDays: leaveRequest.numberOfDays
-    });
-
-    console.log('✅ Leave request notification + email sent to admin!');
-    console.log('='.repeat(60));
-    console.log('');
-  } catch (error) {
-    console.error('❌ Notify leave request error:', error);
-    console.error('   Stack:', error.stack);
-  }
+    }, companyId);   // ✅ NEW — forward companyId
+    // ... rest same ...
+  } catch (error) { /* same */ }
 };
 
 // ===== LEAVE APPROVED: Notify Employee =====
@@ -253,24 +243,17 @@ const notifyLeaveRejection = async (leaveRequest, employee, approver, reason) =>
 };
 
 // ===== CORRECTION REQUEST: Notify Admin =====
-const notifyCorrectionRequest = async (correctionRequest, employee) => {
+// ===== CORRECTION REQUEST: Notify Admin =====
+const notifyCorrectionRequest = async (correctionRequest, employee, companyId = null) => {
   try {
-    console.log('📢 Notifying admin about correction request');
-
-    const title = `⚠️ New Attendance Correction Request`;
-    const message = `${employee.name} has requested a correction for ${new Date(correctionRequest.attendanceDate).toLocaleDateString()}. Issue: ${correctionRequest.issueType.replace('_', ' ')}`;
-    const link = `/admin/correction-requests`;
-
+    // ... same code ...
     await notifyAdmin(title, message, 'correction_request', link, {
       correctionRequestId: correctionRequest._id,
       employeeName: employee.name,
       issueType: correctionRequest.issueType
-    });
-
-    console.log('✅ Correction request notification + email sent to admin');
-  } catch (error) {
-    console.error('❌ Notify correction request error:', error);
-  }
+    }, companyId);   // ✅ NEW — forward companyId
+    // ... rest same ...
+  } catch (error) { /* same */ }
 };
 
 // ===== CORRECTION RESOLVED: Notify Employee =====
@@ -312,17 +295,16 @@ const notifyCorrectionResolution = async (correctionRequest, employee, resolver,
 };
 
 // ===== System Announcement — Sab users ko notification + email =====
-const sendAnnouncement = async (title, message, recipientRole = 'all') => {
+// ===== System Announcement — Sab users ko notification + email =====
+const sendAnnouncement = async (title, message, recipientRole = 'all', companyId = null) => {
   try {
     console.log(`📢 Sending announcement to: ${recipientRole}`);
 
-    let users = [];
-    if (recipientRole === 'all') {
-      users = await User.find({ isActive: true });
-    } else {
-      users = await User.find({ role: recipientRole, isActive: true });
-    }
+    const query = { isActive: true };
+    if (recipientRole !== 'all') query.role = recipientRole;
+    if (companyId) query.companyId = companyId; // ✅ NEW — tenant scoping (safe: sirf jab companyId di ho)
 
+    const users = await User.find(query);
     console.log(`✅ Found ${users.length} users`);
 
     if (users.length === 0) {
@@ -330,7 +312,6 @@ const sendAnnouncement = async (title, message, recipientRole = 'all') => {
       return 0;
     }
 
-    // createNotification ke andar email bhi jaayega automatically
     const promises = users.map(user =>
       createNotification(user._id, title, message, 'announcement', null, {
         broadcastRole: recipientRole

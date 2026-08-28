@@ -6,16 +6,18 @@ const { hashPassword, comparePassword } = require('../utils/passwordHandler');
 const { generateOTP, verifyOTP } = require('../utils/otpHandler');
 const { sendOTPEmail } = require('../utils/emailService');
 const { validateEmail, validatePassword } = require('../utils/validators');
+const Company = require('../models/Company');
 
 /**
  * Login User - FIXED VERSION
  */
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, companyCode } = req.body;
 
     console.log('🔍 ===== LOGIN ATTEMPT =====');
     console.log('📧 Email:', email);
+    console.log('🏢 Company Code:', companyCode || '(none provided)');
     console.log('🔑 Password received:', password ? 'Yes' : 'No');
 
     // Validate input
@@ -36,8 +38,33 @@ const login = async (req, res) => {
       });
     }
 
-    // Find user
-    const user = await User.findOne({ email: email.toLowerCase() });
+    // ✅ NEW — resolve company from companyCode, if provided
+    let resolvedCompanyId = undefined; // undefined = don't filter (legacy/superadmin path)
+    if (companyCode && companyCode.trim() !== '') {
+      const company = await Company.findOne({ companyCode: companyCode.trim().toUpperCase() });
+      if (!company) {
+        console.log('❌ Company not found for code:', companyCode);
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid company code, email, or password.'
+        });
+      }
+      if (!company.isActive) {
+        console.log('❌ Company is suspended:', company.companyName);
+        return res.status(403).json({
+          success: false,
+          message: 'This company account has been suspended. Please contact support.'
+        });
+      }
+      resolvedCompanyId = company._id;
+    }
+
+    // ✅ NEW — find user scoped to company when a companyCode was given,
+    // otherwise fall back to the old email-only lookup (superadmin / legacy users)
+    const user = resolvedCompanyId
+      ? await User.findOne({ email: email.toLowerCase(), companyId: resolvedCompanyId })
+      : await User.findOne({ email: email.toLowerCase() });
+
     console.log('👤 User found in DB:', user ? 'Yes' : 'No');
 
     if (!user) {
@@ -48,45 +75,25 @@ const login = async (req, res) => {
       });
     }
 
-    console.log('📋 User details:');
-    console.log('   - ID:', user._id);
-    console.log('   - Email:', user.email);
-    console.log('   - Role:', user.role);
-    console.log('   - Active:', user.isActive);
-
-    // Check if user is active
-    if (!user.isActive) {
-      console.log('❌ User account is deactivated');
-      return res.status(403).json({
-        success: false,
-        message: 'Your account has been deactivated. Please contact admin.'
-      });
-    }
-
-    // Compare password
-    console.log('🔐 Starting password comparison...');
-    const isPasswordValid = await user.comparePassword(password);
-    console.log('🔐 Password comparison result:', isPasswordValid);
-
-    if (!isPasswordValid) {
-      console.log('❌ Password mismatch');
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password.'
-      });
-    }
-
-    console.log('✅ Password validated successfully');
+console.log('✅ Password validated successfully');
 
     // Update last login
     user.lastLogin = new Date();
     await user.save();
     console.log('✅ Last login updated');
 
+    // ✅ NEW — company info fetch karo (URL slug ke liye)
+    let companyInfo = null;
+    if (user.companyId) {
+      const company = await Company.findById(user.companyId).select('companyName slug companyCode');
+      if (company) {
+        companyInfo = { companyName: company.companyName, slug: company.slug, companyCode: company.companyCode };
+      }
+    }
+
     // Generate token
     const token = generateToken(user._id, user.role);
     console.log('✅ Token generated');
-
     // Get user profile based on role
     let userProfile = null;
     if (user.role === 'employee') {
@@ -105,6 +112,7 @@ const login = async (req, res) => {
       message: 'Login successful.',
       data: {
         token,
+        company: companyInfo,   // ✅ NEW
         user: {
           id: user._id,           // ✅ Changed from userId to id
           email: user.email,

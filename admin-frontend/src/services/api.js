@@ -10,7 +10,7 @@ console.log('🔧 API Configuration:');
 console.log('📡 Base URL:', API_BASE_URL);
 console.log('🐛 Debug Mode:', DEBUG);
 
-// ================================
+// ==========================
 // CREATE AXIOS INSTANCE
 // ================================
 const api = axios.create({
@@ -28,14 +28,14 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // ✅ Get current role from URL path
-    const path = window.location.pathname;
+    const pathSegments = window.location.pathname.split('/').filter(Boolean);
     let currentRole = null;
 
-    if (path.startsWith('/admin')) {
+    if (pathSegments.includes('admin')) {
       currentRole = 'admin';
-    } else if (path.startsWith('/manager')) {
+    } else if (pathSegments.includes('manager')) {
       currentRole = 'manager';
-    } else if (path.startsWith('/employee')) {
+    } else if (pathSegments.includes('employee')) {
       currentRole = 'employee';
     }
 
@@ -116,17 +116,16 @@ api.interceptors.response.use(
     // HANDLE SPECIFIC ERROR CODES
     // ================================
 
-    // 401 Unauthorized - Token expired or invalid
-    if (error.response?.status === 401) {
-      const path = window.location.pathname;
+if (error.response?.status === 401) {
+      const pathSegments = window.location.pathname.split('/').filter(Boolean);
       let role = 'admin'; // default
 
       // Determine role from current path
-      if (path.startsWith('/manager')) {
+      if (pathSegments.includes('manager')) {
         role = 'manager';
-      } else if (path.startsWith('/employee')) {
+      } else if (pathSegments.includes('employee')) {
         role = 'employee';
-      } else if (path.startsWith('/admin')) {
+      } else if (pathSegments.includes('admin')) {
         role = 'admin';
       }
 
@@ -143,7 +142,7 @@ api.interceptors.response.use(
       console.warn('⚠️  Session expired. Redirecting to login...');
       
       // Show alert only if not already on login page
-      if (!path.includes('/login')) {
+      if (!window.location.pathname.includes('/login')) {
         alert('Session expired. Please login again.');
         window.location.href = `/${role}/login`;
       }
@@ -195,13 +194,12 @@ api.interceptors.response.use(
  * Get current auth token
  */
 export const getToken = () => {
-  const path = window.location.pathname;
+  const pathSegments = window.location.pathname.split('/').filter(Boolean);
   let role = null;
 
-  if (path.startsWith('/admin')) role = 'admin';
-  else if (path.startsWith('/manager')) role = 'manager';
-  else if (path.startsWith('/employee')) role = 'employee';
-
+  if (pathSegments.includes('admin')) role = 'admin';
+  else if (pathSegments.includes('manager')) role = 'manager';
+  else if (pathSegments.includes('employee')) role = 'employee';
   if (role) {
     return localStorage.getItem(`${role}_token`);
   }
@@ -213,12 +211,12 @@ export const getToken = () => {
  * Get current user
  */
 export const getCurrentUser = () => {
-  const path = window.location.pathname;
+  const pathSegments = window.location.pathname.split('/').filter(Boolean);
   let role = null;
 
-  if (path.startsWith('/admin')) role = 'admin';
-  else if (path.startsWith('/manager')) role = 'manager';
-  else if (path.startsWith('/employee')) role = 'employee';
+  if (pathSegments.includes('admin')) role = 'admin';
+  else if (pathSegments.includes('manager')) role = 'manager';
+  else if (pathSegments.includes('employee')) role = 'employee';
 
   if (role) {
     const userStr = localStorage.getItem(`${role}_user`);

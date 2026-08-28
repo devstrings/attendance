@@ -62,6 +62,7 @@ exports.createCorrectionRequest = async (req, res) => {
 
     const correctionRequest = new CorrectionRequest({
       employee: employee._id,
+      companyId: req.companyId,   // ✅ NEW
       employeeName: `${employee.firstName} ${employee.lastName}`,
       employeeEmail: user?.email || '',
       attendanceId: attendanceId || null,
@@ -81,8 +82,11 @@ exports.createCorrectionRequest = async (req, res) => {
     await correctionRequest.save();
 
     // Notify all admins
+    // Notify all admins
     try {
-      const admins = await User.find({ role: 'admin' });
+      const adminQuery = { role: 'admin' };
+      if (req.companyId) adminQuery.companyId = req.companyId;   // ✅ NEW — tenant scoping
+      const admins = await User.find(adminQuery);
       for (const admin of admins) {
         await notificationService.createNotification(
           admin._id,
@@ -169,6 +173,11 @@ exports.getAllCorrectionRequests = async (req, res) => {
     const { status, employeeId, priority, page = 1, limit = 20 } = req.query;
 
     const query = {};
+    // ✅ NEW — company scoping
+    if (req.companyId) {
+      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employee = { $in: companyEmployeeIds };
+    }
     if (status) query.status = status;
     if (employeeId) query.employee = employeeId;
     if (priority) query.priority = priority;

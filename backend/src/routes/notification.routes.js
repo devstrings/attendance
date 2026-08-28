@@ -3,9 +3,11 @@ const router = express.Router();
 const notificationController = require('../controllers/notification.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { isAdmin } = require('../middleware/role.middleware');
+const { attachTenant } = require('../middleware/tenant.middleware');
 
 // ===== ALL ROUTES REQUIRE AUTHENTICATION =====
-router.use(authenticate);
+// NEW
+router.use(authenticate, attachTenant);
 
 // ===== USER ROUTES =====
 router.get('/my-notifications', notificationController.getMyNotifications);

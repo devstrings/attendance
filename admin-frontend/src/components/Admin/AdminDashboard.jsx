@@ -18,6 +18,7 @@ const AdminDashboard = () => {
       absentToday: 0,
       leaveToday: 0,
     },
+    companyName: null,   // ✅ NEW
   });
   const [pendingOvertimeCount, setPendingOvertimeCount] = useState(0);
   const [pendingCorrectionCount, setPendingCorrectionCount] = useState(0);
@@ -88,6 +89,7 @@ const AdminDashboard = () => {
             absentToday: response.data.stats?.absentToday || 0,
             leaveToday: response.data.stats?.leaveToday || 0,
           },
+          companyName: response.data.companyName || null,   // ✅ NEW
         });
       }
     } catch (error) {
@@ -148,7 +150,7 @@ const AdminDashboard = () => {
             <div style={styles.welcomeSection}>
               <h1 style={styles.title}>
                 <span style={styles.emoji}>👋</span>
-                Welcome to Devstrings Attendance System
+                Welcome to {dashboardData.companyName || 'your'} Attendance System
               </h1>
               <p style={styles.subtitle}>
                 Overview of your organization's attendance data and quick

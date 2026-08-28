@@ -184,6 +184,7 @@ exports.createLeaveRequest = async (req, res) => {
 
     const leaveRequest = new LeaveRequest({
       employee: employee._id,
+      companyId: req.companyId,   // ✅ NEW
       employeeName,
       employeeEmail,
       leaveType,
@@ -199,8 +200,9 @@ exports.createLeaveRequest = async (req, res) => {
     console.log('✅ Leave request created:', leaveRequest._id);
 
     // Notify admin
+// Notify admin
     try {
-      await notificationService.notifyLeaveRequest(leaveRequest, { name: employeeName, email: employeeEmail });
+      await notificationService.notifyLeaveRequest(leaveRequest, { name: employeeName, email: employeeEmail }, req.companyId);   // ✅ NEW
     } catch (e) { console.error('⚠️ Notification error:', e); }
 
     res.status(201).json({ success: true, message: 'Leave request submitted successfully', data: leaveRequest });
@@ -249,6 +251,10 @@ exports.getAllLeaveRequests = async (req, res) => {
   try {
     const { status, employeeId, page = 1, limit = 20 } = req.query;
     const query = {};
+    if (req.companyId) {
+      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employee = { $in: companyEmployeeIds };
+    }
     if (status) query.status = status;
     if (employeeId) query.employee = employeeId;
 

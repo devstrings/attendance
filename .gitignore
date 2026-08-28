@@ -5,3 +5,4 @@
 # Local overrides
 .env.local
 **/.env.local
+superadmin-frontend/node_modules/

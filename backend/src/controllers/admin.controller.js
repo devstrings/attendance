@@ -12,6 +12,7 @@ const { generateToken } = require("../utils/jwtHandler");
 const { sendEmail } = require("../utils/emailService");
 const { validateEmail } = require("../utils/validators");
 const notificationService = require("../utils/notificationService");
+const { getActiveSystemConfig } = require('../utils/getSystemConfig');
 
 // ==================== WELCOME EMAIL TEMPLATE ====================
 const getWelcomeEmailTemplate = ({
@@ -204,22 +205,34 @@ const getManagerWelcomeEmailTemplate = ({
 </html>`;
 };
 
+
 /**
  * Admin Dashboard
  */
 const getDashboard = async (req, res) => {
   try {
     console.log("📊 Fetching admin dashboard data...");
-    const totalEmployees = await Employee.countDocuments({ isActive: true });
-    const totalManagers = await Manager.countDocuments({ isActive: true });
+
+    // ✅ NEW — company name fetch karo dashboard heading ke liye
+    let companyName = null;
+    if (req.companyId) {
+      const Company = require('../models/Company');
+      const company = await Company.findById(req.companyId).select('companyName');
+      companyName = company?.companyName || null;
+    }
+
+    const companyFilter = req.companyId ? { companyId: req.companyId } : {};
+
+    const totalEmployees = await Employee.countDocuments({ isActive: true, ...companyFilter });
+    const totalManagers = await Manager.countDocuments({ isActive: true, ...companyFilter });
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-    const systemConfig = await SystemConfig.findOne({ isActive: true });
+    const systemConfig = await getActiveSystemConfig(req.companyId);
     const todayDayName = today.toLocaleDateString("en-US", { weekday: "long" });
     const isWorkingDay =
       systemConfig?.workingDays?.includes(todayDayName) || false;
-    const activeEmployeeIds = await Employee.find({ isActive: true }).distinct(
+    const activeEmployeeIds = await Employee.find({ isActive: true, ...companyFilter }).distinct(
       "_id",
     );
     let todayAttendance = 0,
@@ -242,7 +255,7 @@ const getDashboard = async (req, res) => {
       status: "pending",
       employee: { $in: activeEmployeeIds },
     });
-    const recentEmployees = await Employee.find({ isActive: true })
+    const recentEmployees = await Employee.find({ isActive: true, ...companyFilter })
       .sort({ createdAt: -1 })
       .limit(5)
       .populate("userId", "email isActive")
@@ -261,6 +274,7 @@ const getDashboard = async (req, res) => {
             pendingLeaves,
           },
           recentEmployees,
+          companyName,   // ✅ NEW
           meta: {
             isWorkingDay,
             todayDayName,
@@ -332,11 +346,13 @@ const createManager = async (req, res) => {
       password,
       role: "manager",
       isActive: true,
+      companyId: req.companyId,   // ✅ NEW
       createdBy: req.user.userId,
     });
     await user.save();
     const manager = new Manager({
       userId: user._id,
+      companyId: req.companyId,   // ✅ NEW
       firstName,
       lastName,
       phoneNumber,
@@ -474,12 +490,14 @@ const createEmployee = async (req, res) => {
       password,
       role: "employee",
       isActive: true,
+      companyId: req.companyId,   // ✅ NEW
       createdBy: req.user.userId,
     });
     await user.save();
 
     const employee = new Employee({
       userId: user._id,
+      companyId: req.companyId,   // ✅ NEW
       managerId: managerId || null,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -681,6 +699,7 @@ const getAllManagers = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = "", department = "" } = req.query;
     const query = { isActive: true };
+    if (req.companyId) query.companyId = req.companyId;   // ✅ NEW
     if (search)
       query.$or = [
         { firstName: { $regex: search, $options: "i" } },
@@ -726,6 +745,7 @@ const getAllEmployees = async (req, res) => {
       managerId = "",
     } = req.query;
     const query = { isActive: true };
+    if (req.companyId) query.companyId = req.companyId;   // ✅ NEW
     if (search)
       query.$or = [
         { firstName: { $regex: search, $options: "i" } },
@@ -782,6 +802,11 @@ const getUserDetails = async (req, res) => {
       .populate("userId")
       .populate(populateField, populateSelect);
     if (profile) {
+      // ✅ NEW — company access check
+      if (req.companyId && profile.companyId && profile.companyId.toString() !== req.companyId.toString()) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
       const userIdValue = profile.userId?._id || profile.userId;
       const user = await User.findById(userIdValue).select("-password");
       if (user)
@@ -793,8 +818,13 @@ const getUserDetails = async (req, res) => {
         populateField,
         populateSelect,
       );
-      if (profile)
+      if (profile) {
+        // ✅ NEW — company access check
+        if (req.companyId && profile.companyId && profile.companyId.toString() !== req.companyId.toString()) {
+          return res.status(403).json({ success: false, message: "Access denied." });
+        }
         return res.status(200).json({ success: true, data: { user, profile } });
+      }
     }
     res.status(404).json({ success: false, message: "User not found." });
   } catch (error) {
@@ -824,6 +854,12 @@ const updateUser = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Profile not found." });
+
+    // ✅ NEW — company access check
+    if (req.companyId && profile.companyId && profile.companyId.toString() !== req.companyId.toString()) {
+      return res.status(403).json({ success: false, message: "Access denied." });
+    }
+
     let user = await User.findById(profile.userId);
     if (!user)
       return res
@@ -884,6 +920,12 @@ const deleteUser = async (req, res) => {
     } else {
       user = profile.userId ? await User.findById(profile.userId) : null;
     }
+
+    // ✅ NEW — company access check
+    if (profile && req.companyId && profile.companyId && profile.companyId.toString() !== req.companyId.toString()) {
+      return res.status(403).json({ success: false, message: "Access denied." });
+    }
+
     if (userType === "manager" && profile?.employeesUnder?.length > 0)
       return res
         .status(400)
@@ -930,6 +972,10 @@ const getAllAttendance = async (req, res) => {
       status = "",
     } = req.query;
     const query = {};
+     if (req.companyId) {
+      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employeeId = { $in: companyEmployeeIds };
+    }
     if (date) {
       const d = new Date(date);
       d.setHours(0, 0, 0, 0);
@@ -992,6 +1038,12 @@ const manageHoliday = async (req, res) => {
       isRecurring: holidayData.isRecurring || false,
     };
     if (holidayId) {
+      // ✅ NEW — company access check before update
+      const existingHoliday = await Holiday.findById(holidayId);
+      if (existingHoliday && req.companyId && existingHoliday.companyId && existingHoliday.companyId.toString() !== req.companyId.toString()) {
+        return res.status(403).json({ success: false, message: "Access denied." });
+      }
+
       const holiday = await Holiday.findByIdAndUpdate(
         holidayId,
         { $set: obj },
@@ -1015,6 +1067,7 @@ const manageHoliday = async (req, res) => {
     end.setHours(23, 59, 59, 999);
     const existing = await Holiday.findOne({
       date: { $gte: start, $lte: end },
+      ...(req.companyId ? { companyId: req.companyId } : {}),   // ✅ NEW
     });
     if (existing)
       return res
@@ -1024,6 +1077,7 @@ const manageHoliday = async (req, res) => {
           message: `Holiday already exists on this date.`,
         });
     obj.createdBy = req.user?.userId;
+    obj.companyId = req.companyId;   // ✅ NEW
     const holiday = new Holiday(obj);
     await holiday.save();
     res
@@ -1044,6 +1098,10 @@ const getSummaryReport = async (req, res) => {
   try {
     const { startDate, endDate, employeeId, department } = req.query;
     const query = {};
+    if (req.companyId) {
+      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employeeId = { $in: companyEmployeeIds };
+    }
     if (startDate || endDate) {
       query.date = {};
       if (startDate) {
@@ -1100,7 +1158,10 @@ const getSummaryReport = async (req, res) => {
 const getAllHolidays = async (req, res) => {
   try {
     const { year } = req.query;
-    const holidays = await Holiday.find(year ? { year: parseInt(year) } : {})
+    const query = year ? { year: parseInt(year) } : {};
+    if (req.companyId) query.companyId = req.companyId;   // ✅ NEW
+
+    const holidays = await Holiday.find(query)
       .sort({ date: 1 })
       .populate("createdBy", "email");
     res.status(200).json({ success: true, data: { holidays } });
@@ -1117,6 +1178,12 @@ const getAllHolidays = async (req, res) => {
 
 const deleteHoliday = async (req, res) => {
   try {
+    // ✅ NEW — company access check before delete
+    const existingHoliday = await Holiday.findById(req.params.holidayId);
+    if (existingHoliday && req.companyId && existingHoliday.companyId && existingHoliday.companyId.toString() !== req.companyId.toString()) {
+      return res.status(403).json({ success: false, message: "Access denied." });
+    }
+
     const holiday = await Holiday.findByIdAndDelete(req.params.holidayId);
     if (!holiday)
       return res
@@ -1206,6 +1273,9 @@ const getEmployeeById = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Employee not found" });
+        if (req.companyId && employee.companyId && employee.companyId.toString() !== req.companyId.toString()) {
+      return res.status(403).json({ success: false, message: "Access denied." });
+    }
     res.status(200).json({ success: true, data: { employee } });
   } catch (error) {
     res
@@ -1222,6 +1292,11 @@ const getAllLeaves = async (req, res) => {
   try {
     const { page = 1, limit = 10, status = "", employeeId = "" } = req.query;
     const query = {};
+    if (req.companyId) {
+      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
+      query.employeeId = { $in: companyEmployeeIds };
+    }
+
     if (status) query.status = status;
     if (employeeId) query.employeeId = employeeId;
     const leaves = await Leave.find(query)
@@ -1292,6 +1367,11 @@ const getSettings = async (req, res) => {
 const forceDeleteEmployee = async (req, res) => {
   try {
     const { employeeId } = req.params;
+        const existingEmp = await Employee.findById(employeeId);
+    if (existingEmp && req.companyId && existingEmp.companyId && existingEmp.companyId.toString() !== req.companyId.toString()) {
+      return res.status(403).json({ success: false, message: "Access denied." });
+    }
+
     const employee = await Employee.findByIdAndDelete(employeeId);
     if (employee) {
       if (employee.userId) await User.findByIdAndDelete(employee.userId);
@@ -1317,9 +1397,7 @@ const forceDeleteEmployee = async (req, res) => {
 
 const getSystemConfig = async (req, res) => {
   try {
-    let config = await SystemConfig.findOne({ isActive: true })
-      .populate("createdBy", "email")
-      .populate("updatedBy", "email");
+    let config = await getActiveSystemConfig(req.companyId);
     if (!config) {
       config = new SystemConfig({
         workingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
@@ -1332,6 +1410,7 @@ const getSystemConfig = async (req, res) => {
         leavePolicy: { allowedLeaves: 2, autoAbsentOnExceed: true },
         weekendDays: ["Saturday", "Sunday"],
         isActive: true,
+        companyId: req.companyId,   // ✅ NEW
         createdBy: req.user.userId,
       });
       await config.save();
@@ -1351,12 +1430,14 @@ const getSystemConfig = async (req, res) => {
 const createSystemConfig = async (req, res) => {
   try {
     await SystemConfig.updateMany(
-      { isActive: true },
+      { isActive: true, ...(req.companyId ? { companyId: req.companyId } : { $or: [{ companyId: null }, { companyId: { $exists: false } }] }) },
       { $set: { isActive: false } },
     );
+
     const config = new SystemConfig({
       ...req.body,
       isActive: true,
+       companyId: req.companyId,   // ✅ NEW
       createdBy: req.user.userId,
       effectiveFrom: new Date(),
     });
@@ -1379,6 +1460,10 @@ const updateSystemConfig = async (req, res) => {
   try {
     // ✅ Pehle purana config fetch karo comparison ke liye
     const oldConfig = await SystemConfig.findById(req.params.configId);
+    // ✅ NEW — company access check
+    if (oldConfig && req.companyId && oldConfig.companyId && oldConfig.companyId.toString() !== req.companyId.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
+    }
 
     const config = await SystemConfig.findByIdAndUpdate(
       req.params.configId,

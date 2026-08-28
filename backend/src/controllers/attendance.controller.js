@@ -4,6 +4,7 @@ const Manager = require("../models/Manager");
 const Holiday = require("../models/Holiday");
 const User = require("../models/User");
 const notificationService = require("../utils/notificationService");
+const { getActiveSystemConfig } = require('../utils/getSystemConfig');
 
 /**
  * Get All Attendance Records (with filters)
@@ -24,6 +25,11 @@ const getAllAttendance = async (req, res) => {
 } = req.query;   
 
 const query = {};
+
+if (req.companyId) {
+  const employeesInCompany = await Employee.find({ companyId: req.companyId }).select('_id');
+  query.employeeId = { $in: employeesInCompany.map(e => e._id) };
+}
 
     if (employeeId) {
       query.employeeId = employeeId;
@@ -610,8 +616,8 @@ const clockOut = async (req, res) => {
 
     // Work hours calculate karo
     const clockInTime = new Date(attendance.clockIn);
-    const SystemConfig = require("../models/SystemConfig");
-    const config = await SystemConfig.findOne({ isActive: true });
+    const { getActiveSystemConfig } = require("../utils/getSystemConfig");
+    const config = await getActiveSystemConfig(req.companyId);
     const breakHours = (config?.breakTime || 60) / 60;
     let workHours = Math.max(
       0,
@@ -947,8 +953,9 @@ const setOvertime = async (req, res) => {
 
     // Agar clockOut ho chuka hai toh workHours recalculate karo
     if (attendance.clockOut && attendance.clockIn) {
-      const SystemConfig = require("../models/SystemConfig");
-      const config = await SystemConfig.findOne({ isActive: true });
+      const { getActiveSystemConfig } = require("../utils/getSystemConfig");
+      const config = await getActiveSystemConfig(req.companyId);
+
       const breakHours = (config?.breakTime || 60) / 60;
       const rawWork = Math.max(
         0,
@@ -1167,8 +1174,9 @@ const approveOvertimeRequest = async (req, res) => {
 
         // Agar clockOut ho chuka hai toh workHours mein overtime add karo
         if (attendance.clockOut && attendance.clockIn) {
-          const SystemConfig = require("../models/SystemConfig");
-          const config = await SystemConfig.findOne({ isActive: true });
+          const { getActiveSystemConfig } = require("../utils/getSystemConfig");
+          const config = await getActiveSystemConfig(req.companyId);
+
           const breakHours = (config?.breakTime || 60) / 60;
           const rawWork = Math.max(
             0,
@@ -1185,9 +1193,11 @@ const approveOvertimeRequest = async (req, res) => {
       }
 
       // Agar clockOut ho chuka hai toh workHours mein overtime add karo
-      if (attendance.clockOut && attendance.clockIn) {
-        const SystemConfig = require("../models/SystemConfig");
-        const config = await SystemConfig.findOne({ isActive: true });
+      // Agar clockOut ho chuka hai toh workHours recalculate karo
+    if (attendance.clockOut && attendance.clockIn) {
+      const { getActiveSystemConfig } = require("../utils/getSystemConfig");
+      const config = await getActiveSystemConfig(req.companyId);
+      
         const breakHours = (config?.breakTime || 60) / 60;
         const rawWork = Math.max(
           0,

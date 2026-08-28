@@ -6,6 +6,7 @@ const Leave = require('../models/Leave');
 const Salary = require('../models/Salary');
 const Holiday = require('../models/Holiday');
 const SystemConfig = require('../models/SystemConfig');
+const { getActiveSystemConfig } = require('../utils/getSystemConfig');
 
 // ===== HELPER: Calculate Working Days =====
 const calculateWorkingDays = async (joiningDate, endDate, workingDays) => {
@@ -44,7 +45,15 @@ const getDashboard = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Employee profile not found.' });
     }
 
-    const systemConfig = await SystemConfig.findOne({ isActive: true });
+    // ✅ NEW — company name fetch karo dashboard heading ke liye
+    let companyName = null;
+    if (req.companyId) {
+      const Company = require('../models/Company');
+      const company = await Company.findById(req.companyId).select('companyName');
+      companyName = company?.companyName || null;
+    }
+
+    const systemConfig = await getActiveSystemConfig(req.companyId);
     const configWorkingDays = systemConfig?.workingDays || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
     const today = new Date();
@@ -167,7 +176,8 @@ const monthlyStats = {
         todayLateMinutes,
         monthlyStats,
         pendingLeaves,
-        recentAttendance
+        recentAttendance,
+        companyName   // ✅ NEW
       }
     });
   } catch (error) {
@@ -250,7 +260,7 @@ const getAttendanceHistory = async (req, res) => {
       .populate('managerId', 'firstName lastName')
       .sort({ date: 1 });
 
-    const systemConfigH     = await SystemConfig.findOne({ isActive: true });
+    const systemConfigH     = await getActiveSystemConfig(req.companyId);
     const configWorkingDays = systemConfigH?.workingDays || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
     const holidays     = await Holiday.find({ date: { $gte: startDate, $lte: endDate } });

@@ -182,6 +182,13 @@ exports.getAllNotifications = async (req, res) => {
     if (type) query.type = type;
     if (isRead !== undefined) query.isRead = isRead === 'true';
 
+    // ✅ NEW — company scoping (via recipient's companyId)
+    if (req.companyId) {
+      const User = require('../models/User');
+      const companyUserIds = await User.find({ companyId: req.companyId }).distinct('_id');
+      query.recipient = { $in: companyUserIds };
+    }
+
     const notifications = await Notification.find(query)
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
@@ -214,6 +221,7 @@ exports.getAllNotifications = async (req, res) => {
 };
 
 // ===== Send broadcast (Admin only) =====
+// ===== Send broadcast (Admin only) =====
 exports.sendBroadcast = async (req, res) => {
   try {
     const { updateType, updateDetails, affectedUsers = 'all' } = req.body;
@@ -227,18 +235,18 @@ exports.sendBroadcast = async (req, res) => {
 
     const notificationService = require('../utils/notificationService');
     
-    // ✅ FIX: Get count from sendAnnouncement return value
     const count = await notificationService.sendAnnouncement(
       `📢 ${updateType}`,
       updateDetails,
-      affectedUsers
+      affectedUsers,
+      req.companyId   // ✅ NEW — tenant scoping
     );
 
     res.status(200).json({
       success: true,
       message: 'Broadcast sent successfully',
       data: {
-        count: count || 0  // ✅ FIX: count included in response
+        count: count || 0
       }
     });
 

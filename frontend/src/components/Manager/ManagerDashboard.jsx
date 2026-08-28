@@ -21,6 +21,7 @@ const ManagerDashboard = () => {
       absentToday: 0,
       leaveToday: 0, // ✅ ADD
     },
+    companyName: null,   // ✅ NEW
   });
 
   const [recentAttendance, setRecentAttendance] = useState([]);
@@ -55,6 +56,7 @@ const ManagerDashboard = () => {
             absentToday: s.absentToday || 0,
             leaveToday: s.leaveToday || 0, // ✅ ADD
           },
+          companyName: response.data.companyName || null,   // ✅ NEW
         });
         const allAttendance = response.data.recentAttendance || [];
         const today = new Date().toDateString();
@@ -158,7 +160,7 @@ const ManagerDashboard = () => {
             <div style={styles.welcomeSection}>
               <h1 style={styles.title}>
                 <span style={styles.emoji}>👔</span>
-                Manager Dashboard
+                Manager Dashboard {dashboardData.companyName ? `— ${dashboardData.companyName}` : ''}
               </h1>
               <p style={styles.subtitle}>
                 Manage your team's attendance and performance

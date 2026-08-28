@@ -6,6 +6,12 @@ const salarySchema = new mongoose.Schema({
     ref: 'Employee',
     required: true
   },
+   companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false,
+    default: null
+  },
   month: {
     type: Number,
     required: true,
@@ -144,6 +150,7 @@ const salarySchema = new mongoose.Schema({
 
 // Index for faster queries
 salarySchema.index({ employeeId: 1, month: 1, year: 1 }, { unique: true });
+salarySchema.index({ companyId: 1 });   // ✅ NEW
 
 // Calculate totals before saving
 salarySchema.pre('save', function(next) {

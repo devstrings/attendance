@@ -3,56 +3,14 @@ const router = express.Router();
 const smtpController = require('../controllers/smtp.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { authorizeRoles } = require('../middleware/role.middleware');
+const { attachTenant } = require('../middleware/tenant.middleware'); // ✅ NEW
 
-// ==================== ADMIN ONLY ROUTES ====================
+router.get('/', authenticate, attachTenant, authorizeRoles('admin'), smtpController.getSmtpSettings);
+router.post('/', authenticate, attachTenant, authorizeRoles('admin'), smtpController.saveSmtpSettings);
+router.post('/test-connection', authenticate, attachTenant, authorizeRoles('admin'), smtpController.testSmtpConnection);
+router.post('/send-test', authenticate, attachTenant, authorizeRoles('admin'), smtpController.sendTestEmail);
+router.get('/status', authenticate, attachTenant, authorizeRoles('admin'), smtpController.getSmtpStatus);
+router.patch('/toggle-notification', authenticate, attachTenant, authorizeRoles('admin'), smtpController.toggleNotificationType);
+router.delete('/', authenticate, attachTenant, authorizeRoles('admin'), smtpController.deleteSmtpSettings);
 
-// Get SMTP settings
-router.get('/', 
-  authenticate, 
-  authorizeRoles('admin'), 
-  smtpController.getSmtpSettings
-);
-
-// Save/Update SMTP settings
-router.post('/', 
-  authenticate, 
-  authorizeRoles('admin'), 
-  smtpController.saveSmtpSettings
-);
-
-// Test SMTP connection
-router.post('/test-connection', 
-  authenticate, 
-  authorizeRoles('admin'), 
-  smtpController.testSmtpConnection
-);
-
-// Send test email
-router.post('/send-test', 
-  authenticate, 
-  authorizeRoles('admin'), 
-  smtpController.sendTestEmail
-);
-
-// Get SMTP status and statistics
-router.get('/status', 
-  authenticate, 
-  authorizeRoles('admin'), 
-  smtpController.getSmtpStatus
-);
-
-// Toggle notification type
-router.patch('/toggle-notification', 
-  authenticate, 
-  authorizeRoles('admin'), 
-  smtpController.toggleNotificationType
-);
-
-// Delete SMTP settings
-router.delete('/', 
-  authenticate, 
-  authorizeRoles('admin'), 
-  smtpController.deleteSmtpSettings
-);
-s
 module.exports = router;

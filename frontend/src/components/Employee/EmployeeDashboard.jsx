@@ -181,7 +181,9 @@ const EmployeeDashboard = () => {
             <h1 style={s.title}>
               Welcome back, {employee.firstName} {employee.lastName}! 👋
             </h1>
-            <p style={s.subtitle}>Here's your attendance overview</p>
+            <p style={s.subtitle}>
+              {dashboardData?.companyName || 'Your'} — Here's your attendance overview
+            </p>
             <span style={s.refreshBadge}>
               🔄 Auto-refreshing every 10 seconds
             </span>

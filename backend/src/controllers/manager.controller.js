@@ -6,6 +6,7 @@ const Leave = require('../models/Leave');
 const Holiday = require('../models/Holiday');
 const SystemConfig = require('../models/SystemConfig');
 const { validateEmail } = require('../utils/validators');
+const { getActiveSystemConfig } = require('../utils/getSystemConfig');
 
 // ===== HELPER: Working Days Calculate =====
 const calculateWorkingDays = async (startDate, endDate, workingDayNames) => {
@@ -45,6 +46,14 @@ const getDashboard = async (req, res) => {
 
     if (!manager) {
       return res.status(404).json({ success: false, message: 'Manager profile not found.' });
+    }
+
+    // ✅ NEW — company name fetch karo dashboard heading ke liye
+    let companyName = null;
+    if (req.companyId) {
+      const Company = require('../models/Company');
+      const company = await Company.findById(req.companyId).select('companyName');
+      companyName = company?.companyName || null;
     }
 
     const activeEmployees = manager.employeesUnder.filter(emp => emp.isActive);
@@ -87,7 +96,7 @@ const getDashboard = async (req, res) => {
       .limit(10)
       .populate('employeeId', 'firstName lastName employeeCode');
 
-    res.status(200).json({
+   res.status(200).json({
       success: true,
       data: {
         stats: {
@@ -97,7 +106,8 @@ const getDashboard = async (req, res) => {
           pendingLeaves,
           absentToday
         },
-        recentAttendance
+        recentAttendance,
+        companyName   // ✅ NEW
       }
     });
   } catch (error) {
@@ -201,7 +211,7 @@ const markAttendance = async (req, res) => {
 
     const clockInTime = new Date(clockIn);
     // ✅ Use SystemConfig lateEntryTime for late calculation
-    const systemConfig = await SystemConfig.findOne({ isActive: true });
+    const systemConfig = await getActiveSystemConfig(req.companyId);
     const lateEntryStr = systemConfig?.workingHours?.lateEntryTime || employee.workSchedule?.shiftStartTime || '09:00';
     const [startHour, startMinute] = lateEntryStr.split(':').map(Number);
     const expectedClockIn = new Date(clockInTime);
@@ -338,7 +348,7 @@ const getManagerAttendanceHistory = async (req, res) => {
 
     if (!manager) return res.status(404).json({ success: false, message: 'Manager profile not found.' });
 
-    const systemConfig = await SystemConfig.findOne({ isActive: true });
+    const systemConfig = await getActiveSystemConfig(req.companyId);
     const configWorkingDays = systemConfig?.workingDays || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
     const today = new Date();

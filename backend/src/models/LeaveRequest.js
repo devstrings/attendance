@@ -14,6 +14,12 @@ const leaveRequestSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false,
+    default: null
+  },
   leaveType: {
     type: String,
     required: true,
@@ -92,6 +98,7 @@ const leaveRequestSchema = new mongoose.Schema({
 leaveRequestSchema.index({ employee: 1, status: 1, createdAt: -1 });
 leaveRequestSchema.index({ status: 1, fromDate: 1 });
 leaveRequestSchema.index({ fromDate: 1, toDate: 1 });
+leaveRequestSchema.index({ companyId: 1 });   // ✅ NEW
 
 // Virtual for duration display
 leaveRequestSchema.virtual('durationText').get(function() {
