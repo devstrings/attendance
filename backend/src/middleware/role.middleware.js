@@ -35,10 +35,10 @@ const authorize = (...allowedRoles) => {
 };
 
 /**
- * Check if user is admin
+ * Check if user is admin 
  */
 const isAdmin = (req, res, next) => {
-  return authorize('admin')(req, res, next);
+  return authorize('admin', 'superadmin')(req, res, next);
 };
 
 /**

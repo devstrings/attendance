@@ -150,7 +150,7 @@ const AdminDashboard = () => {
             <div style={styles.welcomeSection}>
               <h1 style={styles.title}>
                 <span style={styles.emoji}>👋</span>
-                Welcome to {dashboardData.companyName || 'your'} Attendance System
+                Welcome to DevString Attendance System
               </h1>
               <p style={styles.subtitle}>
                 Overview of your organization's attendance data and quick

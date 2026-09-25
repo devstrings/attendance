@@ -556,8 +556,9 @@ const createEmployee = async (req, res) => {
 
         if (assignedManager?.userId) {
           // DB notification
+          // ✅ FIX: field ka naam "recipient" hai, "userId" nahi
           await Notification.create({
-            userId: assignedManager.userId._id,
+            recipient: assignedManager.userId._id,
             title: "👤 New Employee Assigned",
             message: `${firstName} ${lastName} (${employeeCode}) has been assigned to you as a new employee in the ${department || "General"} department.`,
             type: "system_update",
