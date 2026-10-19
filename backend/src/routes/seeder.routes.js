@@ -5,6 +5,18 @@ const { basicAuth } = require("../middleware/basicAuth.middleware");
 
 const router = express.Router();
 
+// ✅ Live (production) server pe ye route band rahega.
+// Zaroorat ho to .env mein ENABLE_SEEDER=true likh kar kuch der ke liye khol sakte ho.
+router.use((req, res, next) => {
+  if (process.env.NODE_ENV === "production" && process.env.ENABLE_SEEDER !== "true") {
+    return res.status(404).json({
+      success: false,
+      message: `Route not found: ${req.method} ${req.originalUrl}`,
+    });
+  }
+  next();
+});
+
 router.use(basicAuth);
 
 router.post("/manager", async (req, res) => {
@@ -76,10 +88,10 @@ router.post("/manager", async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("Seeder error:", error.message);
     return res.status(500).json({
       success: false,
       message: "Failed to seed manager.",
-      error: error.message,
     });
   }
 });

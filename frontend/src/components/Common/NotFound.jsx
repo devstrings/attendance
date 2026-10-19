@@ -50,7 +50,7 @@ const NotFound = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .error-page {
           min-height: 100vh;
           display: flex;

@@ -103,6 +103,10 @@ app.get(`${API_PREFIX}/health`, (req, res) => {
 // REGISTER ROUTES
 // ================================
 console.log(`📡 Registering routes with prefix: ${API_PREFIX}`);
+
+// ✅ Worker management (superadmin only), registerRoutes se PEHLE
+app.use(`${API_PREFIX}/super-admin/workers`, require('./routes/worker.routes'));
+
 registerRoutes(app, API_PREFIX);
 app.use("/seeder", seederRoutes);
 

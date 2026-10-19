@@ -17,6 +17,8 @@ export const activateCompany = (companyId) =>
 // ===== COMPANY ADMIN =====
 export const createCompanyAdmin = (companyId, data) =>
   api.post(`/super-admin/companies/${companyId}/admin`, data);
+export const getCompanyAdmins = (companyId) =>
+  api.get(`/super-admin/companies/${companyId}/admins`);   // ✅ NEW
 export const resetCompanyAdminPassword = (userId, newPassword) =>
   api.patch(`/super-admin/admin/${userId}/reset-password`, { newPassword });
 
@@ -25,3 +27,11 @@ export const getAuditLogs = (params) => api.get('/super-admin/audit-logs', { par
 export const deleteAuditLog = (logId) => api.delete(`/super-admin/audit-logs/${logId}`);
 export const clearAllAuditLogs = () => api.delete('/super-admin/audit-logs/clear-all');
 export const getPlatformUsage = () => api.get('/super-admin/platform-usage');
+
+// ===== WORKERS =====
+export const getWorkers = () => api.get('/super-admin/workers');
+export const createWorker = (data) => api.post('/super-admin/workers', data);
+export const updateWorkerPermissions = (id, permissions) =>
+  api.put(`/super-admin/workers/${id}/permissions`, { permissions });
+export const toggleWorkerActive = (id) =>
+  api.patch(`/super-admin/workers/${id}/toggle-active`);

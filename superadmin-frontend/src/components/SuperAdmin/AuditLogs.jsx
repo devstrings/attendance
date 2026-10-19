@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { getAuditLogs, deleteAuditLog, clearAllAuditLogs } from '../../services/superAdminService';
+import { isSuperAdmin } from '../../api';
 import Shell from './Shell';
 
 const ACTION_LABELS = {
@@ -16,6 +17,8 @@ function AuditLogs() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionFilter, setActionFilter] = useState('');
+
+  const canManage = isSuperAdmin(); // delete / clear-all sirf superadmin
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,7 +68,7 @@ function AuditLogs() {
               <option key={key} value={key}>{label}</option>
             ))}
           </select>
-          {logs.length > 0 && (
+          {canManage && logs.length > 0 && (
             <button className="sa-link sa-link-danger" onClick={handleClearAll}>Clear All</button>
           )}
         </div>
@@ -83,7 +86,7 @@ function AuditLogs() {
               <th>Action</th>
               <th>Target</th>
               <th>Performed by</th>
-              <th></th>
+              {canManage && <th></th>}
             </tr>
           </thead>
           <tbody>
@@ -93,9 +96,11 @@ function AuditLogs() {
                 <td><span className="sa-tag">{ACTION_LABELS[log.action] || log.action}</span></td>
                 <td>{log.targetLabel || log.targetId}</td>
                 <td>{log.performedByEmail}</td>
-                <td>
-                  <button className="sa-link sa-link-danger" onClick={() => handleDelete(log._id)}>Delete</button>
-                </td>
+                {canManage && (
+                  <td>
+                    <button className="sa-link sa-link-danger" onClick={() => handleDelete(log._id)}>Delete</button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

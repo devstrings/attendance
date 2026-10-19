@@ -132,7 +132,7 @@ const notifyAdmin = async (title, message, type, link = null, metadata = {}, com
     console.log('📢 Finding admins...');
 
     const query = { role: 'admin', isActive: true };
-    if (companyId) query.companyId = companyId; // ✅ NEW — tenant scoping (safe: sirf jab companyId di ho)
+    if (companyId) query.$or = [{ companyId }, { companies: companyId }]; // ✅ NEW — tenant scoping (safe: sirf jab companyId di ho)
 
     const admins = await User.find(query);
     console.log(`✅ Found ${admins.length} admin(s)`);
@@ -302,7 +302,7 @@ const sendAnnouncement = async (title, message, recipientRole = 'all', companyId
 
     const query = { isActive: true };
     if (recipientRole !== 'all') query.role = recipientRole;
-    if (companyId) query.companyId = companyId; // ✅ NEW — tenant scoping (safe: sirf jab companyId di ho)
+    if (companyId) query.$or = [{ companyId }, { companies: companyId }]; // ✅ NEW — tenant scoping (safe: sirf jab companyId di ho)
 
     const users = await User.find(query);
     console.log(`✅ Found ${users.length} users`);

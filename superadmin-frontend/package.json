@@ -11,6 +11,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "start:worker": "set PORT=3003&& set REACT_APP_PORTAL=worker&& react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

@@ -91,6 +91,12 @@ const AdminDashboard = () => {
           },
           companyName: response.data.companyName || null,   // ✅ NEW
         });
+
+        // ✅ NEW — navbar ke liye company ka naam save karo
+        if (response.data.companyName) {
+          localStorage.setItem("admin_company_name", response.data.companyName);
+          window.dispatchEvent(new Event("company-name-updated"));
+        }
       }
     } catch (error) {
       console.error("❌ Dashboard error:", error);
@@ -150,7 +156,7 @@ const AdminDashboard = () => {
             <div style={styles.welcomeSection}>
               <h1 style={styles.title}>
                 <span style={styles.emoji}>👋</span>
-                Welcome to DevString Attendance System
+                Welcome to {dashboardData.companyName || "DevString"} Attendance System
               </h1>
               <p style={styles.subtitle}>
                 Overview of your organization's attendance data and quick

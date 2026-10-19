@@ -15,7 +15,8 @@ const ResetPassword = () => {
 
   useEffect(() => {
     const otpVerified = sessionStorage.getItem('otp_verified');
-    if (!otpVerified) {
+    const savedOtp = sessionStorage.getItem('reset_otp'); // ✅ NEW
+    if (!otpVerified || !savedOtp) {
       navigate('/forgot-password');
     }
   }, [navigate]);
@@ -72,12 +73,18 @@ const ResetPassword = () => {
 
     try {
       const email = sessionStorage.getItem('reset_email');
+      const otp = sessionStorage.getItem('reset_otp'); // ✅ NEW
+
+      if (!otp) {
+        throw new Error('OTP session expired. Please request a new OTP.');
+      }
 
       const response = await fetch('http://localhost:5000/api/v1/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
+          otp, // ✅ NEW
           newPassword: formData.newPassword,
           confirmPassword: formData.confirmPassword
         })
@@ -90,10 +97,11 @@ const ResetPassword = () => {
       sessionStorage.removeItem('reset_email');
       sessionStorage.removeItem('otp_verified');
       sessionStorage.removeItem('reset_otp');
+      const loginPath = getLoginPath();
       sessionStorage.removeItem('reset_role');
 
       alert('Password reset successfully! Please login with your new password.');
-      navigate(getLoginPath()); // ✅ Sahi login page pe jao
+      navigate(loginPath); // ✅ Sahi login page pe jao
     } catch (error) {
       console.error('Reset password error:', error);
       setErrors({ submit: error.message || 'Failed to reset password. Please try again.' });

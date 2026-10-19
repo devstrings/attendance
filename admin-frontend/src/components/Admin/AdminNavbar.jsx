@@ -12,57 +12,70 @@ const AdminNavbar = () => {
   const [adminName, setAdminName] = useState("Admin User");
   const [user, setUser] = useState(null);
   const [profilePic, setProfilePic] = useState(null);
+  const [companyName, setCompanyName] = useState(
+    localStorage.getItem("admin_company_name") || ""
+  );
   const { toggleSidebar } = useSidebar();
+
+  // ✅ NEW — company ka naam dashboard se update hota hai
+  useEffect(() => {
+    const updateCompanyName = () =>
+      setCompanyName(localStorage.getItem("admin_company_name") || "");
+    window.addEventListener("company-name-updated", updateCompanyName);
+    return () =>
+      window.removeEventListener("company-name-updated", updateCompanyName);
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
-const loadUserData = async () => {
-  const storedUser =
-    localStorage.getItem("admin_user") || localStorage.getItem("user");
-  if (storedUser) {
-    try {
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
+    const loadUserData = async () => {
+      const storedUser =
+        localStorage.getItem("admin_user") || localStorage.getItem("user");
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
 
-      // API se real name fetch karo
-      const token = localStorage.getItem("admin_token") || localStorage.getItem("token");
-      try {
-        const res = await fetch(
-          `${process.env.REACT_APP_API_URL || "http://localhost:5000/api/v1"}/admin/profile`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          const u = data.data?.user || {};
-          const realName = u.name && u.name !== "admin" ? u.name : null;
-          setAdminName(
-            realName || parsedUser.email?.split("@")[0] || "Admin"
-          );
-        } else {
-          setAdminName(parsedUser.email?.split("@")[0] || "Admin");
-        }
-      } catch (e) {
-        setAdminName(parsedUser.email?.split("@")[0] || "Admin");
+          // API se real name fetch karo
+          const token =
+            localStorage.getItem("admin_token") || localStorage.getItem("token");
+          try {
+            const res = await fetch(
+              `${process.env.REACT_APP_API_URL || "http://localhost:5000/api/v1"}/admin/profile`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (res.ok) {
+              const data = await res.json();
+              const u = data.data?.user || {};
+              const realName = u.name && u.name !== "admin" ? u.name : null;
+              setAdminName(
+                realName || parsedUser.email?.split("@")[0] || "Admin"
+              );
+            } else {
+              setAdminName(parsedUser.email?.split("@")[0] || "Admin");
+            }
+          } catch (e) {
+            setAdminName(parsedUser.email?.split("@")[0] || "Admin");
+          }
+
+          // Profile pic load karo
+          const email = parsedUser.email || "admin";
+          const pic =
+            localStorage.getItem(`admin_profile_pic_${email}`) ||
+            localStorage.getItem("admin_profile_pic");
+          if (pic) {
+            localStorage.setItem("admin_profile_pic", pic);
+            setProfilePic(pic);
+          } else {
+            setProfilePic(null);
+          }
+        } catch (e) {}
       }
+    };
 
-      // Profile pic load karo
-      const email = parsedUser.email || "admin";
-      const pic =
-        localStorage.getItem(`admin_profile_pic_${email}`) ||
-        localStorage.getItem("admin_profile_pic");
-      if (pic) {
-        localStorage.setItem("admin_profile_pic", pic);
-        setProfilePic(pic);
-      } else {
-        setProfilePic(null);
-      }
-    } catch (e) {}
-  }
-};
-
-loadUserData();
-window.addEventListener("storage", loadUserData);
+    loadUserData();
+    window.addEventListener("storage", loadUserData);
 
     return () => {
       clearInterval(timer);
@@ -89,6 +102,7 @@ window.addEventListener("storage", loadUserData);
   const handleLogout = () => {
     localStorage.removeItem("admin_token");
     localStorage.removeItem("admin_user");
+    localStorage.removeItem("admin_company_name"); // ✅ NEW
     sessionStorage.clear();
     navigate("/admin/login");
   };
@@ -112,7 +126,9 @@ window.addEventListener("storage", loadUserData);
             onClick={() => navigate("/admin/dashboard")}
           >
             <span className="logo-icon">📊</span>
-            <span className="logo-text">Attendance System</span>
+            <span className="logo-text">
+              {companyName ? `${companyName} Attendance System` : "Attendance System"}
+            </span>
           </div>
         </div>
 

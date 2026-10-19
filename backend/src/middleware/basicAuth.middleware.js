@@ -1,3 +1,12 @@
+const crypto = require("crypto");
+
+// Dono strings ko hash kar ke barabar length ke saath safe tareeqe se compare karo
+const safeEqual = (a, b) => {
+  const hashA = crypto.createHash("sha256").update(String(a)).digest();
+  const hashB = crypto.createHash("sha256").update(String(b)).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+};
+
 const basicAuth = (req, res, next) => {
   const header = req.headers.authorization || "";
 
@@ -33,8 +42,9 @@ const basicAuth = (req, res, next) => {
   const providedPassword = decoded.slice(separatorIndex + 1);
 
   const expectedUsername = process.env.BASIC_AUTH_USERNAME || "";
+  // Purana (typo wala) naam bhi chalta rahega, taake .env na toote
   const expectedPassword =
-    process.env.BASIC_AUTH_PASSWOR || process.env.BASIC_AUTH_PASSWORD || "";
+    process.env.BASIC_AUTH_PASSWORD || process.env.BASIC_AUTH_PASSWOR || "";
 
   if (!expectedUsername || !expectedPassword) {
     return res.status(500).json({
@@ -44,10 +54,10 @@ const basicAuth = (req, res, next) => {
     });
   }
 
-  if (
-    providedUsername !== expectedUsername ||
-    providedPassword !== expectedPassword
-  ) {
+  const usernameOk = safeEqual(providedUsername, expectedUsername);
+  const passwordOk = safeEqual(providedPassword, expectedPassword);
+
+  if (!usernameOk || !passwordOk) {
     return res.status(401).json({
       success: false,
       message: "Invalid basic auth credentials.",

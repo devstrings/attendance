@@ -1,15 +1,66 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const User = require('../models/User');
+
+// Decide which company is "active" for this request
+const resolveActiveCompany = (user, headerCompanyId) => {
+  const allowed = [];
+  if (user.companyId) allowed.push(String(user.companyId));
+  (user.companies || []).forEach((c) => {
+    const id = String(c);
+    if (!allowed.includes(id)) allowed.push(id);
+  });
+
+  const toObjectId = (id) => (id ? new mongoose.Types.ObjectId(id) : null);
+
+  // Superadmin aur Worker: platform level, company restriction nahi
+  if (user.role === 'superadmin' || user.role === 'worker') {
+    if (headerCompanyId) {
+      if (!mongoose.Types.ObjectId.isValid(headerCompanyId)) {
+        return { error: { status: 400, message: 'Invalid company id.' } };
+      }
+      return { companyId: toObjectId(headerCompanyId), allowed };
+    }
+    return { companyId: toObjectId(allowed[0] || null), allowed };
+  }
+
+  // Header bheja gaya hai → allowed list mein hona chahiye
+  if (headerCompanyId) {
+    if (!allowed.includes(headerCompanyId)) {
+      return { error: { status: 403, message: 'You do not have access to this company.' } };
+    }
+    return { companyId: toObjectId(headerCompanyId), allowed };
+  }
+
+  // Header nahi bheja: 0 ya 1 company ho to theek
+  if (allowed.length <= 1) {
+    return { companyId: toObjectId(allowed[0] || null), allowed };
+  }
+
+  // Multiple companies aur header missing
+  return {
+    error: {
+      status: 400,
+      message: 'Multiple companies assigned. Please send x-company-id header.'
+    }
+  };
+};
+
+const buildReqUser = (user, result) => ({
+  _id: user._id,
+  userId: user._id,
+  email: user.email,
+  role: user.role,
+  permissions: user.permissions || [],   // ✅ NEW
+  companyId: result.companyId,
+  companies: result.allowed
+});
 
 const authenticate = async (req, res, next) => {
   try {
-    // Get token from header
     const authHeader = req.headers.authorization;
-    
-    console.log('🔐 Auth Header:', authHeader ? 'Present' : 'Missing');
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ No token in request');
       return res.status(401).json({
         success: false,
         message: 'Access denied. No token provided.'
@@ -17,52 +68,47 @@ const authenticate = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    console.log('🔑 Token received:', token ? token.substring(0, 20) + '...' : 'NONE');
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('✅ Token decoded - User ID:', decoded.userId, '| Role:', decoded.role);
 
     // Find user by ID
     const user = await User.findById(decoded.userId);
 
     if (!user) {
-      console.error('❌ User not found for ID:', decoded.userId);
       return res.status(401).json({
         success: false,
         message: 'Invalid token. User not found.'
       });
     }
 
-    // Check if user is active
     if (!user.isActive) {
-      console.error('❌ User inactive:', decoded.userId);
       return res.status(403).json({
         success: false,
         message: 'Your account has been deactivated. Please contact admin.'
       });
     }
 
-    console.log('✅ User authenticated:', user.email, '| Role:', user.role);
+    // Active company resolve karo
+    const headerCompanyId = req.headers['x-company-id'];
+    const result = resolveActiveCompany(user, headerCompanyId);
 
-    // Attach user to request object
-    req.user = {
-      _id: user._id,           // ✅ CRITICAL: Add _id field
-      userId: user._id,        // Keep this for backward compatibility
-      email: user.email,
-      role: user.role,
-      companyId: user.companyId   // ✅ NEW
-    };
+    if (result.error) {
+      return res.status(result.error.status).json({
+        success: false,
+        message: result.error.message
+      });
+    }
+
+    req.user = buildReqUser(user, result);
+    req.companyId = result.companyId;
 
     next();
   } catch (error) {
     console.error('❌ Auth error:', error.message);
-    
+
     if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token.'
-      });
+      return res.status(401).json({ success: false, message: 'Invalid token.' });
     }
 
     if (error.name === 'TokenExpiredError') {
@@ -74,8 +120,7 @@ const authenticate = async (req, res, next) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Authentication failed.',
-      error: error.message
+      message: 'Authentication failed.'
     });
   }
 };
@@ -89,13 +134,12 @@ const optionalAuth = async (req, res, next) => {
       const user = await User.findById(decoded.userId);
 
       if (user && user.isActive) {
-        req.user = {
-          _id: user._id,
-          userId: user._id,
-          email: user.email,
-          role: user.role,
-          companyId: user.companyId   // ✅ NEW
-        };
+        const result = resolveActiveCompany(user, req.headers['x-company-id']);
+
+        if (!result.error) {
+          req.user = buildReqUser(user, result);
+          req.companyId = result.companyId;
+        }
       }
     }
 

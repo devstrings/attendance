@@ -2,34 +2,37 @@ const express = require('express');
 const router = express.Router();
 
 const { authenticate } = require('../middleware/auth.middleware');
-const { isSuperAdmin } = require('../middleware/superAdmin.middleware');
+const { allowRoles, requirePermission } = require('../middleware/permission.middleware');
 const superAdminController = require('../controllers/superAdmin.controller');
 
-// ✅ All routes below require: logged in AND role === 'superadmin'
-router.use(authenticate, isSuperAdmin);
+// ✅ Sab routes ke liye login zaroori hai. Aage har route apna guard khud lagata hai.
+router.use(authenticate);
 
-// Company CRUD
-router.post('/companies', superAdminController.createCompany);
-router.get('/companies', superAdminController.getAllCompanies);
-router.get('/companies/:companyId', superAdminController.getCompanyById);
-router.put('/companies/:companyId', superAdminController.updateCompany);
-router.delete('/companies/:companyId', superAdminController.deleteCompany);
+// ================================
+// WORKER + SUPERADMIN (permission ke saath)
+// ================================
+router.get('/companies', requirePermission('companies:view'), superAdminController.getAllCompanies);
+router.get('/companies/:companyId', requirePermission('companies:view'), superAdminController.getCompanyById);
+router.get('/companies/:companyId/admins', requirePermission('companies:view'), superAdminController.getCompanyAdmins);
 
-// Suspend / Activate
-router.patch('/companies/:companyId/suspend', superAdminController.suspendCompany);
-router.patch('/companies/:companyId/activate', superAdminController.activateCompany);
+router.patch('/companies/:companyId/suspend', requirePermission('companies:suspend'), superAdminController.suspendCompany);
+router.patch('/companies/:companyId/activate', requirePermission('companies:suspend'), superAdminController.activateCompany);
 
-// Company Admin management
-router.post('/companies/:companyId/admin', superAdminController.createCompanyAdmin);
-router.patch('/admin/:userId/reset-password', superAdminController.resetCompanyAdminPassword);
+router.get('/platform-usage', requirePermission('usage:view'), superAdminController.getPlatformUsage);
+router.get('/audit-logs', requirePermission('auditlogs:view'), superAdminController.getAuditLogs);
 
-// Audit & Monitoring
-router.get('/audit-logs', superAdminController.getAuditLogs);
-router.get('/platform-usage', superAdminController.getPlatformUsage);
+// ================================
+// SIRF SUPERADMIN
+// ================================
+router.post('/companies', allowRoles('superadmin'), superAdminController.createCompany);
+router.put('/companies/:companyId', allowRoles('superadmin'), superAdminController.updateCompany);
+router.delete('/companies/:companyId', allowRoles('superadmin'), superAdminController.deleteCompany);
 
+router.post('/companies/:companyId/admin', allowRoles('superadmin'), superAdminController.createCompanyAdmin);
+router.patch('/admin/:userId/reset-password', allowRoles('superadmin'), superAdminController.resetCompanyAdminPassword);
 
-router.get('/audit-logs', superAdminController.getAuditLogs);
-router.delete('/audit-logs/clear-all', superAdminController.clearAllAuditLogs);   // ✅ NEW (specific route pehle)
-router.delete('/audit-logs/:logId', superAdminController.deleteAuditLog);          // ✅ NEW
+// Specific route pehle, phir :logId wala
+router.delete('/audit-logs/clear-all', allowRoles('superadmin'), superAdminController.clearAllAuditLogs);
+router.delete('/audit-logs/:logId', allowRoles('superadmin'), superAdminController.deleteAuditLog);
 
 module.exports = router;

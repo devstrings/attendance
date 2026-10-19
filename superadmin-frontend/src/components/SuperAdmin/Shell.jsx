@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getCurrentUser, clearAuthData } from '../../api';
+import { getCurrentUser, clearAuthData, hasPermission, isSuperAdmin } from '../../api';
 
 function Shell({ children }) {
   const navigate = useNavigate();
@@ -16,11 +16,22 @@ function Shell({ children }) {
       <header className="sa-header">
         <div className="sa-header-left">
           <div className="sa-logo-badge sa-logo-badge-sm">SA</div>
-          <span className="sa-header-title">Super Admin</span>
+          <span className="sa-header-title">
+            {isSuperAdmin() ? 'Super Admin' : 'Worker'}
+          </span>
           <nav className="sa-nav">
-            <Link to="/dashboard" className="sa-nav-link">Companies</Link>
-            <Link to="/audit-logs" className="sa-nav-link">Audit Logs</Link>
-            <Link to="/platform-usage" className="sa-nav-link">Platform Usage</Link>
+            {hasPermission('companies:view') && (
+              <Link to="/dashboard" className="sa-nav-link">Companies</Link>
+            )}
+            {hasPermission('auditlogs:view') && (
+              <Link to="/audit-logs" className="sa-nav-link">Audit Logs</Link>
+            )}
+            {hasPermission('usage:view') && (
+              <Link to="/platform-usage" className="sa-nav-link">Platform Usage</Link>
+            )}
+            {isSuperAdmin() && (
+              <Link to="/workers" className="sa-nav-link">Workers</Link>
+            )}
           </nav>
         </div>
         <div className="sa-header-right">

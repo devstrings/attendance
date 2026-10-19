@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { login } from '../../services/superAdminService';
 import { setAuthData } from '../../api';
 
+// 3003 pe worker portal chalta hai (REACT_APP_PORTAL=worker), baqi sab superadmin
+const PORTAL = process.env.REACT_APP_PORTAL === 'worker' ? 'worker' : 'superadmin';
+
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,8 +22,12 @@ function Login() {
       const res = await login(email, password);
       const { token, user } = res.data.data;
 
-      if (user.role !== 'superadmin') {
-        setError('This portal is for Super Admins only.');
+      if (user.role !== PORTAL) {
+        setError(
+          PORTAL === 'worker'
+            ? 'This portal is for Workers only.'
+            : 'This portal is for Super Admins only.'
+        );
         setLoading(false);
         return;
       }
@@ -38,9 +45,9 @@ function Login() {
     <div className="sa-login-page">
       <div className="sa-login-card">
         <div className="sa-login-header">
-          <div className="sa-logo-badge">SA</div>
-          <h1>Super Admin</h1>
-          <p>Platform control center</p>
+          <div className="sa-logo-badge">{PORTAL === 'worker' ? 'WK' : 'SA'}</div>
+          <h1>{PORTAL === 'worker' ? 'Worker Portal' : 'Super Admin'}</h1>
+          <p>{PORTAL === 'worker' ? 'Platform support panel' : 'Platform control center'}</p>
         </div>
 
         <form onSubmit={handleSubmit}>

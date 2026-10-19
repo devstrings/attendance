@@ -1,21 +1,14 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import '../../styles/Auth.css';
 
-// URL se role detect karo:
-// /employee/forgot-password → employee
-// /admin/forgot-password    → admin
-// /manager/forgot-password  → manager
-const getRoleFromPath = (pathname) => {
-  if (pathname.includes('/admin')) return 'admin';
-  if (pathname.includes('/manager')) return 'manager';
-  return 'employee';
-};
+// ✅ Ye admin panel hai, is liye role hamesha admin hai
+// (pehle URL se guess hota tha, aur /forgot-password pe employee ban jata tha)
+const ROLE = 'admin';
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const role = getRoleFromPath(location.pathname);
+  const role = ROLE;
 
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');

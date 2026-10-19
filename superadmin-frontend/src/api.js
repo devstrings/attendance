@@ -59,10 +59,29 @@ export const clearAuthData = () => {
 };
 
 export const getCurrentUser = () => {
-  const userStr = localStorage.getItem('superadmin_user');
-  return userStr ? JSON.parse(userStr) : null;
+  try {
+    const userStr = localStorage.getItem('superadmin_user');
+    return userStr ? JSON.parse(userStr) : null;
+  } catch (e) {
+    return null;
+  }
 };
 
 export const isAuthenticated = () => !!localStorage.getItem('superadmin_token');
+
+// ================================
+// ROLE / PERMISSION HELPERS (NEW)
+// ================================
+export const getUserRole = () => getCurrentUser()?.role || null;
+
+export const isSuperAdmin = () => getUserRole() === 'superadmin';
+
+// Superadmin ko sab allow. Worker ko sirf wohi jo permissions mein ho.
+export const hasPermission = (permission) => {
+  const user = getCurrentUser();
+  if (!user) return false;
+  if (user.role === 'superadmin') return true;
+  return user.role === 'worker' && (user.permissions || []).includes(permission);
+};
 
 export default api;

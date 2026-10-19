@@ -412,6 +412,36 @@ const createCompanyAdmin = async (req, res) => {
 };
 
 /**
+ * ✅ NEW — List a company's admins (email, name, status). Password kabhi return nahi hota.
+ */
+const getCompanyAdmins = async (req, res) => {
+  try {
+    const { companyId } = req.params;
+
+    const company = await Company.findById(companyId).select('companyName');
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'Company not found.' });
+    }
+
+    const admins = await User.find({ companyId, role: 'admin' })
+      .select('email name phoneNumber isActive lastLogin createdAt')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: admins
+    });
+  } catch (error) {
+    console.error('❌ Get company admins error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch company admins.',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Reset a company admin's password
  */
 const resetCompanyAdminPassword = async (req, res) => {
@@ -578,9 +608,10 @@ module.exports = {
   activateCompany,
   deleteCompany,
   createCompanyAdmin,
+  getCompanyAdmins,      // ✅ NEW
   resetCompanyAdminPassword,
-   getAuditLogs,        // ✅ NEW
-   deleteAuditLog,        // ✅ NEW
-   clearAllAuditLogs,     // ✅ NEW
+   getAuditLogs,
+   deleteAuditLog,
+   clearAllAuditLogs,
   getPlatformUsage  
 };

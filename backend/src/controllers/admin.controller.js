@@ -14,6 +14,18 @@ const { validateEmail } = require("../utils/validators");
 const notificationService = require("../utils/notificationService");
 const { getActiveSystemConfig } = require('../utils/getSystemConfig');
 
+// ✅ NEW — company ke employees tak scope karo, employeeId filter safely apply karo
+// (employeeId filter ab company filter ko override nahi kar sakta)
+const buildEmployeeScope = async (companyId, employeeId) => {
+  if (!companyId) return employeeId ? { employeeId } : {};
+  const ids = await Employee.find({ companyId }).distinct('_id');
+  if (employeeId) {
+    const allowed = ids.some((id) => id.toString() === String(employeeId));
+    return { employeeId: allowed ? employeeId : { $in: [] } };
+  }
+  return { employeeId: { $in: ids } };
+};
+
 // ==================== WELCOME EMAIL TEMPLATE ====================
 const getWelcomeEmailTemplate = ({
   firstName,
@@ -447,12 +459,22 @@ const createEmployee = async (req, res) => {
       return res
         .status(400)
         .json({ success: false, message: "Email already registered." });
+
+    // ✅ UPDATED — manager ki company bhi check hoti hai
     if (managerId) {
       const manager = await Manager.findById(managerId);
       if (!manager)
         return res
           .status(404)
           .json({ success: false, message: "Manager not found." });
+      if (
+        req.companyId &&
+        manager.companyId &&
+        manager.companyId.toString() !== req.companyId.toString()
+      )
+        return res
+          .status(400)
+          .json({ success: false, message: "Manager is company ka nahi hai." });
     }
     if (cnic && cnic.trim() !== "") {
       const existingCNIC = await Employee.findOne({
@@ -843,6 +865,12 @@ const updateUser = async (req, res) => {
   try {
     const { userId, userType } = req.params;
     const updateData = req.body;
+
+    // ✅ NEW — body se company/user link badalne ki ijazat nahi
+    delete updateData.companyId;
+    delete updateData.companies;
+    delete updateData.userId;
+
     if (!["manager", "employee"].includes(userType))
       return res
         .status(400)
@@ -973,16 +1001,15 @@ const getAllAttendance = async (req, res) => {
       status = "",
     } = req.query;
     const query = {};
-     if (req.companyId) {
-      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
-      query.employeeId = { $in: companyEmployeeIds };
-    }
+
+    // ✅ UPDATED — company scope + employeeId filter safely
+    Object.assign(query, await buildEmployeeScope(req.companyId, employeeId));
+
     if (date) {
       const d = new Date(date);
       d.setHours(0, 0, 0, 0);
       query.date = { $gte: d, $lt: new Date(d.getTime() + 86400000) };
     }
-    if (employeeId) query.employeeId = employeeId;
     if (status) query.status = status;
     const records = await Attendance.find(query)
       .populate({
@@ -1099,10 +1126,10 @@ const getSummaryReport = async (req, res) => {
   try {
     const { startDate, endDate, employeeId, department } = req.query;
     const query = {};
-    if (req.companyId) {
-      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
-      query.employeeId = { $in: companyEmployeeIds };
-    }
+
+    // ✅ UPDATED — company scope + employeeId filter safely
+    Object.assign(query, await buildEmployeeScope(req.companyId, employeeId));
+
     if (startDate || endDate) {
       query.date = {};
       if (startDate) {
@@ -1116,7 +1143,6 @@ const getSummaryReport = async (req, res) => {
         query.date.$lte = e;
       }
     }
-    if (employeeId) query.employeeId = employeeId;
     const records = await Attendance.find(query)
       .populate({
         path: "employeeId",
@@ -1274,7 +1300,7 @@ const getEmployeeById = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Employee not found" });
-        if (req.companyId && employee.companyId && employee.companyId.toString() !== req.companyId.toString()) {
+    if (req.companyId && employee.companyId && employee.companyId.toString() !== req.companyId.toString()) {
       return res.status(403).json({ success: false, message: "Access denied." });
     }
     res.status(200).json({ success: true, data: { employee } });
@@ -1293,13 +1319,11 @@ const getAllLeaves = async (req, res) => {
   try {
     const { page = 1, limit = 10, status = "", employeeId = "" } = req.query;
     const query = {};
-    if (req.companyId) {
-      const companyEmployeeIds = await Employee.find({ companyId: req.companyId }).distinct('_id');
-      query.employeeId = { $in: companyEmployeeIds };
-    }
+
+    // ✅ UPDATED — company scope + employeeId filter safely
+    Object.assign(query, await buildEmployeeScope(req.companyId, employeeId));
 
     if (status) query.status = status;
-    if (employeeId) query.employeeId = employeeId;
     const leaves = await Leave.find(query)
       .populate("employeeId", "firstName lastName employeeCode")
       .populate("managerId", "firstName lastName")
@@ -1368,7 +1392,7 @@ const getSettings = async (req, res) => {
 const forceDeleteEmployee = async (req, res) => {
   try {
     const { employeeId } = req.params;
-        const existingEmp = await Employee.findById(employeeId);
+    const existingEmp = await Employee.findById(employeeId);
     if (existingEmp && req.companyId && existingEmp.companyId && existingEmp.companyId.toString() !== req.companyId.toString()) {
       return res.status(403).json({ success: false, message: "Access denied." });
     }
@@ -1438,7 +1462,7 @@ const createSystemConfig = async (req, res) => {
     const config = new SystemConfig({
       ...req.body,
       isActive: true,
-       companyId: req.companyId,   // ✅ NEW
+      companyId: req.companyId,   // ✅ NEW
       createdBy: req.user.userId,
       effectiveFrom: new Date(),
     });
@@ -1543,6 +1567,7 @@ const updateSystemConfig = async (req, res) => {
         notifTitle,
         notifMessage,
         "all",
+        req.companyId,   // ✅ NEW — sirf isi company ke users ko notification
       );
     } catch (e) {
       console.warn("⚠️ Notification failed:", e.message);
@@ -1680,7 +1705,7 @@ const getProfilePicture = async (req, res) => {
 
 module.exports = {
   updateProfilePicture,
-getProfilePicture,
+  getProfilePicture,
   getDashboard,
   createManager,
   createEmployee,

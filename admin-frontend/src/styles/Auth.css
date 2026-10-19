@@ -10,12 +10,14 @@
 
 /* Auth Box */
 .auth-box {
-  background-color: var(--bg-primary);
+  /* ✅ FIX: agar variable na mile to safed background */
+  background-color: var(--bg-primary, #ffffff);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xl);
   width: 100%;
   max-width: 480px;
   padding: var(--spacing-2xl);
+  box-sizing: border-box;
   animation: fadeIn 0.5s ease-in-out;
 }
 
@@ -59,6 +61,22 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
+  width: 100%;
+}
+
+/* ✅ FIX: form-group aur uske inputs poori chaudai lein */
+.auth-form .form-group {
+  width: 100%;
+}
+
+.auth-form .form-group label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.auth-form .form-group input {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Password Input Wrapper */
@@ -66,19 +84,27 @@
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
+/* ✅ FIX: input poori chaudai le (pehle width thi hi nahi) */
 .password-input-wrapper input {
+  width: 100%;
+  flex: 1;
+  box-sizing: border-box;
   padding-right: 3rem;
 }
 
 .password-toggle {
   position: absolute;
   right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
   background: none;
   border: none;
   cursor: pointer;
   font-size: 1.25rem;
+  line-height: 1;
   padding: 0.25rem;
   color: var(--text-secondary);
   transition: color var(--transition-fast);
@@ -321,10 +347,14 @@
 
 /* Password Requirements */
 .password-requirements {
-  background-color: var(--bg-secondary);
+  /* ✅ FIX: fallback background aur box ke andar rakhne ke liye */
+  background-color: var(--bg-secondary, #f3f4f6);
   padding: var(--spacing-lg);
   border-radius: var(--radius-md);
   margin-top: var(--spacing-lg);
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
 }
 
 .password-requirements h4 {
@@ -335,6 +365,7 @@
 .password-requirements ul {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 
 .password-requirements li {

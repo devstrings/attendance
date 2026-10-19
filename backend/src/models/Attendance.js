@@ -1,6 +1,13 @@
 const mongoose = require('mongoose');
 
 const attendanceSchema = new mongoose.Schema({
+  // ✅ NEW — Multi-tenant support (company-wise data isolation)
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false,   // purane records ke liye null, migration ke baad fill hoga
+    default: null
+  },
   employeeId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Employee',
@@ -67,6 +74,7 @@ const attendanceSchema = new mongoose.Schema({
 attendanceSchema.index({ employeeId: 1, date: 1 });
 attendanceSchema.index({ managerId: 1, date: 1 });
 attendanceSchema.index({ overtimeStatus: 1 });
+attendanceSchema.index({ companyId: 1, date: 1 });   // ✅ NEW
 
 // ── Pre-save: calculate workHours + overtimeHours automatically ──────────────
 attendanceSchema.pre('save', function (next) {
